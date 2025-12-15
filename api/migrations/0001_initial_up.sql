@@ -1,5 +1,7 @@
 -- 0001_initial_up.sql
 -- Initial schema for Hybrid Queue + Scheduling system
+-- Note: Foreign key checks are temporarily disabled to allow any-order table creation
+-- This is safe for initial schema setup but should be used cautiously in production migrations
 SET FOREIGN_KEY_CHECKS=0;
 CREATE DATABASE IF NOT EXISTS `queue_system` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE `queue_system`;

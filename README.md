@@ -59,7 +59,7 @@ Files
 
 4. **Verify the schema:**
    - Visit http://localhost:8081 (phpMyAdmin)
-   - Login: root / rootpassword
+   - Login credentials are in docker-compose.yml
    - Check the `queue_system` database
 
 ### Migration Commands

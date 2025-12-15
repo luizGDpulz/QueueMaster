@@ -1,4 +1,6 @@
 -- 0001_initial_down.sql
+-- Note: This rollback drops the entire database as it reverses the initial setup
+-- Use with caution - this will delete all data
 SET FOREIGN_KEY_CHECKS=0;
 USE `queue_system`;
 

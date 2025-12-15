@@ -38,8 +38,8 @@ function loadEnv($path) {
                 $value = $matches[2];
             }
             
-            // Set environment variable if not already set
-            if (!getenv($key)) {
+            // Only set if not already set (prioritize existing env vars)
+            if (!getenv($key) && !isset($_ENV[$key])) {
                 putenv("$key=$value");
                 $_ENV[$key] = $value;
             }

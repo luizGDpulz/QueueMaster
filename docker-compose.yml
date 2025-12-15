@@ -1,5 +1,9 @@
 version: '3.8'
 
+# NOTE: This configuration is for LOCAL DEVELOPMENT ONLY
+# For production, use environment variables or secrets management
+# and never commit credentials to version control
+
 services:
   mariadb:
     image: mariadb:10.11
