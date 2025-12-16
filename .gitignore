@@ -1,3 +1,33 @@
 # Ignore the scripts folder and issue JSON files
 /scripts/
 issues*.json
+
+# Environment files
+.env
+.env.local
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Composer
+/vendor/
+composer.lock
+
+# Node modules
+node_modules/
+
+# Build artifacts
+/dist/
+/build/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
