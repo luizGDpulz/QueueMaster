@@ -3,8 +3,8 @@
 -- Note: Foreign key checks are temporarily disabled to allow any-order table creation
 -- This is safe for initial schema setup but should be used cautiously in production migrations
 SET FOREIGN_KEY_CHECKS=0;
-CREATE DATABASE IF NOT EXISTS `queue_system` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-USE `queue_system`;
+CREATE DATABASE IF NOT EXISTS `queue_master` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `queue_master`;
 SET FOREIGN_KEY_CHECKS=1;
 
 -- users
@@ -99,6 +99,42 @@ CREATE TABLE IF NOT EXISTS notifications (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- refresh_tokens (for JWT rotation)
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  token_hash VARCHAR(255) NOT NULL UNIQUE,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revoked_at TIMESTAMP NULL DEFAULT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- routes (dynamic route registration)
+CREATE TABLE IF NOT EXISTS routes (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  method ENUM('GET','POST','PUT','DELETE','PATCH') NOT NULL,
+  path VARCHAR(255) NOT NULL,
+  controller VARCHAR(255) NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  middleware TEXT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_method_path (method, path)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- idempotency_keys (for request deduplication)
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  key_hash VARCHAR(255) NOT NULL UNIQUE,
+  request_method VARCHAR(10) NOT NULL,
+  request_path VARCHAR(255) NOT NULL,
+  response_body TEXT NULL,
+  status_code INT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Indexes (recommended)
 CREATE INDEX idx_appointments_start_at ON appointments (start_at);
 CREATE INDEX idx_appointments_professional_start ON appointments (professional_id, start_at);
@@ -107,3 +143,6 @@ CREATE INDEX idx_queue_entries_queue_status_position ON queue_entries (queue_id,
 -- Additional helpful indexes
 CREATE INDEX idx_queue_entries_queue_created ON queue_entries (queue_id, created_at);
 CREATE INDEX idx_services_establishment ON services (establishment_id);
+CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens (expires_at);
+CREATE INDEX idx_refresh_tokens_user ON refresh_tokens (user_id);
+CREATE INDEX idx_idempotency_keys_expires ON idempotency_keys (expires_at);

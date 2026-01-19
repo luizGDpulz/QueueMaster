@@ -3,8 +3,8 @@
  * Migration Runner Script
  * 
  * Usage:
- *   php api/scripts/migrate.php up     - Run all pending migrations
- *   php api/scripts/migrate.php down   - Rollback the last migration
+ *   php scripts/migrate.php up     - Run all pending migrations
+ *   php scripts/migrate.php down   - Rollback the last migration
  * 
  * Environment variables (from .env or environment):
  *   DB_HOST     - Database host (default: localhost)
@@ -48,7 +48,7 @@ function loadEnv($path) {
 }
 
 // Load .env file
-$envPath = __DIR__ . '/../../.env';
+$envPath = __DIR__ . '/../.env';
 loadEnv($envPath);
 
 // Get database configuration from environment
@@ -72,8 +72,8 @@ if ($command === 'help') {
     echo "Migration Runner\n";
     echo "================\n\n";
     echo "Usage:\n";
-    echo "  php api/scripts/migrate.php up     - Run all pending migrations\n";
-    echo "  php api/scripts/migrate.php down   - Rollback the last migration\n\n";
+    echo "  php scripts/migrate.php up     - Run all pending migrations\n";
+    echo "  php scripts/migrate.php down   - Rollback the last migration\n\n";
     echo "Environment variables (from .env or environment):\n";
     echo "  DB_HOST     - Database host (default: localhost)\n";
     echo "  DB_PORT     - Database port (default: 3306)\n";
