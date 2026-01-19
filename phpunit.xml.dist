@@ -40,7 +40,7 @@
             <directory suffix=".php">src</directory>
         </include>
         <exclude>
-            <directory>src/Utils/Logger.php</directory>
+            <file>src/Utils/Logger.php</file>
             <directory>vendor</directory>
         </exclude>
     </coverage>

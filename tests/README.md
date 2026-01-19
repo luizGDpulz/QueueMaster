@@ -82,6 +82,8 @@ Each test uses transactions that are rolled back after execution, ensuring isola
 
 For manual testing and development, use the seed script:
 ```bash
+mysql -u root -p < ../scripts/seed_sample_data.sql
+# Or from repository root:
 mysql -u root -p < scripts/seed_sample_data.sql
 ```
 

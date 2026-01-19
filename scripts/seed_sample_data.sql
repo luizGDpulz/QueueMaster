@@ -10,6 +10,7 @@ USE queue_system;
 -- Create 3 users with different roles
 -- Password for all users: 'password123'
 -- Bcrypt hash: $2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi
+-- WARNING: This is for DEVELOPMENT/TESTING ONLY. Do NOT use in production!
 
 INSERT INTO users (name, email, password_hash, role, created_at) VALUES
 ('Admin User', 'admin@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', NOW()),
