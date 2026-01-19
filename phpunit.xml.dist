@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         testdox="true"
+         failOnWarning="true"
+         failOnRisky="true"
+         beStrictAboutOutputDuringTests="true">
+
+    <php>
+        <!-- Load environment variables from .env.test if it exists -->
+        <env name="APP_ENV" value="testing"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="3306"/>
+        <env name="DB_NAME" value="queue_system_test"/>
+        <env name="DB_USER" value="root"/>
+        <env name="DB_PASS" value="rootpassword"/>
+        <env name="REDIS_ENABLED" value="false"/>
+        <env name="APP_DEBUG" value="true"/>
+        <env name="QUEUE_GRACE_BEFORE_MINUTES" value="10"/>
+        <env name="QUEUE_GRACE_AFTER_MINUTES" value="15"/>
+    </php>
+
+    <testsuites>
+        <testsuite name="QueueMaster Test Suite">
+            <directory>tests/phpunit</directory>
+        </testsuite>
+    </testsuites>
+
+    <coverage includeUncoveredFiles="true"
+              pathCoverage="false"
+              ignoreDeprecatedCodeUnits="true"
+              disableCodeCoverageIgnore="true">
+        <report>
+            <html outputDirectory="coverage/html"/>
+            <text outputFile="php://stdout" showUncoveredFiles="false"/>
+        </report>
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+        <exclude>
+            <file>src/Utils/Logger.php</file>
+            <directory>vendor</directory>
+        </exclude>
+    </coverage>
+
+    <logging>
+        <junit outputFile="coverage/junit.xml"/>
+    </logging>
+</phpunit>
