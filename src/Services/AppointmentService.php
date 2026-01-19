@@ -75,23 +75,20 @@ class AppointmentService
             // - Same professional
             // - NOT cancelled/no_show
             // - Time ranges overlap: (start1 < end2) AND (end1 > start2)
+            // Standard overlap formula: New [startAt, endAt] overlaps existing [start_at, end_at]
             $conflictSql = "
                 SELECT id FROM appointments
                 WHERE professional_id = ?
                   AND status NOT IN ('cancelled', 'no_show')
-                  AND (
-                    (start_at < ? AND end_at > ?)
-                    OR (start_at < ? AND end_at > ?)
-                    OR (start_at >= ? AND end_at <= ?)
-                  )
+                  AND start_at < ?
+                  AND end_at > ?
                 FOR UPDATE
             ";
             
             $conflicts = $this->db->query($conflictSql, [
                 $professionalId,
-                $endAt, $startAt,      // New appointment overlaps existing start
-                $endAt, $startAt,      // New appointment overlaps existing end
-                $startAt, $endAt       // New appointment contains existing
+                $endAt,      // Existing start_at < new endAt
+                $startAt     // Existing end_at > new startAt
             ]);
 
             if (!empty($conflicts)) {

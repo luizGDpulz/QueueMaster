@@ -192,20 +192,24 @@ class QueueService
             // Step 1: Check for priority appointments (checked-in, within grace window)
             // Only if establishment/professional are specified
             if ($establishmentId && $professionalId) {
+                // Calculate grace window bounds in PHP for better index usage
+                $now = time();
+                $windowStart = date('Y-m-d H:i:s', $now - ($graceBefore * 60));
+                $windowEnd = date('Y-m-d H:i:s', $now + ($graceAfter * 60));
+                
                 $appointmentSql = "
                     SELECT * FROM appointments
                     WHERE establishment_id = ?
                       AND professional_id = ?
                       AND status = 'checked_in'
-                      AND start_at BETWEEN DATE_SUB(NOW(), INTERVAL ? MINUTE) 
-                                      AND DATE_ADD(NOW(), INTERVAL ? MINUTE)
+                      AND start_at BETWEEN ? AND ?
                     ORDER BY start_at ASC
                     LIMIT 1
                     FOR UPDATE
                 ";
                 $appointments = $this->db->query(
                     $appointmentSql,
-                    [$establishmentId, $professionalId, $graceBefore, $graceAfter]
+                    [$establishmentId, $professionalId, $windowStart, $windowEnd]
                 );
 
                 if (!empty($appointments)) {
