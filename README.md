@@ -117,7 +117,7 @@ mysql -u root -p -e "CREATE DATABASE queue_system CHARACTER SET utf8mb4 COLLATE 
 Apply database migrations to create all tables:
 
 ```bash
-php api/scripts/migrate.php up
+php scripts/migrate.php up
 ```
 
 ### 7. Seed Sample Data (Optional)
@@ -672,7 +672,7 @@ RATE_LIMIT_WINDOW_SECONDS=60
 **Problem:** Migration script fails
 
 **Solutions:**
-- Drop all tables and retry: `php api/scripts/migrate.php down`
+- Drop all tables and retry: `php scripts/migrate.php down`
 - Check database user has CREATE/ALTER permissions
 - Verify database charset: `utf8mb4`
 
@@ -720,7 +720,7 @@ tail -f logs/app.log
 ## Additional Resources
 
 - **API Postman Collection:** Import `postman_collection.json` for full API testing
-- **Database Schema:** See `api/migrations/` for table definitions
+- **Database Schema:** See `migrations/` for table definitions
 - **Proposals:** Read `docs/PROPOSE_EN.md` for detailed requirements
 - **Sample Data:** Review `scripts/seed_sample_data.sql` for examples
 

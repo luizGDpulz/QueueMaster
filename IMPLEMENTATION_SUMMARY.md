@@ -48,13 +48,11 @@ QueueMaster/
 │       └── SseController.php  # Server-Sent Events
 ├── routes/
 │   └── api.php                # API route definitions (35 endpoints)
-├── api/
-│   ├── migrations/            # Database migrations
-│   │   ├── 0001_initial_up.sql
-│   │   └── 0001_initial_down.sql
-│   └── scripts/
-│       └── migrate.php        # Migration runner
+├── migrations/                # Database migrations
+│   ├── 0001_initial_up.sql
+│   └── 0001_initial_down.sql
 ├── scripts/
+│   ├── migrate.php            # Migration runner
 │   ├── seed_sample_data.sql   # Sample test data
 │   └── cli-model-generator.php# Model generator CLI
 ├── tests/
@@ -257,7 +255,7 @@ cp .env.example .env
 docker-compose up -d
 
 # Run migrations
-php api/scripts/migrate.php up
+php scripts/migrate.php up
 
 # Seed sample data
 mysql -u root -p queue_system < scripts/seed_sample_data.sql
