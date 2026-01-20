@@ -28,7 +28,7 @@ class NotificationsController
         }
 
         $userId = (int)$request->user['id'];
-        $params = $request->query();
+        $params = $request->getQuery();
 
         $page = isset($params['page']) ? (int)$params['page'] : 1;
         $perPage = isset($params['per_page']) ? (int)$params['per_page'] : 20;

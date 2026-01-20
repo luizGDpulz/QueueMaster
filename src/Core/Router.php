@@ -108,11 +108,11 @@ class Router
      */
     private function compilePattern(string $path): string
     {
-        // Escape forward slashes
-        $pattern = preg_replace('/\//', '\/', $path);
+        // Replace {param} with named capture groups FIRST (before escaping)
+        $pattern = preg_replace('/\{([a-zA-Z0-9_]+)\}/', '(?P<$1>[^/]+)', $path);
         
-        // Replace {param} with named capture groups
-        $pattern = preg_replace('/\{([a-zA-Z0-9_]+)\}/', '(?P<$1>[^/]+)', $pattern);
+        // Then escape forward slashes for regex
+        $pattern = preg_replace('/\//', '\/', $pattern);
         
         return '/^' . $pattern . '$/';
     }

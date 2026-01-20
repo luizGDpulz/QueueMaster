@@ -184,10 +184,17 @@
 									"    pm.expect(jsonData.data).to.have.property('access_token');",
 									"});",
 									"",
-									"// Update access token",
+									"pm.test(\"New refresh token received\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('refresh_token');",
+									"});",
+									"",
+									"// Update both tokens (token rotation)",
 									"if (pm.response.code === 200) {",
 									"    var jsonData = pm.response.json();",
 									"    pm.collectionVariables.set('access_token', jsonData.data.access_token);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.refresh_token);",
+									"    console.log('Access token and refresh token updated (token rotation)');",
 									"}"
 								],
 								"type": "text/javascript"
@@ -887,7 +894,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"establishment_id\": 1,\n  \"professional_id\": 1,\n  \"service_id\": 1,\n  \"start_at\": \"2024-01-25 14:00:00\"\n}"
+							"raw": "{\n  \"establishment_id\": 1,\n  \"professional_id\": 1,\n  \"service_id\": 1,\n  \"start_at\": \"2026-01-25 14:00:00\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/appointments",
@@ -1011,7 +1018,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/api/v1/appointments/available-slots?professional_id=1&service_id=1&date=2024-01-25",
+							"raw": "{{base_url}}/api/v1/appointments/available-slots?professional_id=1&service_id=1&date=2026-01-25",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1032,7 +1039,7 @@
 								},
 								{
 									"key": "date",
-									"value": "2024-01-25"
+									"value": "2026-01-25"
 								}
 							]
 						},
@@ -1047,7 +1054,7 @@
 			"name": "Dashboard",
 			"item": [
 				{
-					"name": "Overview",
+					"name": "Queue Overview",
 					"event": [
 						{
 							"listen": "test",
@@ -1057,7 +1064,7 @@
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
-									"pm.test(\"Response contains overview stats\", function () {",
+									"pm.test(\"Response contains queue stats\", function () {",
 									"    var jsonData = pm.response.json();",
 									"    pm.expect(jsonData.data).to.be.an('object');",
 									"});"
@@ -1070,7 +1077,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/api/v1/dashboard/overview",
+							"raw": "{{base_url}}/api/v1/dashboard/queue-overview?establishment_id=1",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1078,15 +1085,21 @@
 								"api",
 								"v1",
 								"dashboard",
-								"overview"
+								"queue-overview"
+							],
+							"query": [
+								{
+									"key": "establishment_id",
+									"value": "1"
+								}
 							]
 						},
-						"description": "Get dashboard overview statistics.\n\n**Authentication:** Required\n**Role:** attendant or admin"
+						"description": "Get queue overview statistics.\n\n**Authentication:** Required\n**Role:** attendant or admin"
 					},
 					"response": []
 				},
 				{
-					"name": "Queue Stats",
+					"name": "Appointments List",
 					"event": [
 						{
 							"listen": "test",
@@ -1104,7 +1117,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/api/v1/dashboard/queue-stats?establishment_id=1",
+							"raw": "{{base_url}}/api/v1/dashboard/appointments-list?establishment_id=1&date=2026-01-20",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1112,47 +1125,7 @@
 								"api",
 								"v1",
 								"dashboard",
-								"queue-stats"
-							],
-							"query": [
-								{
-									"key": "establishment_id",
-									"value": "1"
-								}
-							]
-						},
-						"description": "Get queue statistics for establishment.\n\n**Authentication:** Required\n**Role:** attendant or admin"
-					},
-					"response": []
-				},
-				{
-					"name": "Appointment Stats",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/v1/dashboard/appointment-stats?establishment_id=1&start_date=2024-01-01&end_date=2024-01-31",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"dashboard",
-								"appointment-stats"
+								"appointments-list"
 							],
 							"query": [
 								{
@@ -1160,16 +1133,12 @@
 									"value": "1"
 								},
 								{
-									"key": "start_date",
-									"value": "2024-01-01"
-								},
-								{
-									"key": "end_date",
-									"value": "2024-01-31"
+									"key": "date",
+									"value": "2026-01-20"
 								}
 							]
 						},
-						"description": "Get appointment statistics for date range.\n\n**Authentication:** Required\n**Role:** attendant or admin"
+						"description": "Get appointments list for date.\n\n**Authentication:** Required\n**Role:** attendant or admin"
 					},
 					"response": []
 				}
@@ -1305,7 +1274,7 @@
 			"description": "Notification management endpoints."
 		},
 		{
-			"name": "Health Check",
+			"name": "API Status",
 			"event": [
 				{
 					"listen": "test",
@@ -1315,9 +1284,10 @@
 							"    pm.response.to.have.status(200);",
 							"});",
 							"",
-							"pm.test(\"Service is healthy\", function () {",
+							"pm.test(\"API is running\", function () {",
 							"    var jsonData = pm.response.json();",
-							"    pm.expect(jsonData.data.status).to.eql('healthy');",
+							"    pm.expect(jsonData.data.message).to.include('running');",
+							"    pm.expect(jsonData.data).to.have.property('version');",
 							"});"
 						],
 						"type": "text/javascript"
@@ -1331,15 +1301,17 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{base_url}}/health",
+					"raw": "{{base_url}}/api/v1/status",
 					"host": [
 						"{{base_url}}"
 					],
 					"path": [
-						"health"
+						"api",
+						"v1",
+						"status"
 					]
 				},
-				"description": "Health check endpoint to verify API is running."
+				"description": "API status endpoint to verify service is running."
 			},
 			"response": []
 		}

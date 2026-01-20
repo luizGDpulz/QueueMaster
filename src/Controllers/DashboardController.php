@@ -34,7 +34,7 @@ class DashboardController
 
         try {
             $db = Database::getInstance();
-            $params = $request->query();
+            $params = $request->getQuery();
 
             $establishmentId = isset($params['establishment_id']) ? (int)$params['establishment_id'] : null;
 
@@ -120,7 +120,7 @@ class DashboardController
 
         try {
             $db = Database::getInstance();
-            $params = $request->query();
+            $params = $request->getQuery();
 
             $establishmentId = isset($params['establishment_id']) ? (int)$params['establishment_id'] : null;
             $professionalId = isset($params['professional_id']) ? (int)$params['professional_id'] : null;

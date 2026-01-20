@@ -91,7 +91,7 @@ class AppointmentsController
             return;
         }
 
-        $params = $request->query();
+        $params = $request->getQuery();
         $userId = (int)$request->user['id'];
         $userRole = $request->user['role'];
 
@@ -294,7 +294,7 @@ class AppointmentsController
      */
     public function availableSlots(Request $request): void
     {
-        $params = $request->query();
+        $params = $request->getQuery();
 
         // Validate input
         $errors = Validator::make($params, [

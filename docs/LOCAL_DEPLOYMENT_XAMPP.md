@@ -274,8 +274,7 @@ Acesse no navegador: [http://localhost:8080/api/v1/status](http://localhost:8080
       "notifications": "/api/v1/notifications",
       "streams": "/api/v1/streams"
     }
-  },
-  "request_id": "req_123456789abcdef"
+  }
 }
 ```
 

@@ -25,18 +25,18 @@ class QueuesController
     {
         try {
             $db = Database::getInstance();
-            $params = $request->query();
+            $params = $request->getQuery();
             
             $where = [];
             $values = [];
 
             if (isset($params['establishment_id'])) {
-                $where[] = "establishment_id = ?";
+                $where[] = "q.establishment_id = ?";
                 $values[] = (int)$params['establishment_id'];
             }
 
             if (isset($params['status'])) {
-                $where[] = "status = ?";
+                $where[] = "q.status = ?";
                 $values[] = $params['status'];
             }
 
@@ -314,6 +314,93 @@ class QueuesController
             ], $request->requestId);
 
             Response::serverError('Failed to call next', $request->requestId);
+        }
+    }
+
+    /**
+     * PUT /api/v1/queues/{id}
+     * 
+     * Update queue (admin only)
+     */
+    public function update(Request $request, int $id): void
+    {
+        try {
+            $db = Database::getInstance();
+            $body = $request->getBody();
+
+            // Verify queue exists
+            $queueCheck = $db->query("SELECT id FROM queues WHERE id = ?", [$id]);
+            if (empty($queueCheck)) {
+                Response::notFound('Queue not found', $request->requestId);
+                return;
+            }
+
+            $updateFields = [];
+            $values = [];
+
+            if (isset($body['name'])) {
+                $updateFields[] = "name = ?";
+                $values[] = $body['name'];
+            }
+
+            if (isset($body['status'])) {
+                if (!in_array($body['status'], ['open', 'closed'])) {
+                    Response::badRequest('Invalid status', $request->requestId);
+                    return;
+                }
+                $updateFields[] = "status = ?";
+                $values[] = $body['status'];
+            }
+
+            if (empty($updateFields)) {
+                Response::badRequest('No fields to update', $request->requestId);
+                return;
+            }
+
+            $values[] = $id;
+            $sql = "UPDATE queues SET " . implode(', ', $updateFields) . " WHERE id = ?";
+            $db->execute($sql, $values);
+
+            Response::success(['message' => 'Queue updated successfully']);
+
+        } catch (\Exception $e) {
+            Logger::error('Failed to update queue', [
+                'queue_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to update queue', $request->requestId);
+        }
+    }
+
+    /**
+     * DELETE /api/v1/queues/{id}
+     * 
+     * Delete queue (admin only)
+     */
+    public function delete(Request $request, int $id): void
+    {
+        try {
+            $db = Database::getInstance();
+
+            // Check if queue exists
+            $queueCheck = $db->query("SELECT id FROM queues WHERE id = ?", [$id]);
+            if (empty($queueCheck)) {
+                Response::notFound('Queue not found', $request->requestId);
+                return;
+            }
+
+            $db->execute("DELETE FROM queues WHERE id = ?", [$id]);
+
+            Response::success(['message' => 'Queue deleted successfully']);
+
+        } catch (\Exception $e) {
+            Logger::error('Failed to delete queue', [
+                'queue_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to delete queue', $request->requestId);
         }
     }
 }

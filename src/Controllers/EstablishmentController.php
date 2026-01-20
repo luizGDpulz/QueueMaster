@@ -25,7 +25,7 @@ class EstablishmentController
             $db = Database::getInstance();
             
             $sql = "
-                SELECT id, name, address, phone, email, created_at 
+                SELECT id, name, address, timezone, created_at 
                 FROM establishments 
                 ORDER BY name ASC
             ";
@@ -56,7 +56,7 @@ class EstablishmentController
             $db = Database::getInstance();
             
             $sql = "
-                SELECT id, name, address, phone, email, created_at 
+                SELECT id, name, address, timezone, created_at 
                 FROM establishments 
                 WHERE id = ? 
                 LIMIT 1
@@ -103,7 +103,7 @@ class EstablishmentController
 
             // Fetch services
             $sql = "
-                SELECT id, establishment_id, name, description, duration_minutes, created_at 
+                SELECT id, establishment_id, name, duration_minutes 
                 FROM services 
                 WHERE establishment_id = ? 
                 ORDER BY name ASC
@@ -146,12 +146,10 @@ class EstablishmentController
 
             // Fetch professionals
             $sql = "
-                SELECT u.id, u.name, u.email, u.created_at 
-                FROM users u
-                INNER JOIN establishment_professionals ep ON ep.user_id = u.id
-                WHERE ep.establishment_id = ? 
-                  AND u.role IN ('attendant', 'admin')
-                ORDER BY u.name ASC
+                SELECT id, establishment_id, name 
+                FROM professionals 
+                WHERE establishment_id = ? 
+                ORDER BY name ASC
             ";
             $professionals = $db->query($sql, [$id]);
 

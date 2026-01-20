@@ -2,7 +2,7 @@
 -- Note: This rollback drops the entire database as it reverses the initial setup
 -- Use with caution - this will delete all data
 SET FOREIGN_KEY_CHECKS=0;
-USE `queue_system`;
+USE `queue_master`;
 
 DROP TABLE IF EXISTS idempotency_keys;
 DROP TABLE IF EXISTS routes;
@@ -16,5 +16,5 @@ DROP TABLE IF EXISTS services;
 DROP TABLE IF EXISTS establishments;
 DROP TABLE IF EXISTS users;
 
-DROP DATABASE IF EXISTS `queue_system`;
+DROP DATABASE IF EXISTS `queue_master`;
 SET FOREIGN_KEY_CHECKS=1;

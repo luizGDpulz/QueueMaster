@@ -9,13 +9,13 @@ USE queue_master;
 -- ============================================================================
 -- Create 3 users with different roles
 -- Password for all users: 'password123'
--- Bcrypt hash: $2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi
+-- Argon2id hash: $argon2id$v=19$m=65536,t=4,p=1$UVpXVUZKRnJYalo0TnJvLw$xWQqTGWICTraXYhpmlAibr4sV2kZIxtUixoRD2rmlOA
 -- WARNING: This is for DEVELOPMENT/TESTING ONLY. Do NOT use in production!
 
 INSERT INTO users (name, email, password_hash, role, created_at) VALUES
-('Admin User', 'admin@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', NOW()),
-('Attendant User', 'attendant@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'attendant', NOW()),
-('Client User', 'client@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'client', NOW());
+('Admin User', 'admin@example.com', '$argon2id$v=19$m=65536,t=4,p=1$UVpXVUZKRnJYalo0TnJvLw$xWQqTGWICTraXYhpmlAibr4sV2kZIxtUixoRD2rmlOA', 'admin', NOW()),
+('Attendant User', 'attendant@example.com', '$argon2id$v=19$m=65536,t=4,p=1$UVpXVUZKRnJYalo0TnJvLw$xWQqTGWICTraXYhpmlAibr4sV2kZIxtUixoRD2rmlOA', 'attendant', NOW()),
+('Client User', 'client@example.com', '$argon2id$v=19$m=65536,t=4,p=1$UVpXVUZKRnJYalo0TnJvLw$xWQqTGWICTraXYhpmlAibr4sV2kZIxtUixoRD2rmlOA', 'client', NOW());
 
 -- ============================================================================
 -- ESTABLISHMENTS
