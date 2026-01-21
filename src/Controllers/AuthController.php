@@ -9,6 +9,8 @@ use QueueMaster\Middleware\AuthMiddleware;
 use QueueMaster\Middleware\TokenMiddleware;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
+use QueueMaster\Models\User;
+use QueueMaster\Models\RefreshToken;
 
 /**
  * AuthController - Authentication Endpoints
@@ -53,18 +55,17 @@ class AuthController
         }
 
         try {
-            $db = Database::getInstance();
-
-            // Insert user
-            $sql = "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)";
-            $db->execute($sql, [$name, $email, $passwordHash, $role]);
-
-            $userId = (int)$db->lastInsertId();
+            // Create user using Model
+            $userId = User::create([
+                'name' => $name,
+                'email' => $email,
+                'password_hash' => $passwordHash,
+                'role' => $role,
+            ]);
 
             // Fetch created user
-            $userSql = "SELECT id, name, email, role, created_at FROM users WHERE id = ?";
-            $users = $db->query($userSql, [$userId]);
-            $user = $users[0];
+            $user = User::find($userId);
+            $user = User::getSafeData($user);
 
             // Generate tokens
             $accessToken = AuthMiddleware::generateAccessToken($user);
@@ -118,13 +119,10 @@ class AuthController
         $password = $data['password'];
 
         try {
-            $db = Database::getInstance();
+            // Find user by email using Model
+            $user = User::findByEmail($email);
 
-            // Find user by email
-            $sql = "SELECT id, name, email, password_hash, role, created_at FROM users WHERE email = ? LIMIT 1";
-            $users = $db->query($sql, [$email]);
-
-            if (empty($users)) {
+            if (!$user) {
                 Logger::logSecurity('Login failed - user not found', [
                     'email' => $email,
                     'ip' => $request->getIp(),
@@ -134,8 +132,6 @@ class AuthController
                 Response::unauthorized('Invalid credentials', $request->requestId);
                 return;
             }
-
-            $user = $users[0];
 
             // Verify password
             if (!password_verify($password, $user['password_hash'])) {
@@ -150,7 +146,7 @@ class AuthController
             }
 
             // Remove password_hash from response
-            unset($user['password_hash']);
+            $user = User::getSafeData($user);
 
             // Generate tokens
             $accessToken = AuthMiddleware::generateAccessToken($user);

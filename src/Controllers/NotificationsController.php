@@ -7,6 +7,7 @@ use QueueMaster\Core\Response;
 use QueueMaster\Core\Database;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
+use QueueMaster\Models\Notification;
 
 /**
  * NotificationsController - Notification Management Endpoints
@@ -37,26 +38,18 @@ class NotificationsController
         $offset = ($page - 1) * $perPage;
 
         try {
-            $db = Database::getInstance();
+            // Get all notifications for user
+            $allNotifications = Notification::getByUser($userId);
+            $total = count($allNotifications);
 
-            // Count total notifications
-            $countSql = "SELECT COUNT(*) as total FROM notifications WHERE user_id = ?";
-            $countResult = $db->query($countSql, [$userId]);
-            $total = (int)$countResult[0]['total'];
+            // Apply pagination manually (since Model doesn't support offset)
+            $notifications = array_slice($allNotifications, $offset, $perPage);
 
-            // Fetch notifications
-            $sql = "
-                SELECT id, title, body, data, read_at, sent_at 
-                FROM notifications 
-                WHERE user_id = ? 
-                ORDER BY sent_at DESC 
-                LIMIT ? OFFSET ?
-            ";
-            $notifications = $db->query($sql, [$userId, $perPage, $offset]);
-
-            // Parse JSON data field
+            // Parse JSON data field and add is_read flag
             foreach ($notifications as &$notification) {
-                $notification['data'] = json_decode($notification['data'], true) ?? [];
+                if (is_string($notification['data'])) {
+                    $notification['data'] = json_decode($notification['data'], true) ?? [];
+                }
                 $notification['is_read'] = !is_null($notification['read_at']);
             }
 
@@ -76,6 +69,53 @@ class NotificationsController
             ], $request->requestId);
 
             Response::serverError('Failed to retrieve notifications', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/notifications/{id}
+     * 
+     * Get single notification
+     */
+    public function get(Request $request, int $id): void
+    {
+        if (!$request->user) {
+            Response::unauthorized('Authentication required', $request->requestId);
+            return;
+        }
+
+        $userId = (int)$request->user['id'];
+
+        try {
+            $notification = Notification::find($id);
+
+            if (!$notification) {
+                Response::notFound('Notification not found', $request->requestId);
+                return;
+            }
+
+            if ($notification['user_id'] != $userId) {
+                Response::forbidden('You cannot view this notification', $request->requestId);
+                return;
+            }
+
+            // Parse JSON data field
+            if (is_string($notification['data'])) {
+                $notification['data'] = json_decode($notification['data'], true) ?? [];
+            }
+            $notification['is_read'] = !is_null($notification['read_at']);
+
+            Response::success([
+                'notification' => $notification,
+            ]);
+
+        } catch (\Exception $e) {
+            Logger::error('Failed to get notification', [
+                'notification_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to retrieve notification', $request->requestId);
         }
     }
 
@@ -166,27 +206,21 @@ class NotificationsController
         $userId = (int)$request->user['id'];
 
         try {
-            $db = Database::getInstance();
+            // Find notification using Model
+            $notification = Notification::find($id);
 
-            // Verify notification belongs to user
-            $notificationSql = "SELECT id, user_id FROM notifications WHERE id = ? LIMIT 1";
-            $notifications = $db->query($notificationSql, [$id]);
-
-            if (empty($notifications)) {
+            if (!$notification) {
                 Response::notFound('Notification not found', $request->requestId);
                 return;
             }
-
-            $notification = $notifications[0];
 
             if ($notification['user_id'] != $userId) {
                 Response::forbidden('You cannot mark this notification as read', $request->requestId);
                 return;
             }
 
-            // Mark as read
-            $updateSql = "UPDATE notifications SET read_at = NOW() WHERE id = ?";
-            $db->execute($updateSql, [$id]);
+            // Mark as read using Model
+            Notification::markAsRead($id);
 
             Logger::info('Notification marked as read', [
                 'notification_id' => $id,
@@ -223,11 +257,7 @@ class NotificationsController
         $userId = (int)$request->user['id'];
 
         try {
-            $db = Database::getInstance();
-
-            // Mark all unread notifications as read
-            $updateSql = "UPDATE notifications SET read_at = NOW() WHERE user_id = ? AND read_at IS NULL";
-            $db->execute($updateSql, [$userId]);
+            Notification::markAllAsReadForUser($userId);
 
             Logger::info('All notifications marked as read', [
                 'user_id' => $userId,
@@ -244,6 +274,52 @@ class NotificationsController
             ], $request->requestId);
 
             Response::serverError('Failed to mark all notifications as read', $request->requestId);
+        }
+    }
+
+    /**
+     * DELETE /api/v1/notifications/{id}
+     * 
+     * Delete notification
+     */
+    public function delete(Request $request, int $id): void
+    {
+        if (!$request->user) {
+            Response::unauthorized('Authentication required', $request->requestId);
+            return;
+        }
+
+        $userId = (int)$request->user['id'];
+
+        try {
+            $notification = Notification::find($id);
+
+            if (!$notification) {
+                Response::notFound('Notification not found', $request->requestId);
+                return;
+            }
+
+            if ($notification['user_id'] != $userId) {
+                Response::forbidden('You cannot delete this notification', $request->requestId);
+                return;
+            }
+
+            Notification::delete($id);
+
+            Logger::info('Notification deleted', [
+                'notification_id' => $id,
+                'user_id' => $userId,
+            ], $request->requestId);
+
+            Response::success(['message' => 'Notification deleted successfully']);
+
+        } catch (\Exception $e) {
+            Logger::error('Failed to delete notification', [
+                'notification_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to delete notification', $request->requestId);
         }
     }
 }

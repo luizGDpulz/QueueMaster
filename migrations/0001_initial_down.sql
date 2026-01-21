@@ -5,7 +5,6 @@ SET FOREIGN_KEY_CHECKS=0;
 USE `queue_master`;
 
 DROP TABLE IF EXISTS idempotency_keys;
-DROP TABLE IF EXISTS routes;
 DROP TABLE IF EXISTS refresh_tokens;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS appointments;

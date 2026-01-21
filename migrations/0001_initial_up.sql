@@ -111,19 +111,6 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- routes (dynamic route registration)
-CREATE TABLE IF NOT EXISTS routes (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  method ENUM('GET','POST','PUT','DELETE','PATCH') NOT NULL,
-  path VARCHAR(255) NOT NULL,
-  controller VARCHAR(255) NOT NULL,
-  action VARCHAR(100) NOT NULL,
-  middleware TEXT NULL,
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_method_path (method, path)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 -- idempotency_keys (for request deduplication)
 CREATE TABLE IF NOT EXISTS idempotency_keys (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

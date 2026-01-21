@@ -5,18 +5,18 @@
  * Defines all API routes for the QueueMaster application.
  * Routes are organized by feature/resource with appropriate middleware.
  * 
- * This file is loaded by RouteBuilder as a fallback when routes table
- * is not available in the database.
- * 
  * @var \QueueMaster\Core\Router $router
  */
 
 use QueueMaster\Controllers\AuthController;
 use QueueMaster\Controllers\EstablishmentController;
+use QueueMaster\Controllers\ServicesController;
+use QueueMaster\Controllers\ProfessionalsController;
 use QueueMaster\Controllers\QueuesController;
 use QueueMaster\Controllers\AppointmentsController;
 use QueueMaster\Controllers\DashboardController;
 use QueueMaster\Controllers\NotificationsController;
+use QueueMaster\Controllers\UsersController;
 use QueueMaster\Stream\SseController;
 use QueueMaster\Middleware\AuthMiddleware;
 use QueueMaster\Middleware\RoleMiddleware;
@@ -147,6 +147,95 @@ $router->group('/api/v1', function ($router) {
     });
     
     // ============================================================================
+    // Services Routes
+    // ============================================================================
+    
+    $router->group('/services', function ($router) {
+        
+        // GET /api/v1/services - List all services
+        $router->get('', function ($request) {
+            $controller = new ServicesController();
+            $controller->list($request);
+        });
+        
+        // GET /api/v1/services/{id} - Get single service
+        $router->get('/{id}', function ($request) {
+            $controller = new ServicesController();
+            $id = (int)$request->getParam('id');
+            $controller->get($request, $id);
+        });
+        
+        // POST /api/v1/services - Create service (admin only)
+        $router->post('', function ($request) {
+            $controller = new ServicesController();
+            $controller->create($request);
+        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        
+        // PUT /api/v1/services/{id} - Update service (admin only)
+        $router->put('/{id}', function ($request) {
+            $controller = new ServicesController();
+            $id = (int)$request->getParam('id');
+            $controller->update($request, $id);
+        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        
+        // DELETE /api/v1/services/{id} - Delete service (admin only)
+        $router->delete('/{id}', function ($request) {
+            $controller = new ServicesController();
+            $id = (int)$request->getParam('id');
+            $controller->delete($request, $id);
+        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        
+    });
+    
+    // ============================================================================
+    // Professionals Routes
+    // ============================================================================
+    
+    $router->group('/professionals', function ($router) {
+        
+        // GET /api/v1/professionals - List all professionals
+        $router->get('', function ($request) {
+            $controller = new ProfessionalsController();
+            $controller->list($request);
+        });
+        
+        // GET /api/v1/professionals/{id} - Get single professional
+        $router->get('/{id}', function ($request) {
+            $controller = new ProfessionalsController();
+            $id = (int)$request->getParam('id');
+            $controller->get($request, $id);
+        });
+        
+        // GET /api/v1/professionals/{id}/appointments - Get professional's appointments
+        $router->get('/{id}/appointments', function ($request) {
+            $controller = new ProfessionalsController();
+            $id = (int)$request->getParam('id');
+            $controller->getAppointments($request, $id);
+        });
+        
+        // POST /api/v1/professionals - Create professional (admin only)
+        $router->post('', function ($request) {
+            $controller = new ProfessionalsController();
+            $controller->create($request);
+        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        
+        // PUT /api/v1/professionals/{id} - Update professional (admin only)
+        $router->put('/{id}', function ($request) {
+            $controller = new ProfessionalsController();
+            $id = (int)$request->getParam('id');
+            $controller->update($request, $id);
+        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        
+        // DELETE /api/v1/professionals/{id} - Delete professional (admin only)
+        $router->delete('/{id}', function ($request) {
+            $controller = new ProfessionalsController();
+            $id = (int)$request->getParam('id');
+            $controller->delete($request, $id);
+        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        
+    });
+    
+    // ============================================================================
     // Queue Routes
     // ============================================================================
     
@@ -254,11 +343,11 @@ $router->group('/api/v1', function ($router) {
             $controller->cancel($request, $id);
         }, [new AuthMiddleware()]);
         
-        // POST /api/v1/appointments/{id}/checkin - Check in for appointment
+        // POST /api/v1/appointments/{id}/check-in - Check in for appointment
         $router->post('/{id}/checkin', function ($request) {
             $controller = new AppointmentsController();
             $id = (int)$request->getParam('id');
-            $controller->checkin($request, $id);
+            $controller->checkIn($request, $id);
         }, [new AuthMiddleware()]);
         
         // POST /api/v1/appointments/{id}/complete - Mark appointment complete (attendant/admin)
@@ -274,6 +363,12 @@ $router->group('/api/v1', function ($router) {
             $id = (int)$request->getParam('id');
             $controller->noShow($request, $id);
         }, [new AuthMiddleware(), new RoleMiddleware(['attendant', 'admin'])]);
+        
+        // GET /api/v1/appointments/available-slots - Get available time slots
+        $router->get('/available-slots', function ($request) {
+            $controller = new AppointmentsController();
+            $controller->availableSlots($request);
+        });
         
     });
     
@@ -297,6 +392,61 @@ $router->group('/api/v1', function ($router) {
         
         
     }, [new AuthMiddleware(), new RoleMiddleware(['attendant', 'admin'])]);
+    
+    // ============================================================================
+    // User Management Routes (Admin)
+    // ============================================================================
+    
+    $router->group('/users', function ($router) {
+        
+        // GET /api/v1/users - List all users (admin only)
+        $router->get('', function ($request) {
+            $controller = new UsersController();
+            $controller->list($request);
+        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        
+        // GET /api/v1/users/{id} - Get single user (user themselves or admin)
+        $router->get('/{id}', function ($request) {
+            $controller = new UsersController();
+            $id = (int)$request->getParam('id');
+            $controller->show($request, $id);
+        }, [new AuthMiddleware()]);
+        
+        // POST /api/v1/users - Create user (admin only)
+        $router->post('', function ($request) {
+            $controller = new UsersController();
+            $controller->create($request);
+        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        
+        // PUT /api/v1/users/{id} - Update user (user themselves or admin)
+        $router->put('/{id}', function ($request) {
+            $controller = new UsersController();
+            $id = (int)$request->getParam('id');
+            $controller->update($request, $id);
+        }, [new AuthMiddleware()]);
+        
+        // DELETE /api/v1/users/{id} - Delete user (admin only)
+        $router->delete('/{id}', function ($request) {
+            $controller = new UsersController();
+            $id = (int)$request->getParam('id');
+            $controller->delete($request, $id);
+        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        
+        // GET /api/v1/users/{id}/queue-entries - Get user's queue entries
+        $router->get('/{id}/queue-entries', function ($request) {
+            $controller = new UsersController();
+            $id = (int)$request->getParam('id');
+            $controller->getQueueEntries($request, $id);
+        }, [new AuthMiddleware()]);
+        
+        // GET /api/v1/users/{id}/appointments - Get user's appointments
+        $router->get('/{id}/appointments', function ($request) {
+            $controller = new UsersController();
+            $id = (int)$request->getParam('id');
+            $controller->getAppointments($request, $id);
+        }, [new AuthMiddleware()]);
+        
+    });
     
     // ============================================================================
     // Notification Routes

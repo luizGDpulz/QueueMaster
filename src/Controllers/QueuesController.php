@@ -8,6 +8,10 @@ use QueueMaster\Core\Database;
 use QueueMaster\Services\QueueService;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
+use QueueMaster\Models\Queue;
+use QueueMaster\Models\QueueEntry;
+use QueueMaster\Models\Establishment;
+use QueueMaster\Models\Service;
 
 /**
  * QueuesController - Queue Management Endpoints
@@ -24,39 +28,40 @@ class QueuesController
     public function list(Request $request): void
     {
         try {
-            $db = Database::getInstance();
             $params = $request->getQuery();
             
-            $where = [];
-            $values = [];
+            $conditions = [];
 
             if (isset($params['establishment_id'])) {
-                $where[] = "q.establishment_id = ?";
-                $values[] = (int)$params['establishment_id'];
+                $conditions['establishment_id'] = (int)$params['establishment_id'];
             }
 
             if (isset($params['status'])) {
-                $where[] = "q.status = ?";
-                $values[] = $params['status'];
+                $conditions['status'] = $params['status'];
             }
 
-            $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+            // Get queues using Model
+            $queues = Queue::all($conditions, 'created_at', 'DESC');
 
-            $sql = "
-                SELECT q.*, s.name as service_name, e.name as establishment_name
-                FROM queues q
-                LEFT JOIN services s ON s.id = q.service_id
-                LEFT JOIN establishments e ON e.id = q.establishment_id
-                $whereClause
-                ORDER BY q.created_at DESC
-            ";
-            $queues = $db->query($sql, $values);
-
-            // Add waiting count to each queue
+            // Add related data and waiting count to each queue
             foreach ($queues as &$queue) {
-                $countSql = "SELECT COUNT(*) as total FROM queue_entries WHERE queue_id = ? AND status = 'waiting'";
-                $countResult = $db->query($countSql, [$queue['id']]);
-                $queue['waiting_count'] = (int)$countResult[0]['total'];
+                // Get establishment name
+                if ($queue['establishment_id']) {
+                    $establishment = Establishment::find($queue['establishment_id']);
+                    $queue['establishment_name'] = $establishment['name'] ?? null;
+                }
+
+                // Get service name
+                if ($queue['service_id']) {
+                    $service = Service::find($queue['service_id']);
+                    $queue['service_name'] = $service['name'] ?? null;
+                } else {
+                    $queue['service_name'] = null;
+                }
+
+                // Get waiting count
+                $waitingEntries = QueueEntry::getWaitingByQueue($queue['id']);
+                $queue['waiting_count'] = count($waitingEntries);
             }
 
             Response::success([
@@ -81,29 +86,30 @@ class QueuesController
     public function get(Request $request, int $id): void
     {
         try {
-            $db = Database::getInstance();
-            
-            $sql = "
-                SELECT q.*, s.name as service_name, e.name as establishment_name
-                FROM queues q
-                LEFT JOIN services s ON s.id = q.service_id
-                LEFT JOIN establishments e ON e.id = q.establishment_id
-                WHERE q.id = ?
-                LIMIT 1
-            ";
-            $queues = $db->query($sql, [$id]);
+            // Find queue using Model
+            $queue = Queue::find($id);
 
-            if (empty($queues)) {
+            if (!$queue) {
                 Response::notFound('Queue not found', $request->requestId);
                 return;
             }
 
-            $queue = $queues[0];
+            // Add related data
+            if ($queue['establishment_id']) {
+                $establishment = Establishment::find($queue['establishment_id']);
+                $queue['establishment_name'] = $establishment['name'] ?? null;
+            }
 
-            // Add waiting count
-            $countSql = "SELECT COUNT(*) as total FROM queue_entries WHERE queue_id = ? AND status = 'waiting'";
-            $countResult = $db->query($countSql, [$id]);
-            $queue['waiting_count'] = (int)$countResult[0]['total'];
+            if ($queue['service_id']) {
+                $service = Service::find($queue['service_id']);
+                $queue['service_name'] = $service['name'] ?? null;
+            } else {
+                $queue['service_name'] = null;
+            }
+
+            // Get waiting count
+            $waitingEntries = QueueEntry::getWaitingByQueue($id);
+            $queue['waiting_count'] = count($waitingEntries);
 
             Response::success([
                 'queue' => $queue,
@@ -314,6 +320,71 @@ class QueuesController
             ], $request->requestId);
 
             Response::serverError('Failed to call next', $request->requestId);
+        }
+    }
+
+    /**
+     * POST /api/v1/queues
+     * 
+     * Create queue (admin only)
+     */
+    public function create(Request $request): void
+    {
+        if (!$request->user) {
+            Response::unauthorized('Authentication required', $request->requestId);
+            return;
+        }
+
+        $data = $request->all();
+
+        // Validate input
+        $errors = Validator::make($data, [
+            'establishment_id' => 'required|integer',
+            'name' => 'required|min:2|max:150',
+            'status' => 'required',
+        ]);
+
+        if (!empty($errors)) {
+            Response::validationError($errors, $request->requestId);
+            return;
+        }
+
+        try {
+            // Verify establishment exists
+            $establishment = Establishment::find((int)$data['establishment_id']);
+            if (!$establishment) {
+                Response::notFound('Establishment not found', $request->requestId);
+                return;
+            }
+
+            $queueId = Queue::create([
+                'establishment_id' => (int)$data['establishment_id'],
+                'service_id' => isset($data['service_id']) ? (int)$data['service_id'] : null,
+                'name' => trim($data['name']),
+                'status' => $data['status'],
+            ]);
+
+            $queue = Queue::find($queueId);
+
+            Logger::info('Queue created', [
+                'queue_id' => $queueId,
+                'created_by' => $request->user['id'],
+            ], $request->requestId);
+
+            Response::created([
+                'queue' => $queue,
+                'message' => 'Queue created successfully',
+            ]);
+
+        } catch (\InvalidArgumentException $e) {
+            Response::validationError(['general' => $e->getMessage()], $request->requestId);
+        } catch (\Exception $e) {
+            Logger::error('Failed to create queue', [
+                'data' => $data,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to create queue', $request->requestId);
         }
     }
 

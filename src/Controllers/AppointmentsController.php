@@ -242,6 +242,86 @@ class AppointmentsController
     }
 
     /**
+     * PUT /api/v1/appointments/{id}
+     * 
+     * Update appointment
+     */
+    public function update(Request $request, int $id): void
+    {
+        if (!$request->user) {
+            Response::unauthorized('Authentication required', $request->requestId);
+            return;
+        }
+
+        $userId = (int)$request->user['id'];
+        $userRole = $request->user['role'];
+
+        try {
+            $appointmentService = new AppointmentService();
+            $appointment = $appointmentService->getAppointment($id);
+
+            if (!$appointment) {
+                Response::notFound('Appointment not found', $request->requestId);
+                return;
+            }
+
+            // Clients can only update their own appointments
+            if ($userRole === 'client' && $appointment['user_id'] != $userId) {
+                Response::forbidden('You cannot update this appointment', $request->requestId);
+                return;
+            }
+
+            $data = $request->all();
+            $updateData = [];
+
+            // Allow updating start_at, professional_id, service_id
+            if (isset($data['start_at'])) {
+                $updateData['start_at'] = $data['start_at'];
+            }
+
+            if (isset($data['professional_id'])) {
+                $updateData['professional_id'] = (int)$data['professional_id'];
+            }
+
+            if (isset($data['service_id'])) {
+                $updateData['service_id'] = (int)$data['service_id'];
+            }
+
+            if (empty($updateData)) {
+                Response::badRequest('No fields to update', $request->requestId);
+                return;
+            }
+
+            $updatedAppointment = $appointmentService->update($id, $updateData, $userId);
+
+            Logger::info('Appointment updated', [
+                'appointment_id' => $id,
+                'user_id' => $userId,
+            ], $request->requestId);
+
+            Response::success([
+                'appointment' => $updatedAppointment,
+                'message' => 'Appointment updated successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            Logger::error('Failed to update appointment', [
+                'appointment_id' => $id,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            if (strpos($e->getMessage(), 'not found') !== false) {
+                Response::notFound('Appointment not found', $request->requestId);
+            } elseif (strpos($e->getMessage(), 'conflict') !== false) {
+                Response::conflict('Time slot conflict', $request->requestId);
+            } else {
+                Response::serverError('Failed to update appointment', $request->requestId);
+            }
+        }
+    }
+
+    /**
      * POST /api/v1/appointments/:id/cancel
      * 
      * Cancel appointment
@@ -283,6 +363,88 @@ class AppointmentsController
                 Response::error('CANCEL_FAILED', $e->getMessage(), 400, $request->requestId);
             } else {
                 Response::serverError('Failed to cancel appointment', $request->requestId);
+            }
+        }
+    }
+
+    /**
+     * POST /api/v1/appointments/{id}/complete
+     * 
+     * Mark appointment as complete (attendant/admin only)
+     */
+    public function complete(Request $request, int $id): void
+    {
+        if (!$request->user) {
+            Response::unauthorized('Authentication required', $request->requestId);
+            return;
+        }
+
+        try {
+            $appointmentService = new AppointmentService();
+            $appointment = $appointmentService->complete($id);
+
+            Logger::info('Appointment completed', [
+                'appointment_id' => $id,
+                'completed_by' => $request->user['id'],
+            ], $request->requestId);
+
+            Response::success([
+                'appointment' => $appointment,
+                'message' => 'Appointment marked as complete',
+            ]);
+
+        } catch (\Exception $e) {
+            Logger::error('Failed to complete appointment', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            if (strpos($e->getMessage(), 'not found') !== false) {
+                Response::notFound('Appointment not found', $request->requestId);
+            } elseif (strpos($e->getMessage(), 'Cannot complete') !== false) {
+                Response::error('COMPLETE_FAILED', $e->getMessage(), 400, $request->requestId);
+            } else {
+                Response::serverError('Failed to complete appointment', $request->requestId);
+            }
+        }
+    }
+
+    /**
+     * POST /api/v1/appointments/{id}/no-show
+     * 
+     * Mark appointment as no-show (attendant/admin only)
+     */
+    public function noShow(Request $request, int $id): void
+    {
+        if (!$request->user) {
+            Response::unauthorized('Authentication required', $request->requestId);
+            return;
+        }
+
+        try {
+            $appointmentService = new AppointmentService();
+            $appointment = $appointmentService->noShow($id);
+
+            Logger::info('Appointment marked as no-show', [
+                'appointment_id' => $id,
+                'marked_by' => $request->user['id'],
+            ], $request->requestId);
+
+            Response::success([
+                'appointment' => $appointment,
+                'message' => 'Appointment marked as no-show',
+            ]);
+
+        } catch (\Exception $e) {
+            Logger::error('Failed to mark appointment as no-show', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            if (strpos($e->getMessage(), 'not found') !== false) {
+                Response::notFound('Appointment not found', $request->requestId);
+            } else {
+                Response::serverError('Failed to mark as no-show', $request->requestId);
             }
         }
     }

@@ -38,10 +38,8 @@ QueueMaster/
 │   │   ├── QueueService.php   # Transaction-safe queue ops
 │   │   ├── AppointmentService.php # Conflict detection
 │   │   └── NotificationService.php # FCM integration
-│   ├── Builders/              # Code generators
-│   │   ├── QueryBuilder.php   # Fluent query builder
-│   │   ├── RouteBuilder.php   # Dynamic route loader
-│   │   └── ModelBuilder.php   # Model generator
+│   ├── Builders/              # Query builder
+│   │   └── QueryBuilder.php   # Fluent query builder
 │   ├── Models/                # Data models
 │   │   └── QueueEntry.php     # Example generated model
 │   └── Stream/                # Real-time
@@ -53,8 +51,7 @@ QueueMaster/
 │   └── 0001_initial_down.sql
 ├── scripts/
 │   ├── migrate.php            # Migration runner
-│   ├── seed_sample_data.sql   # Sample test data
-│   └── cli-model-generator.php# Model generator CLI
+│   └── seed.php               # Database seeder
 ├── tests/
 │   └── phpunit/               # PHPUnit tests (23 test methods)
 │       ├── QueueConcurrencyTest.php
