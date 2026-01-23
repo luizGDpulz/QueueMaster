@@ -51,10 +51,11 @@
 								"exec": [
 									"if (pm.response.code === 201) {",
 									"    const response = pm.response.json();",
-									"    pm.collectionVariables.set('access_token', response.access_token);",
-									"    pm.collectionVariables.set('refresh_token', response.refresh_token);",
-									"    pm.collectionVariables.set('user_id', response.user.id);",
-									"    pm.environment.set('access_token', response.access_token);",
+									"    const data = response.data || response;",
+									"    pm.collectionVariables.set('access_token', data.access_token);",
+									"    pm.collectionVariables.set('refresh_token', data.refresh_token);",
+									"    pm.collectionVariables.set('user_id', data.user.id);",
+									"    pm.environment.set('access_token', data.access_token);",
 									"}"
 								]
 							}
@@ -73,7 +74,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Usuário Teste\",\n  \"email\": \"teste@exemplo.com\",\n  \"password\": \"senha123456\",\n  \"role\": \"client\"\n}"
+							"raw": "{\n  \"name\": \"Usuário Teste\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\",\n  \"role\": \"client\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/register",
@@ -92,10 +93,11 @@
 								"exec": [
 									"if (pm.response.code === 200) {",
 									"    const response = pm.response.json();",
-									"    pm.collectionVariables.set('access_token', response.access_token);",
-									"    pm.collectionVariables.set('refresh_token', response.refresh_token);",
-									"    pm.collectionVariables.set('user_id', response.user.id);",
-									"    pm.environment.set('access_token', response.access_token);",
+									"    const data = response.data || response;",
+									"    pm.collectionVariables.set('access_token', data.access_token);",
+									"    pm.collectionVariables.set('refresh_token', data.refresh_token);",
+									"    pm.collectionVariables.set('user_id', data.user.id);",
+									"    pm.environment.set('access_token', data.access_token);",
 									"}"
 								]
 							}
@@ -114,7 +116,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"teste@exemplo.com\",\n  \"password\": \"senha123456\"\n}"
+							"raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/login",
@@ -133,9 +135,10 @@
 								"exec": [
 									"if (pm.response.code === 200) {",
 									"    const response = pm.response.json();",
-									"    pm.collectionVariables.set('access_token', response.access_token);",
-									"    pm.collectionVariables.set('refresh_token', response.refresh_token);",
-									"    pm.environment.set('access_token', response.access_token);",
+									"    const data = response.data || response;",
+									"    pm.collectionVariables.set('access_token', data.access_token);",
+									"    pm.collectionVariables.set('refresh_token', data.refresh_token);",
+									"    pm.environment.set('access_token', data.access_token);",
 									"}"
 								]
 							}
@@ -251,7 +254,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"João Silva\",\n  \"email\": \"joao.silva@exemplo.com\",\n  \"password\": \"senha123456\",\n  \"role\": \"attendant\"\n}"
+							"raw": "{\n  \"name\": \"João Silva\",\n  \"email\": \"joao.silva@exemplo.com\",\n  \"password\": \"password123\",\n  \"role\": \"attendant\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/users",
@@ -295,7 +298,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"current_password\": \"senha123456\",\n  \"password\": \"nova_senha_segura_123\"\n}"
+							"raw": "{\n  \"current_password\": \"password123\",\n  \"password\": \"nova_senha_segura_123\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/users/{{user_id}}",
@@ -934,23 +937,6 @@
 							"path": ["status"]
 						},
 						"description": "Verificar status da API (público)"
-					}
-				},
-				{
-					"name": "Health Check",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "http://localhost/health",
-							"protocol": "http",
-							"host": ["localhost"],
-							"path": ["health"]
-						},
-						"description": "Health check do sistema (público)"
 					}
 				}
 			]

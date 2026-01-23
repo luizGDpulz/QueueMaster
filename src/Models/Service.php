@@ -91,6 +91,10 @@ class Service
      */
     public static function update(int $id, array $data): int
     {
+        if (empty($data)) {
+            throw new \InvalidArgumentException('Update data cannot be empty');
+        }
+
         $qb = new QueryBuilder();
         return $qb->select(self::$table)
             ->where(self::$primaryKey, '=', $id)

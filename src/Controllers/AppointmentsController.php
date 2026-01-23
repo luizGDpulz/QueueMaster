@@ -288,7 +288,18 @@ class AppointmentsController
             }
 
             if (empty($updateData)) {
-                Response::badRequest('No fields to update', $request->requestId);
+                Logger::warning('Update attempt with no fields', [
+                    'appointment_id' => $id,
+                    'user_id' => $userId,
+                    'received_data' => $data,
+                ], $request->requestId);
+
+                Response::error(
+                    'NO_FIELDS_TO_UPDATE',
+                    'No valid fields provided for update. Available fields: start_at, professional_id, service_id',
+                    400,
+                    $request->requestId
+                );
                 return;
             }
 

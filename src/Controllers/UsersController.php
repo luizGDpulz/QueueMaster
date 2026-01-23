@@ -284,6 +284,13 @@ class UsersController
 
             // Password update (separate method)
             if (isset($data['password'])) {
+                Logger::info('Password change attempt', [
+                    'user_id' => $id,
+                    'by_user' => $currentUserId,
+                    'has_current_password' => isset($data['current_password']),
+                    'new_password_length' => strlen($data['password']),
+                ], $request->requestId);
+
                 $errors = Validator::make(['password' => $data['password']], [
                     'password' => 'min:8|max:100',
                 ]);
@@ -294,23 +301,91 @@ class UsersController
                 }
 
                 // For password change, require current password if user is updating themselves
-                if ($currentUserId === $id && $currentUserRole !== 'admin') {
+                if ($currentUserId === $id) {
+                    // User is changing their OWN password - requires current password
                     if (empty($data['current_password'])) {
+                        Logger::warning('Password change rejected: current password missing', [
+                            'user_id' => $id,
+                            'is_admin' => $currentUserRole === 'admin',
+                        ], $request->requestId);
+                        
                         Response::error('CURRENT_PASSWORD_REQUIRED', 'Current password is required to change password', 400, $request->requestId);
                         return;
                     }
 
-                    if (!User::verifyPassword($id, $data['current_password'])) {
+                    $isValidPassword = User::verifyPassword($id, $data['current_password']);
+                    
+                    Logger::info('Current password verification', [
+                        'user_id' => $id,
+                        'is_valid' => $isValidPassword,
+                        'current_password_length' => strlen($data['current_password']),
+                    ], $request->requestId);
+
+                    if (!$isValidPassword) {
+                        Logger::warning('Password change rejected: invalid current password', [
+                            'user_id' => $id,
+                        ], $request->requestId);
+                        
                         Response::error('INVALID_CURRENT_PASSWORD', 'Current password is incorrect', 400, $request->requestId);
                         return;
                     }
+                } elseif ($currentUserRole === 'admin') {
+                    // Admin is changing ANOTHER user's password - no current password required
+                    Logger::info('Admin changing another user password', [
+                        'target_user_id' => $id,
+                        'admin_id' => $currentUserId,
+                    ], $request->requestId);
                 }
 
-                User::changePassword($id, $data['password']);
+                try {
+                    User::changePassword($id, $data['password']);
+                    
+                    Logger::info('Password changed successfully - tokens revoked', [
+                        'user_id' => $id,
+                        'changed_by' => $currentUserId,
+                    ], $request->requestId);
+                } catch (\Exception $e) {
+                    Logger::error('Failed to change password', [
+                        'user_id' => $id,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ], $request->requestId);
+                    
+                    Response::serverError('Failed to change password', $request->requestId);
+                    return;
+                }
+                
+                // If only password was updated, return success immediately
+                if (empty($updateData)) {
+                    $updatedUser = User::find($id);
+                    $updatedUser = User::getSafeData($updatedUser);
+
+                    Logger::info('User password updated', [
+                        'user_id' => $id,
+                        'updated_by' => $currentUserId,
+                    ], $request->requestId);
+
+                    Response::success([
+                        'user' => $updatedUser,
+                        'message' => 'Password updated successfully',
+                    ]);
+                    return;
+                }
             }
 
             if (empty($updateData)) {
-                Response::badRequest('No fields to update', $request->requestId);
+                Logger::warning('Update attempt with no fields', [
+                    'user_id' => $id,
+                    'updated_by' => $currentUserId,
+                    'received_data' => array_diff_key($data, ['password' => '', 'current_password' => '']),
+                ], $request->requestId);
+
+                Response::error(
+                    'NO_FIELDS_TO_UPDATE',
+                    'No valid fields provided for update. Available fields: name, email, role (admin only), password (requires current_password)',
+                    400,
+                    $request->requestId
+                );
                 return;
             }
 
@@ -336,6 +411,9 @@ class UsersController
             Logger::error('Failed to update user', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ], $request->requestId);
 
             Response::serverError('Failed to update user', $request->requestId);

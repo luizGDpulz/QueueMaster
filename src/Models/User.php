@@ -118,6 +118,10 @@ class User
         // Don't allow updating password_hash directly (use changePassword method)
         unset($data['password_hash']);
 
+        if (empty($data)) {
+            throw new \InvalidArgumentException('Update data cannot be empty');
+        }
+
         $qb = new QueryBuilder();
         return $qb->select(self::$table)
             ->where(self::$primaryKey, '=', $id)
@@ -141,6 +145,8 @@ class User
     /**
      * Change user password
      * 
+     * Security: Revokes all refresh tokens for the user to force re-authentication
+     * 
      * @param int $id User ID
      * @param string $newPassword New password (plain text)
      * @return int Number of affected rows
@@ -155,9 +161,23 @@ class User
         }
 
         $qb = new QueryBuilder();
-        return $qb->select(self::$table)
+        $result = $qb->select(self::$table)
             ->where(self::$primaryKey, '=', $id)
             ->update(['password_hash' => $passwordHash]);
+
+        // Revoke all refresh tokens to force re-authentication for security
+        // This is wrapped in try-catch to prevent token revocation failures from failing password change
+        if ($result > 0) {
+            try {
+                RefreshToken::revokeAllForUser($id);
+            } catch (\Exception $e) {
+                // Log the error but don't fail the password change
+                // Password was already changed successfully
+                error_log("Warning: Failed to revoke tokens for user $id: " . $e->getMessage());
+            }
+        }
+
+        return $result;
     }
 
     /**

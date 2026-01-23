@@ -1,10 +1,12 @@
 # QueueMaster Test Suite
 
-This directory contains PHPUnit tests for the QueueMaster queue and appointment management system.
+This directory contains PHPUnit tests and integration tests for the QueueMaster queue and appointment management system.
 
 ## Test Files
 
-### 1. QueueConcurrencyTest.php
+### PHPUnit Tests (Unit/Integration)
+
+#### 1. QueueConcurrencyTest.php
 Tests concurrent queue operations to ensure thread-safety and position uniqueness:
 - `testConcurrentJoin()` - Multiple users joining simultaneously
 - `testPositionUniqueness()` - Ensures unique, monotonic positions
@@ -12,7 +14,7 @@ Tests concurrent queue operations to ensure thread-safety and position uniquenes
 - `testPriorityQueueUniqueness()` - Priority queue handling
 - `testAnonymousUserJoins()` - Anonymous user support
 
-### 2. CallNextConcurrencyTest.php
+#### 2. CallNextConcurrencyTest.php
 Tests concurrent call-next operations with FOR UPDATE locking:
 - `testConcurrentCallNext()` - Simultaneous attendant calls
 - `testOnlyOneWins()` - Ensures no duplicate calls
@@ -22,7 +24,7 @@ Tests concurrent call-next operations with FOR UPDATE locking:
 - `testSequentialCallNext()` - Sequential operations
 - `testForUpdateLocking()` - Database locking verification
 
-### 3. AppointmentConflictTest.php
+#### 3. AppointmentConflictTest.php
 Tests appointment scheduling and conflict detection:
 - `testNoDoubleBooking()` - Prevents overlapping appointments
 - `testValidAppointment()` - Non-overlapping appointments succeed
@@ -35,9 +37,32 @@ Tests appointment scheduling and conflict detection:
 - `testDifferentProfessionalsNoConflict()` - Multi-professional handling
 - `testInvalidDatetimeFormat()` - Input validation
 
+### Security Tests (Shell Scripts)
+
+#### 4. test_password_change_security.sh / .ps1
+Tests password change security and token revocation:
+- ✅ Login with current password
+- ✅ Change password successfully
+- ✅ Old refresh tokens are revoked
+- ✅ Old password fails to login
+- ✅ New password allows login
+- ✅ New tokens are generated
+
+**Windows (PowerShell):**
+```powershell
+cd tests
+.\test_password_change_security.ps1
+```
+
+**Linux/Mac (Bash):**
+```bash
+cd tests
+bash test_password_change_security.sh
+```
+
 ## Running Tests
 
-### Run all tests:
+### Run all PHPUnit tests:
 ```bash
 php vendor/bin/phpunit
 ```

@@ -196,7 +196,18 @@ class ProfessionalsController
             }
 
             if (empty($updateData)) {
-                Response::badRequest('No fields to update', $request->requestId);
+                Logger::warning('Update attempt with no fields', [
+                    'professional_id' => $id,
+                    'user_id' => $request->user['id'],
+                    'received_data' => $data,
+                ], $request->requestId);
+
+                Response::error(
+                    'NO_FIELDS_TO_UPDATE',
+                    'No valid fields provided for update. Available fields: name, specialization, establishment_id',
+                    400,
+                    $request->requestId
+                );
                 return;
             }
 

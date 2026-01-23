@@ -424,7 +424,18 @@ class QueuesController
             }
 
             if (empty($updateFields)) {
-                Response::badRequest('No fields to update', $request->requestId);
+                Logger::warning('Update attempt with no fields', [
+                    'queue_id' => $id,
+                    'user_id' => $request->user['id'] ?? null,
+                    'received_data' => $body,
+                ], $request->requestId);
+
+                Response::error(
+                    'NO_FIELDS_TO_UPDATE',
+                    'No valid fields provided for update. Available fields: name, status',
+                    400,
+                    $request->requestId
+                );
                 return;
             }
 

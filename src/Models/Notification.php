@@ -96,6 +96,10 @@ class Notification
      */
     public static function update(int $id, array $data): int
     {
+        if (empty($data)) {
+            throw new \InvalidArgumentException('Update data cannot be empty');
+        }
+
         // Encode data field if it's an array
         if (isset($data['data']) && is_array($data['data'])) {
             $data['data'] = json_encode($data['data']);
