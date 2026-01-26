@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QueueMaster API - Documentação</title>
+    <meta name="description" content="Documentação interativa da API QueueMaster para gerenciamento de filas e agendamentos">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+    
+    <!-- Swagger UI CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css">
+    
+    <style>
+        :root {
+            --primary-color: #3b82f6;
+            --secondary-color: #1e40af;
+            --background-color: #f8fafc;
+            --text-color: #1e293b;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--background-color);
+        }
+        
+        /* Custom Header */
+        .custom-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo {
+            font-size: 2.5rem;
+        }
+        
+        .header-title h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .header-title p {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .version-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .github-link {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        
+        .github-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Swagger UI Customization */
+        .swagger-ui .topbar {
+            display: none;
+        }
+        
+        .swagger-ui .info {
+            margin: 30px 0;
+        }
+        
+        .swagger-ui .info .title {
+            color: var(--text-color);
+        }
+        
+        .swagger-ui .info .description {
+            font-size: 14px;
+        }
+        
+        .swagger-ui .scheme-container {
+            background: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .swagger-ui .opblock-tag {
+            border-bottom: 1px solid #e2e8f0;
+            margin: 0;
+        }
+        
+        .swagger-ui .opblock {
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        
+        .swagger-ui .opblock .opblock-summary {
+            border-radius: 8px;
+        }
+        
+        .swagger-ui .opblock.opblock-get .opblock-summary {
+            border-color: #22c55e;
+        }
+        
+        .swagger-ui .opblock.opblock-post .opblock-summary {
+            border-color: #3b82f6;
+        }
+        
+        .swagger-ui .opblock.opblock-put .opblock-summary {
+            border-color: #f59e0b;
+        }
+        
+        .swagger-ui .opblock.opblock-delete .opblock-summary {
+            border-color: #ef4444;
+        }
+        
+        .swagger-ui .btn.authorize {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+            border-radius: 6px;
+        }
+        
+        .swagger-ui .btn.authorize:hover {
+            background: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+        
+        .swagger-ui .btn.execute {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            border-radius: 6px;
+        }
+        
+        .swagger-ui .btn.execute:hover {
+            background: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+        
+        .swagger-ui select {
+            border-radius: 6px;
+        }
+        
+        .swagger-ui input[type=text],
+        .swagger-ui textarea {
+            border-radius: 6px;
+        }
+        
+        .swagger-ui .model-box {
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+        
+        /* Footer */
+        .custom-footer {
+            text-align: center;
+            padding: 20px;
+            color: #64748b;
+            font-size: 0.875rem;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 40px;
+        }
+        
+        /* Quick Links */
+        .quick-links {
+            background: white;
+            padding: 20px 40px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .quick-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #f1f5f9;
+            border-radius: 6px;
+            text-decoration: none;
+            color: var(--text-color);
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+        
+        .quick-link:hover {
+            background: #e2e8f0;
+        }
+        
+        .quick-link-icon {
+            font-size: 1.1rem;
+        }
+        
+        /* Environment Selector */
+        .env-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .env-selector label {
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .env-selector select {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+        
+        .env-selector select option {
+            color: var(--text-color);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .custom-header {
+                flex-direction: column;
+                gap: 15px;
+                padding: 15px 20px;
+            }
+            
+            .header-right {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .quick-links {
+                padding: 15px 20px;
+            }
+        }
+        
+        /* Loading Spinner */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            gap: 20px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e2e8f0;
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        /* Dark Mode Toggle */
+        .dark-mode-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: background 0.2s;
+        }
+        
+        .dark-mode-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <!-- Custom Header -->
+    <header class="custom-header">
+        <div class="header-left">
+            <span class="logo">🎯</span>
+            <div class="header-title">
+                <h1>QueueMaster API</h1>
+                <p>Documentação Interativa</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <span class="version-badge">v1.0.0</span>
+            <div class="env-selector">
+                <label for="server-select">Servidor:</label>
+                <select id="server-select">
+                    <option value="0">Local (XAMPP)</option>
+                    <option value="1">PHP Dev Server</option>
+                    <option value="2">Production</option>
+                </select>
+            </div>
+            <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Alternar modo escuro">
+                🌙
+            </button>
+        </div>
+    </header>
+    
+    <!-- Quick Links -->
+    <nav class="quick-links">
+        <a href="#/Auth" class="quick-link">
+            <span class="quick-link-icon">🔐</span>
+            Autenticação
+        </a>
+        <a href="#/Users" class="quick-link">
+            <span class="quick-link-icon">👥</span>
+            Usuários
+        </a>
+        <a href="#/Establishments" class="quick-link">
+            <span class="quick-link-icon">🏢</span>
+            Estabelecimentos
+        </a>
+        <a href="#/Queues" class="quick-link">
+            <span class="quick-link-icon">📋</span>
+            Filas
+        </a>
+        <a href="#/Appointments" class="quick-link">
+            <span class="quick-link-icon">📅</span>
+            Agendamentos
+        </a>
+        <a href="#/Notifications" class="quick-link">
+            <span class="quick-link-icon">🔔</span>
+            Notificações
+        </a>
+        <a href="openapi.yaml" class="quick-link" download>
+            <span class="quick-link-icon">📥</span>
+            Download OpenAPI
+        </a>
+    </nav>
+    
+    <!-- Swagger UI Container -->
+    <div id="swagger-ui">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Carregando documentação...</p>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="custom-footer">
+        <p>
+            QueueMaster API © 2024 | 
+            Documentação gerada com <a href="https://swagger.io/tools/swagger-ui/" target="_blank">Swagger UI</a> |
+            <a href="openapi.yaml" target="_blank">OpenAPI Spec</a>
+        </p>
+    </footer>
+    
+    <!-- Swagger UI JavaScript -->
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
+    
+    <script>
+        // Initialize Swagger UI
+        const ui = SwaggerUIBundle({
+            url: "openapi.yaml",
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIStandalonePreset
+            ],
+            plugins: [
+                SwaggerUIBundle.plugins.DownloadUrl
+            ],
+            layout: "StandaloneLayout",
+            persistAuthorization: true,
+            displayRequestDuration: true,
+            filter: true,
+            showExtensions: true,
+            showCommonExtensions: true,
+            syntaxHighlight: {
+                activate: true,
+                theme: "agate"
+            },
+            requestSnippetsEnabled: true,
+            requestSnippets: {
+                generators: {
+                    "curl_bash": {
+                        title: "cURL (bash)",
+                        syntax: "bash"
+                    },
+                    "curl_powershell": {
+                        title: "cURL (PowerShell)",
+                        syntax: "powershell"
+                    },
+                    "curl_cmd": {
+                        title: "cURL (CMD)",
+                        syntax: "bash"
+                    }
+                },
+                defaultExpanded: true,
+                languagesMask: ["curl_bash", "curl_powershell"]
+            },
+            onComplete: function() {
+                console.log("Swagger UI loaded successfully");
+            }
+        });
+        
+        // Server selector functionality
+        document.getElementById('server-select').addEventListener('change', function(e) {
+            const serverIndex = parseInt(e.target.value);
+            const spec = ui.specSelectors.specJson();
+            if (spec && spec.get('servers')) {
+                ui.specActions.updateJsonSpec({
+                    ...spec.toJS(),
+                    servers: [spec.get('servers').get(serverIndex).toJS()]
+                });
+            }
+        });
+        
+        // Dark mode toggle
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            const button = document.querySelector('.dark-mode-toggle');
+            if (document.body.classList.contains('dark-mode')) {
+                button.textContent = '☀️';
+                localStorage.setItem('darkMode', 'true');
+            } else {
+                button.textContent = '🌙';
+                localStorage.setItem('darkMode', 'false');
+            }
+        }
+        
+        // Check for saved dark mode preference
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+            document.querySelector('.dark-mode-toggle').textContent = '☀️';
+        }
+        
+        // Add dark mode styles dynamically
+        const darkModeStyles = document.createElement('style');
+        darkModeStyles.textContent = `
+            body.dark-mode {
+                background-color: #0f172a;
+            }
+            
+            body.dark-mode .swagger-ui,
+            body.dark-mode .swagger-ui .info .title,
+            body.dark-mode .swagger-ui .info .description,
+            body.dark-mode .swagger-ui .opblock-tag,
+            body.dark-mode .swagger-ui .opblock .opblock-summary-description,
+            body.dark-mode .swagger-ui .opblock .opblock-section-header h4,
+            body.dark-mode .swagger-ui .parameter__name,
+            body.dark-mode .swagger-ui .parameter__type,
+            body.dark-mode .swagger-ui .response-col_status,
+            body.dark-mode .swagger-ui .response-col_description,
+            body.dark-mode .swagger-ui table thead tr th,
+            body.dark-mode .swagger-ui table tbody tr td,
+            body.dark-mode .swagger-ui .model-title,
+            body.dark-mode .swagger-ui .model {
+                color: #e2e8f0 !important;
+            }
+            
+            body.dark-mode .swagger-ui .scheme-container {
+                background: #1e293b;
+            }
+            
+            body.dark-mode .swagger-ui .opblock {
+                background: #1e293b;
+            }
+            
+            body.dark-mode .swagger-ui .opblock .opblock-summary {
+                background: rgba(255, 255, 255, 0.05);
+            }
+            
+            body.dark-mode .swagger-ui .opblock .opblock-section-header {
+                background: rgba(255, 255, 255, 0.05);
+            }
+            
+            body.dark-mode .swagger-ui .opblock-body pre.microlight {
+                background: #0f172a;
+            }
+            
+            body.dark-mode .quick-links {
+                background: #1e293b;
+                border-color: #334155;
+            }
+            
+            body.dark-mode .quick-link {
+                background: #334155;
+                color: #e2e8f0;
+            }
+            
+            body.dark-mode .quick-link:hover {
+                background: #475569;
+            }
+            
+            body.dark-mode .custom-footer {
+                color: #94a3b8;
+                border-color: #334155;
+            }
+            
+            body.dark-mode .custom-footer a {
+                color: #60a5fa;
+            }
+            
+            body.dark-mode .swagger-ui .model-box {
+                background: #1e293b;
+            }
+            
+            body.dark-mode .swagger-ui section.models {
+                border-color: #334155;
+            }
+            
+            body.dark-mode .swagger-ui section.models h4 {
+                color: #e2e8f0;
+            }
+        `;
+        document.head.appendChild(darkModeStyles);
+        
+        // Global window reference for debugging
+        window.ui = ui;
+    </script>
+</body>
+</html>

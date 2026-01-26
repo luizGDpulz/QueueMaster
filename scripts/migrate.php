@@ -11,7 +11,7 @@
  *   DB_PORT     - Database port (default: 3306)
  *   DB_USER     - Database username (default: root)
  *   DB_PASS     - Database password (default: empty)
- *   DB_NAME     - Database name (default: queue_system)
+ *   DB_NAME     - Database name (default: queue_master)
  */
 
 // Load environment variables from .env file if it exists
@@ -56,7 +56,7 @@ $dbHost = getenv('DB_HOST') ?: 'localhost';
 $dbPort = getenv('DB_PORT') ?: '3306';
 $dbUser = getenv('DB_USER') ?: 'root';
 $dbPass = getenv('DB_PASS') ?: '';
-$dbName = getenv('DB_NAME') ?: 'queue_system';
+$dbName = getenv('DB_NAME') ?: 'queue_master';
 
 // Get command
 $command = $argv[1] ?? 'help';
@@ -79,7 +79,7 @@ if ($command === 'help') {
     echo "  DB_PORT     - Database port (default: 3306)\n";
     echo "  DB_USER     - Database username (default: root)\n";
     echo "  DB_PASS     - Database password (default: empty)\n";
-    echo "  DB_NAME     - Database name (default: queue_system)\n\n";
+    echo "  DB_NAME     - Database name (default: queue_master)\n\n";
     exit(0);
 }
 

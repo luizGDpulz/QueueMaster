@@ -23,6 +23,55 @@ use QueueMaster\Middleware\RoleMiddleware;
 use QueueMaster\Middleware\RateLimiter;
 use QueueMaster\Core\Response;
 
+// ============================================================================
+// API Documentation (Swagger UI)
+// ============================================================================
+
+// GET /api/docs - Redirect to Swagger UI
+$router->get('/api/docs', function ($request) {
+    header('Location: /swagger/');
+    exit;
+});
+
+// GET /docs - Alternative shortcut
+$router->get('/docs', function ($request) {
+    header('Location: /swagger/');
+    exit;
+});
+
+// GET /api/openapi.yaml - Serve OpenAPI spec directly
+$router->get('/api/openapi.yaml', function ($request) {
+    $specPath = __DIR__ . '/../public/swagger/openapi.yaml';
+    if (file_exists($specPath)) {
+        header('Content-Type: application/x-yaml');
+        header('Access-Control-Allow-Origin: *');
+        echo file_get_contents($specPath);
+        exit;
+    }
+    Response::notFound('OpenAPI specification not found');
+});
+
+// GET /api/openapi.json - Serve OpenAPI spec as JSON
+$router->get('/api/openapi.json', function ($request) {
+    $specPath = __DIR__ . '/../public/swagger/openapi.yaml';
+    if (file_exists($specPath)) {
+        $yaml = file_get_contents($specPath);
+        $data = yaml_parse($yaml);
+        if ($data === false) {
+            // Fallback: serve raw YAML with JSON content type
+            header('Content-Type: application/json');
+            header('Access-Control-Allow-Origin: *');
+            echo json_encode(['error' => 'YAML parsing not available, use /api/openapi.yaml']);
+            exit;
+        }
+        header('Content-Type: application/json');
+        header('Access-Control-Allow-Origin: *');
+        echo json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    Response::notFound('OpenAPI specification not found');
+});
+
 // API v1 routes group
 $router->group('/api/v1', function ($router) {
     
