@@ -1,0 +1,945 @@
+{
+	"info": {
+		"_postman_id": "queuemaster-api-v1",
+		"name": "QueueMaster API - Complete Collection",
+		"description": "Collection completa da API QueueMaster com todos os endpoints incluindo CRUD de Usuários",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "queuemaster"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "🔐 Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    const data = response.data || response;",
+									"    pm.collectionVariables.set('access_token', data.access_token);",
+									"    pm.collectionVariables.set('refresh_token', data.refresh_token);",
+									"    pm.collectionVariables.set('user_id', data.user.id);",
+									"    pm.environment.set('access_token', data.access_token);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Usuário Teste\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\",\n  \"role\": \"client\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register"]
+						},
+						"description": "Registrar novo usuário no sistema"
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    const data = response.data || response;",
+									"    pm.collectionVariables.set('access_token', data.access_token);",
+									"    pm.collectionVariables.set('refresh_token', data.refresh_token);",
+									"    pm.collectionVariables.set('user_id', data.user.id);",
+									"    pm.environment.set('access_token', data.access_token);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Login com email e senha"
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    const data = response.data || response;",
+									"    pm.collectionVariables.set('access_token', data.access_token);",
+									"    pm.collectionVariables.set('refresh_token', data.refresh_token);",
+									"    pm.environment.set('access_token', data.access_token);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "refresh"]
+						},
+						"description": "Renovar access token usando refresh token"
+					}
+				},
+				{
+					"name": "Get Current User (Me)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/me",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me"]
+						},
+						"description": "Obter perfil do usuário autenticado"
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/logout",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "logout"]
+						},
+						"description": "Fazer logout e revogar tokens"
+					}
+				}
+			]
+		},
+		{
+			"name": "👥 Users (CRUD)",
+			"item": [
+				{
+					"name": "List Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users?page=1&per_page=20&role=client",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Número da página"
+								},
+								{
+									"key": "per_page",
+									"value": "20",
+									"description": "Registros por página"
+								},
+								{
+									"key": "role",
+									"value": "client",
+									"description": "Filtrar por role (client|attendant|admin)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Listar todos os usuários (Admin only)"
+					}
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["users", "{{user_id}}"]
+						},
+						"description": "Obter usuário específico (próprio ou admin)"
+					}
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"João Silva\",\n  \"email\": \"joao.silva@exemplo.com\",\n  \"password\": \"password123\",\n  \"role\": \"attendant\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users",
+							"host": ["{{base_url}}"],
+							"path": ["users"]
+						},
+						"description": "Criar novo usuário (Admin only)"
+					}
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"João Silva Santos\",\n  \"email\": \"joao.novo@exemplo.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["users", "{{user_id}}"]
+						},
+						"description": "Atualizar usuário (próprio ou admin)"
+					}
+				},
+				{
+					"name": "Update User Password",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"current_password\": \"password123\",\n  \"password\": \"nova_senha_segura_123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["users", "{{user_id}}"]
+						},
+						"description": "Trocar senha do usuário (requer senha atual)"
+					}
+				},
+				{
+					"name": "Update User Role (Admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"attendant\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["users", "{{user_id}}"]
+						},
+						"description": "Alterar role do usuário (Admin only)"
+					}
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["users", "{{user_id}}"]
+						},
+						"description": "Deletar usuário (Admin only, não pode deletar a si mesmo)"
+					}
+				},
+				{
+					"name": "Get User Queue Entries",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}/queue-entries?status=waiting",
+							"host": ["{{base_url}}"],
+							"path": ["users", "{{user_id}}", "queue-entries"],
+							"query": [
+								{
+									"key": "status",
+									"value": "waiting",
+									"description": "Filtrar por status",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Obter entradas de fila do usuário"
+					}
+				},
+				{
+					"name": "Get User Appointments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}/appointments?status=booked",
+							"host": ["{{base_url}}"],
+							"path": ["users", "{{user_id}}", "appointments"],
+							"query": [
+								{
+									"key": "status",
+									"value": "booked",
+									"description": "Filtrar por status",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Obter agendamentos do usuário"
+					}
+				}
+			]
+		},
+		{
+			"name": "🏢 Establishments",
+			"item": [
+				{
+					"name": "List Establishments",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/establishments",
+							"host": ["{{base_url}}"],
+							"path": ["establishments"]
+						},
+						"description": "Listar todos os estabelecimentos (público)"
+					}
+				},
+				{
+					"name": "Get Establishment",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/establishments/1",
+							"host": ["{{base_url}}"],
+							"path": ["establishments", "1"]
+						},
+						"description": "Obter estabelecimento específico (público)"
+					}
+				},
+				{
+					"name": "Create Establishment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Clínica São Paulo\",\n  \"address\": \"Av. Paulista, 1000 - São Paulo/SP\",\n  \"timezone\": \"America/Sao_Paulo\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/establishments",
+							"host": ["{{base_url}}"],
+							"path": ["establishments"]
+						},
+						"description": "Criar novo estabelecimento (Admin only)"
+					}
+				},
+				{
+					"name": "Update Establishment",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Clínica São Paulo - Unidade Central\",\n  \"address\": \"Av. Paulista, 1000 - Sala 500\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/establishments/1",
+							"host": ["{{base_url}}"],
+							"path": ["establishments", "1"]
+						},
+						"description": "Atualizar estabelecimento (Admin only)"
+					}
+				},
+				{
+					"name": "Delete Establishment",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/establishments/1",
+							"host": ["{{base_url}}"],
+							"path": ["establishments", "1"]
+						},
+						"description": "Deletar estabelecimento (Admin only)"
+					}
+				},
+				{
+					"name": "Get Establishment Services",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/establishments/1/services",
+							"host": ["{{base_url}}"],
+							"path": ["establishments", "1", "services"]
+						},
+						"description": "Listar serviços do estabelecimento (público)"
+					}
+				},
+				{
+					"name": "Get Establishment Professionals",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/establishments/1/professionals",
+							"host": ["{{base_url}}"],
+							"path": ["establishments", "1", "professionals"]
+						},
+						"description": "Listar profissionais do estabelecimento (público)"
+					}
+				}
+			]
+		},
+		{
+			"name": "📋 Queues",
+			"item": [
+				{
+					"name": "List Queues",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/queues?establishment_id=1&status=open",
+							"host": ["{{base_url}}"],
+							"path": ["queues"],
+							"query": [
+								{
+									"key": "establishment_id",
+									"value": "1",
+									"description": "Filtrar por estabelecimento",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "open",
+									"description": "Filtrar por status (open|closed)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Listar filas (público)"
+					}
+				},
+				{
+					"name": "Get Queue",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/queues/1",
+							"host": ["{{base_url}}"],
+							"path": ["queues", "1"]
+						},
+						"description": "Obter fila específica (público)"
+					}
+				},
+				{
+					"name": "Create Queue",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"establishment_id\": 1,\n  \"service_id\": 1,\n  \"name\": \"Fila Geral\",\n  \"status\": \"open\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/queues",
+							"host": ["{{base_url}}"],
+							"path": ["queues"]
+						},
+						"description": "Criar nova fila (Admin only)"
+					}
+				},
+				{
+					"name": "Update Queue",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Fila Prioritária\",\n  \"status\": \"closed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/queues/1",
+							"host": ["{{base_url}}"],
+							"path": ["queues", "1"]
+						},
+						"description": "Atualizar fila (Admin only)"
+					}
+				},
+				{
+					"name": "Delete Queue",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/queues/1",
+							"host": ["{{base_url}}"],
+							"path": ["queues", "1"]
+						},
+						"description": "Deletar fila (Admin only)"
+					}
+				},
+				{
+					"name": "Join Queue",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"priority\": 0\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/queues/1/join",
+							"host": ["{{base_url}}"],
+							"path": ["queues", "1", "join"]
+						},
+						"description": "Entrar na fila (autenticado)"
+					}
+				},
+				{
+					"name": "Get Queue Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/queues/1/status",
+							"host": ["{{base_url}}"],
+							"path": ["queues", "1", "status"]
+						},
+						"description": "Obter status da fila e posição do usuário"
+					}
+				},
+				{
+					"name": "Leave Queue",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/queues/1/leave",
+							"host": ["{{base_url}}"],
+							"path": ["queues", "1", "leave"]
+						},
+						"description": "Sair da fila (autenticado)"
+					}
+				},
+				{
+					"name": "Call Next in Queue",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/queues/1/call-next",
+							"host": ["{{base_url}}"],
+							"path": ["queues", "1", "call-next"]
+						},
+						"description": "Chamar próximo da fila (Attendant/Admin)"
+					}
+				}
+			]
+		},
+		{
+			"name": "📅 Appointments",
+			"item": [
+				{
+					"name": "List Appointments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/appointments?user_id={{user_id}}&status=booked&date=2026-01-21",
+							"host": ["{{base_url}}"],
+							"path": ["appointments"],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "{{user_id}}",
+									"description": "Filtrar por usuário",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "booked",
+									"description": "Filtrar por status",
+									"disabled": true
+								},
+								{
+									"key": "date",
+									"value": "2026-01-21",
+									"description": "Filtrar por data (Y-m-d)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Listar agendamentos (autenticado)"
+					}
+				},
+				{
+					"name": "Get Appointment",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/appointments/1",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "1"]
+						},
+						"description": "Obter agendamento específico (autenticado)"
+					}
+				},
+				{
+					"name": "Create Appointment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"establishment_id\": 1,\n  \"professional_id\": 1,\n  \"service_id\": 1,\n  \"start_at\": \"2026-01-25 10:00:00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/appointments",
+							"host": ["{{base_url}}"],
+							"path": ["appointments"]
+						},
+						"description": "Criar novo agendamento (autenticado)"
+					}
+				},
+				{
+					"name": "Update Appointment",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"start_at\": \"2026-01-25 14:00:00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/appointments/1",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "1"]
+						},
+						"description": "Atualizar agendamento (autenticado)"
+					}
+				},
+				{
+					"name": "Cancel Appointment",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/appointments/1",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "1"]
+						},
+						"description": "Cancelar agendamento (autenticado)"
+					}
+				},
+				{
+					"name": "Checkin Appointment",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/appointments/1/checkin",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "1", "checkin"]
+						},
+						"description": "Fazer check-in no agendamento (autenticado)"
+					}
+				},
+				{
+					"name": "Complete Appointment",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/appointments/1/complete",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "1", "complete"]
+						},
+						"description": "Marcar agendamento como completo (Attendant/Admin)"
+					}
+				},
+				{
+					"name": "Mark No-Show",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/appointments/1/no-show",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "1", "no-show"]
+						},
+						"description": "Marcar como não compareceu (Attendant/Admin)"
+					}
+				}
+			]
+		},
+		{
+			"name": "🔔 Notifications",
+			"item": [
+				{
+					"name": "List Notifications",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications?page=1&per_page=20",
+							"host": ["{{base_url}}"],
+							"path": ["notifications"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "per_page",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Listar notificações do usuário (autenticado)"
+					}
+				},
+				{
+					"name": "Mark Notification as Read",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/1/read",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "1", "read"]
+						},
+						"description": "Marcar notificação como lida (autenticado)"
+					}
+				}
+			]
+		},
+		{
+			"name": "📊 Dashboard (Attendant/Admin)",
+			"item": [
+				{
+					"name": "Queue Overview",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dashboard/queue-overview?establishment_id=1",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "queue-overview"],
+							"query": [
+								{
+									"key": "establishment_id",
+									"value": "1",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Visão geral das filas (Attendant/Admin)"
+					}
+				},
+				{
+					"name": "Appointments List",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dashboard/appointments-list?date=2026-01-21&professional_id=1",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "appointments-list"],
+							"query": [
+								{
+									"key": "date",
+									"value": "2026-01-21",
+									"disabled": true
+								},
+								{
+									"key": "professional_id",
+									"value": "1",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Lista de agendamentos (Attendant/Admin)"
+					}
+				}
+			]
+		},
+		{
+			"name": "🔧 System",
+			"item": [
+				{
+					"name": "API Status",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["status"]
+						},
+						"description": "Verificar status da API (público)"
+					}
+				}
+			]
+		}
+	]
+}

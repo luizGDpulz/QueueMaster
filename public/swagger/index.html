@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QueueMaster API - Documentação</title>
+    <meta name="description" content="Documentação interativa da API QueueMaster para gerenciamento de filas e agendamentos">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+    
+    <!-- Swagger UI CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Custom Header -->
+    <header class="custom-header">
+        <div class="header-left">
+            <span class="logo">📚</span>
+            <div class="header-title">
+                <h1>QueueMaster API</h1>
+            </div>
+        </div>
+        <div class="header-right">
+            <span class="version-badge">v1.0.0</span>
+            <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Alternar modo escuro">
+                🌙
+            </button>
+        </div>
+    </header>
+    
+    <div class="info-banner">
+        <p class="tagline">Production-oriented hybrid queue and appointment management RESTful API</p>
+        
+        <div class="info-grid">
+            <section class="info-section">
+                <h2>📋 Overview</h2>
+                <p>QueueMaster é uma API completa para gerenciamento de filas e agendamentos, ideal para estabelecimentos que precisam controlar fluxo de clientes.</p>
+            </section>
+            
+            <section class="info-section">
+                <h2>🔐 Autenticação</h2>
+                <p>A API utiliza <strong>JWT (JSON Web Tokens)</strong> com algoritmo RS256:</p>
+                <ul>
+                    <li><strong>Access Token</strong>: Token de curta duração (15 min) para acessar recursos protegidos</li>
+                    <li><strong>Refresh Token</strong>: Token de longa duração (7 dias) para renovar o access token</li>
+                </ul>
+                <p>Para autenticar, inclua o header:</p>
+                <code class="code-block">Authorization: Bearer {access_token}</code>
+            </section>
+            
+            <section class="info-section">
+                <h2>⏱️ Rate Limiting</h2>
+                <ul>
+                    <li><strong>Global</strong>: 100 requisições por minuto</li>
+                    <li><strong>Login</strong>: 10 requisições por minuto</li>
+                    <li><strong>Registro</strong>: 5 requisições por minuto</li>
+                </ul>
+            </section>
+            
+            <section class="info-section">
+                <h2>📊 Códigos de Status</h2>
+                <table class="status-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="status-code success">200</span></td><td>Sucesso</td></tr>
+                        <tr><td><span class="status-code success">201</span></td><td>Criado com sucesso</td></tr>
+                        <tr><td><span class="status-code warning">400</span></td><td>Requisição inválida</td></tr>
+                        <tr><td><span class="status-code warning">401</span></td><td>Não autenticado</td></tr>
+                        <tr><td><span class="status-code warning">403</span></td><td>Acesso negado</td></tr>
+                        <tr><td><span class="status-code warning">404</span></td><td>Recurso não encontrado</td></tr>
+                        <tr><td><span class="status-code warning">409</span></td><td>Conflito</td></tr>
+                        <tr><td><span class="status-code warning">422</span></td><td>Erro de validação</td></tr>
+                        <tr><td><span class="status-code warning">429</span></td><td>Rate limit excedido</td></tr>
+                        <tr><td><span class="status-code error">500</span></td><td>Erro interno do servidor</td></tr>
+                    </tbody>
+                </table>
+            </section>
+        </div>
+    </div>
+
+    <!-- Swagger UI Container -->
+    <div id="swagger-ui">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Carregando documentação...</p>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="custom-footer">
+        <p>
+            QueueMaster API © 2026 | 
+            Documentação gerada com <a href="https://swagger.io/tools/swagger-ui/" target="_blank">Swagger UI</a> |
+            <a href="openapi.yaml" target="_blank">OpenAPI Spec</a>
+        </p>
+    </footer>
+    
+    <!-- Swagger UI JavaScript -->
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
+    
+    <!-- Custom Script -->
+    <script src="script.js"></script>
+</body>
+</html>
