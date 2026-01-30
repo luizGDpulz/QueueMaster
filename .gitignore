@@ -9,27 +9,16 @@
 *.swo
 *~
 
+# ============================================================================
+# API (PHP)
+# ============================================================================
+
 # Composer
-/vendor/
-composer.lock
+api/vendor/
+api/composer.lock
 
-# Node modules
-node_modules/
-
-# Build artifacts
-/dist/
-/build/
-
-# Logs
-*.log
-logs/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Security - Private keys (NEVER commit these)
-keys/
+# Private keys (NEVER commit these)
+api/keys/
 *.key
 *.pem
 
@@ -37,6 +26,51 @@ keys/
 .phpunit.result.cache
 phpunit.xml
 
+# Logs
+*.log
+api/public/logs/*.log
+
+# ============================================================================
+# Web App (Quasar/Vue)
+# ============================================================================
+
+# Dependencies
+web/node_modules/
+web/.quasar/
+
+# Build output
+web/dist/
+web/src-capacitor/
+web/src-cordova/
+
+# Quasar
+web/.eslintcache
+web/yarn.lock
+web/package-lock.json
+
+# ============================================================================
+# Mobile (Kotlin - Future)
+# ============================================================================
+
+mobile/.gradle/
+mobile/build/
+mobile/app/build/
+mobile/*.apk
+mobile/*.aab
+mobile/local.properties
+
+# ============================================================================
+# General
+# ============================================================================
+
+# OS files
+.DS_Store
+Thumbs.db
+
 # Temporary files
 /tmp/
 *.tmp
+
+# Build artifacts
+/dist/
+/build/

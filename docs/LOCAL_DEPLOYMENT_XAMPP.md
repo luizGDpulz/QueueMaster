@@ -1,6 +1,6 @@
 # Deploy Local no XAMPP - Tutorial Completo
 
-Este guia mostra como configurar o QueueMaster API localmente usando XAMPP para testes e desenvolvimento.
+Este guia mostra como configurar o QueueMaster localmente usando XAMPP para testes e desenvolvimento.
 
 ## 📋 Pré-requisitos
 
@@ -9,7 +9,23 @@ Antes de começar, certifique-se de ter:
 - **XAMPP** instalado (PHP 8.1+ e MySQL/MariaDB)
 - **Git** instalado
 - **Composer** instalado ([getcomposer.org](https://getcomposer.org/download/))
+- **Node.js 18+** instalado (para o Web App)
 - **OpenSSL** disponível (já vem com Git Bash ou Windows 10+)
+
+---
+
+## 🏗️ Estrutura do Projeto
+
+O QueueMaster é um monorepo com a seguinte estrutura:
+
+```
+QueueMaster/
+├── api/            # Backend PHP (API RESTful)
+├── web/            # Frontend Web (Quasar/Vue 3)
+├── docs/           # Documentação
+├── public/         # Entry point unificado (Apache aponta aqui)
+└── docker-compose.yml
+```
 
 ---
 
@@ -23,7 +39,7 @@ Abra o **XAMPP Control Panel** e inicie:
 
 ### 2. Configurar Virtual Host no Apache
 
-Antes de clonar o projeto, configure o Apache para apontar para a pasta `public/`.
+Configure o Apache para apontar para a pasta `public/` (entry point unificado).
 
 #### 2.1. Editar httpd-vhosts.conf
 
@@ -32,7 +48,7 @@ Abra o arquivo: `C:\xampp\apache\conf\extra\httpd-vhosts.conf`
 Adicione no **final do arquivo**:
 
 ```apache
-<VirtualHost *:8080>
+<VirtualHost *:80>
     ServerName localhost
     DocumentRoot "C:/xampp/htdocs/public"
     <Directory "C:/xampp/htdocs/public">
@@ -43,7 +59,7 @@ Adicione no **final do arquivo**:
 </VirtualHost>
 ```
 
-**Nota:** Se o Apache estiver rodando na porta 80, use `*:80` ao invés de `*:8080`.
+**Nota:** O `public/` principal roteia automaticamente entre API e Web App.
 
 #### 2.2. Verificar httpd.conf
 
@@ -81,18 +97,19 @@ cd C:\xampp\htdocs
 git clone https://github.com/seu-usuario/queuemaster.git .
 ```
 
-### 4. Instalar Dependências do Composer
+### 4. Instalar Dependências da API (Composer)
 
-No diretório do projeto:
+No diretório da API:
 
 ```bash
-cd C:\xampp\htdocs
+cd C:\xampp\htdocs\api
 php composer.phar install
 ```
 
 **Ou**, se o Composer estiver instalado globalmente:
 
 ```bash
+cd api
 composer install
 ```
 
@@ -103,6 +120,7 @@ As chaves RSA são necessárias para autenticação JWT com RS256.
 #### No Git Bash ou Linux/Mac:
 
 ```bash
+cd api
 mkdir -p keys
 openssl genrsa -out keys/private.key 2048
 openssl rsa -in keys/private.key -pubout -out keys/public.key
@@ -111,6 +129,8 @@ openssl rsa -in keys/private.key -pubout -out keys/public.key
 #### No PowerShell (Windows):
 
 ```powershell
+cd api
+
 # Criar diretório
 New-Item -ItemType Directory -Force -Path keys
 
@@ -125,15 +145,17 @@ openssl rsa -in keys/private.key -pubout -out keys/public.key
 
 ### 6. Configurar Variáveis de Ambiente
 
-Copie o arquivo de exemplo `.env.example` para `.env`:
+Copie o arquivo de exemplo `.env.example` para `.env` (dentro da pasta `api/`):
 
 #### Bash:
 ```bash
+cd api
 cp .env.example .env
 ```
 
 #### PowerShell:
 ```powershell
+cd api
 Copy-Item .env.example .env
 ```
 
@@ -177,15 +199,16 @@ FCM_SERVER_KEY=your_fcm_server_key_here
 #### 7.1. Executar Migrations
 
 ```bash
+cd api
 php scripts/migrate.php up
 ```
 
 Ou navegando até a pasta scripts:
 
 ```bash
-cd scripts
+cd api/scripts
 php migrate.php up
-cd ..
+cd ../..
 ```
 
 **Saída esperada:**
@@ -206,6 +229,7 @@ Host: localhost:3306
 #### 7.2. Popular com Dados de Teste (Opcional)
 
 ```bash
+cd api
 php scripts/seed.php sample
 ```
 
@@ -238,23 +262,29 @@ Certifique-se de que a estrutura está correta:
 
 ```
 C:\xampp\htdocs\
-├── public\
+├── public/                  # Entry point unificado
 │   ├── index.php
 │   └── .htaccess
-├── src\
-├── routes\
-├── migrations\
-├── scripts\
-├── keys\
-│   ├── private.key
-│   └── public.key
-├── .env
-└── composer.json
+├── api/                     # Backend PHP
+│   ├── public/
+│   │   ├── index.php
+│   │   ├── swagger/
+│   │   └── .htaccess
+│   ├── src/
+│   ├── routes/
+│   ├── keys/
+│   │   ├── private.key
+│   │   └── public.key
+│   ├── .env
+│   └── composer.json
+├── web/                     # Frontend (Quasar) - futuro
+├── docs/
+└── README.md
 ```
 
 #### 8.2. Testar Acesso ao Apache (API Status)
 
-Acesse no navegador: [http://localhost:8080/api/v1/status](http://localhost:8080/api/v1/status)
+Acesse no navegador: [http://localhost/api/v1/status](http://localhost/api/v1/status)
 
 **Resposta esperada:**
 ```json

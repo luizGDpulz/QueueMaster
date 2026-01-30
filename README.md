@@ -5,6 +5,8 @@
 ### Sistema Híbrido de Gerenciamento de Filas e Agendamentos
 
 [![PHP](https://img.shields.io/badge/PHP-8.1+-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://php.net)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?style=for-the-badge&logo=vue.js&logoColor=white)](https://vuejs.org)
+[![Quasar](https://img.shields.io/badge/Quasar-2-1976D2?style=for-the-badge&logo=quasar&logoColor=white)](https://quasar.dev)
 [![MariaDB](https://img.shields.io/badge/MariaDB-10.2+-003545?style=for-the-badge&logo=mariadb&logoColor=white)](https://mariadb.org)
 [![JWT](https://img.shields.io/badge/JWT-RS256-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)](https://jwt.io)
 [![License](https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey?style=for-the-badge&logo=creativecommons)](LICENSE)
@@ -22,7 +24,7 @@
 
 ## 💡 O que é o QueueMaster?
 
-O **QueueMaster** é uma API RESTful moderna que resolve um problema comum: **gerenciar filas de espera e agendamentos de forma unificada**.
+O **QueueMaster** é um sistema completo (API + Web App) que resolve um problema comum: **gerenciar filas de espera e agendamentos de forma unificada**.
 
 Imagine uma clínica médica, barbearia ou qualquer estabelecimento que atende tanto clientes que chegam sem hora marcada (walk-in) quanto aqueles com agendamento. O QueueMaster reconcilia ambos os fluxos automaticamente:
 
@@ -64,12 +66,23 @@ Imagine uma clínica médica, barbearia ou qualquer estabelecimento que atende t
 
 ## 🏗️ Arquitetura
 
-O QueueMaster foi construído com foco em **simplicidade**, **segurança** e **escalabilidade**:
+O QueueMaster é um **monorepo** contendo todos os componentes do sistema:
+
+```
+QueueMaster/
+├── 📁 api/             # Backend PHP (API RESTful)
+├── 📁 web/             # Frontend Web (Quasar/Vue 3)
+├── 📁 mobile/          # App Mobile (Kotlin) - Futuro
+├── 📁 docs/            # Documentação geral
+└── 📁 public/          # Entry point unificado
+```
 
 | Componente | Tecnologia | Descrição |
 |------------|------------|-----------|
-| **Backend** | PHP 8.1+ | API RESTful com JSON |
-| **Banco de Dados** | MariaDB/MySQL | Dados relacionais com integridade |
+| **API** | PHP 8.1+ | API RESTful com JSON |
+| **Web App** | Quasar + Vue 3 | SPA responsivo (PWA) |
+| **Mobile** | Kotlin + Compose | App Android (futuro) |
+| **Banco de Dados** | MariaDB/MySQL | Dados relacionais |
 | **Autenticação** | JWT RS256 | Tokens seguros com chaves RSA |
 | **Real-time** | SSE | Atualizações instantâneas |
 | **Cache** | Redis *(opcional)* | Performance para alta escala |
@@ -85,16 +98,20 @@ O QueueMaster foi construído com foco em **simplicidade**, **segurança** e **e
 - PHP 8.1+ com extensões: `pdo`, `json`, `openssl`
 - MariaDB 10.2+ ou MySQL 5.7+
 - Composer
+- Node.js 18+ (para o Web App)
 - OpenSSL
 
-### Instalação em 5 Passos
+### Instalação
+
+#### API (Backend)
 
 ```bash
 # 1. Clone o repositório
 git clone https://github.com/yourusername/QueueMaster.git
 cd QueueMaster
 
-# 2. Instale as dependências
+# 2. Instale as dependências da API
+cd api
 composer install
 
 # 3. Configure o ambiente
@@ -104,11 +121,32 @@ cp .env.example .env
 # 4. Execute as migrations
 php scripts/migrate.php up
 
-# 5. Inicie o servidor
-php -S 127.0.0.1:8080 -t public
+# 5. Volte para a raiz
+cd ..
 ```
 
-🎉 **Pronto!** Acesse `http://127.0.0.1:8080/api/v1/status`
+#### Web App (Frontend)
+
+```bash
+# 1. Entre na pasta web
+cd web
+
+# 2. Instale as dependências
+npm install
+
+# 3. Inicie em modo de desenvolvimento
+npx quasar dev
+
+# Ou para produção
+npx quasar build
+```
+
+#### Rodando com XAMPP
+
+Configure o Document Root do Apache para `QueueMaster/public/` e acesse:
+- 🌐 **Web App:** `http://localhost/`
+- 📡 **API:** `http://localhost/api/v1/status`
+- 📖 **Swagger:** `http://localhost/swagger/`
 
 > 📚 **Instalação detalhada?** Veja o [Guia de Deploy Local (XAMPP)](docs/LOCAL_DEPLOYMENT_XAMPP.md)
 
@@ -166,17 +204,30 @@ O QueueMaster implementa múltiplas camadas de segurança:
 
 ```
 QueueMaster/
-├── 📁 public/          # Entry point (index.php) + Swagger UI
-├── 📁 src/
-│   ├── Controllers/    # Endpoints da API
-│   ├── Models/         # Entidades (User, Queue, Appointment...)
-│   ├── Services/       # Lógica de negócio
-│   ├── Middleware/     # Auth, Rate Limiting, Roles
-│   └── Core/           # Router, Database, Request, Response
-├── 📁 routes/          # Definição de rotas
-├── 📁 migrations/      # Schema do banco de dados
-├── 📁 docs/            # Documentação detalhada
-└── 📁 tests/           # Testes automatizados
+├── 📁 api/                    # Backend PHP
+│   ├── public/                # Entry point da API + Swagger
+│   ├── src/
+│   │   ├── Controllers/       # Endpoints da API
+│   │   ├── Models/            # Entidades (User, Queue...)
+│   │   ├── Services/          # Lógica de negócio
+│   │   ├── Middleware/        # Auth, Rate Limiting, Roles
+│   │   └── Core/              # Router, Database, Request
+│   ├── routes/                # Definição de rotas
+│   ├── migrations/            # Schema do banco
+│   └── tests/                 # Testes PHPUnit
+│
+├── 📁 web/                    # Frontend Quasar/Vue 3
+│   ├── src/
+│   │   ├── components/        # Componentes Vue
+│   │   ├── pages/             # Páginas da aplicação
+│   │   ├── layouts/           # Layouts (Admin, Cliente)
+│   │   ├── composables/       # Hooks (useAuth, useQueue)
+│   │   └── services/          # API client
+│   └── quasar.config.js
+│
+├── 📁 docs/                   # Documentação
+├── 📁 public/                 # Entry point unificado
+└── docker-compose.yml
 ```
 
 > 📚 **Arquitetura detalhada:** [Architecture Refactoring](docs/ARCHITECTURE_REFACTORING.md) | [Models Guide](docs/QUICK_GUIDE_MODELS.md)
@@ -203,7 +254,8 @@ QueueMaster/
 ## 🧪 Testes
 
 ```bash
-# Executar todos os testes
+# Executar testes da API
+cd api
 vendor/bin/phpunit
 
 # Com relatório de cobertura
