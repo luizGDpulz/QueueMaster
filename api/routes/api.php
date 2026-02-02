@@ -27,15 +27,56 @@ use QueueMaster\Core\Response;
 // API Documentation (Swagger UI)
 // ============================================================================
 
+// GET /swagger - Serve Swagger UI
+$router->get('/swagger', function ($request) {
+    $swaggerPath = __DIR__ . '/../public/swagger/index.html';
+    if (file_exists($swaggerPath)) {
+        header('Content-Type: text/html');
+        readfile($swaggerPath);
+        exit;
+    }
+    Response::notFound('Swagger UI not found');
+});
+
+// GET /swagger/{file} - Serve Swagger static files
+$router->get('/swagger/{file}', function ($request) {
+    $file = $request->getParam('file');
+    $filePath = __DIR__ . '/../public/swagger/' . $file;
+    
+    // Security: prevent directory traversal
+    $realPath = realpath($filePath);
+    $swaggerDir = realpath(__DIR__ . '/../public/swagger');
+    
+    if ($realPath && str_starts_with($realPath, $swaggerDir) && is_file($realPath)) {
+        $mimeTypes = [
+            'html' => 'text/html',
+            'css' => 'text/css',
+            'js' => 'application/javascript',
+            'yaml' => 'application/x-yaml',
+            'json' => 'application/json',
+            'png' => 'image/png',
+            'svg' => 'image/svg+xml',
+        ];
+        $ext = pathinfo($realPath, PATHINFO_EXTENSION);
+        $mime = $mimeTypes[$ext] ?? 'application/octet-stream';
+        header('Content-Type: ' . $mime);
+        header('Access-Control-Allow-Origin: *');
+        readfile($realPath);
+        exit;
+    }
+    
+    Response::notFound('File not found');
+});
+
 // GET /api/docs - Redirect to Swagger UI
 $router->get('/api/docs', function ($request) {
-    header('Location: /swagger/');
+    header('Location: /swagger');
     exit;
 });
 
 // GET /docs - Alternative shortcut
 $router->get('/docs', function ($request) {
-    header('Location: /swagger/');
+    header('Location: /swagger');
     exit;
 });
 
