@@ -8,6 +8,7 @@ use QueueMaster\Core\Database;
 use QueueMaster\Utils\Logger;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Models\Establishment;
+use QueueMaster\Models\EstablishmentUser;
 use QueueMaster\Models\Service;
 use QueueMaster\Models\Professional;
 
@@ -158,7 +159,12 @@ class EstablishmentController
         // Validate input
         $errors = Validator::make($data, [
             'name' => 'required|min:2|max:255',
+            'slug' => 'max:100',
+            'description' => 'max:5000',
             'address' => 'max:255',
+            'phone' => 'max:20',
+            'email' => 'email|max:150',
+            'logo_url' => 'max:500',
             'timezone' => 'max:50',
         ]);
 
@@ -168,13 +174,25 @@ class EstablishmentController
         }
 
         try {
-            $establishmentId = Establishment::create([
+            $establishmentData = [
                 'name' => trim($data['name']),
-                'address' => isset($data['address']) ? trim($data['address']) : null,
+                'owner_id' => $request->user['id'], // Creator becomes owner
                 'timezone' => $data['timezone'] ?? 'America/Sao_Paulo',
-            ]);
+            ];
 
+            // Optional fields
+            $optionalFields = ['slug', 'description', 'address', 'phone', 'email', 'logo_url', 'opens_at', 'closes_at'];
+            foreach ($optionalFields as $field) {
+                if (isset($data[$field])) {
+                    $establishmentData[$field] = is_string($data[$field]) ? trim($data[$field]) : $data[$field];
+                }
+            }
+
+            $establishmentId = Establishment::create($establishmentData);
             $establishment = Establishment::find($establishmentId);
+
+            // Add creator as owner in establishment_users
+            EstablishmentUser::addStaff($establishmentId, (int)$request->user['id'], 'owner');
 
             Logger::info('Establishment created', [
                 'establishment_id' => $establishmentId,

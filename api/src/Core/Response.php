@@ -213,6 +213,38 @@ class Response
         header('Access-Control-Allow-Headers: ' . implode(', ', $allowedHeaders));
         header('Access-Control-Allow-Credentials: true');
         header('Access-Control-Max-Age: 86400'); // 24 hours
+        
+        // Security headers
+        self::setSecurityHeaders();
+    }
+
+    /**
+     * Set security headers to protect against common attacks
+     */
+    public static function setSecurityHeaders(): void
+    {
+        // Prevent MIME type sniffing
+        header('X-Content-Type-Options: nosniff');
+        
+        // Prevent clickjacking
+        header('X-Frame-Options: DENY');
+        
+        // Enable XSS filter in browsers
+        header('X-XSS-Protection: 1; mode=block');
+        
+        // Referrer policy - don't leak internal URLs
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+        
+        // Content Security Policy for API (restrict to self)
+        header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
+        
+        // Permissions Policy - disable unnecessary features
+        header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+        
+        // In production, enforce HTTPS
+        if (($_ENV['APP_ENV'] ?? 'production') === 'production') {
+            header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+        }
     }
 
     /**

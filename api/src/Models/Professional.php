@@ -185,9 +185,44 @@ class Professional
     }
 
     /**
+     * Get services offered by this professional
+     * 
+     * @param int $professionalId Professional ID
+     * @return array Array of services
+     */
+    public static function getServices(int $professionalId): array
+    {
+        return ProfessionalService::getServicesForProfessional($professionalId);
+    }
+
+    /**
+     * Get active professionals for an establishment
+     * 
+     * @param int $establishmentId Establishment ID
+     * @return array Array of active professionals
+     */
+    public static function getActiveByEstablishment(int $establishmentId): array
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where('establishment_id', '=', $establishmentId)
+            ->where('is_active', '=', 1)
+            ->orderBy('name', 'ASC')
+            ->get();
+    }
+
+    /**
      * Table columns:
      * - id: bigint NOT NULL [PRI]
-     * - establishment_id: bigint NOT NULL
+     * - establishment_id: bigint NOT NULL [FK -> establishments]
+     * - user_id: bigint NULL [FK -> users]
      * - name: varchar(150) NOT NULL
+     * - email: varchar(150) NULL
+     * - phone: varchar(20) NULL
+     * - avatar_url: varchar(500) NULL
+     * - specialty: varchar(150) NULL
+     * - is_active: boolean NOT NULL DEFAULT TRUE
+     * - created_at: timestamp NOT NULL
+     * - updated_at: timestamp NULL
      */
 }

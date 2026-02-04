@@ -40,6 +40,10 @@ use QueueMaster\Utils\Logger;
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
 $dotenv->load();
 
+// Set timezone (default: America/Sao_Paulo for GMT-3)
+$timezone = $_ENV['APP_TIMEZONE'] ?? 'America/Sao_Paulo';
+date_default_timezone_set($timezone);
+
 // Initialize logger
 Logger::init();
 

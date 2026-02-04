@@ -85,7 +85,7 @@ class Logger
         $sanitizedContext = self::sanitizeContext($context);
 
         $logEntry = [
-            'timestamp' => date('Y-m-d\TH:i:s.v\Z'),
+            'timestamp' => date('Y-m-d\TH:i:s.vP'),
             'level' => $level,
             'message' => $message,
             'request_id' => $requestId,

@@ -240,4 +240,116 @@ class Validator
         $validator->validate($data, $rules);
         return $validator->getErrors();
     }
+
+    // =========================================================================
+    // SANITIZATION METHODS (XSS Protection)
+    // =========================================================================
+
+    /**
+     * Sanitize a string value to prevent XSS attacks
+     * 
+     * @param string|null $value Value to sanitize
+     * @return string|null Sanitized value
+     */
+    public static function sanitizeString(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        
+        // Convert special characters to HTML entities
+        return htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    /**
+     * Sanitize an array of data (recursive)
+     * 
+     * @param array $data Data to sanitize
+     * @param array $except Fields to skip sanitization (e.g., password hashes)
+     * @return array Sanitized data
+     */
+    public static function sanitizeArray(array $data, array $except = []): array
+    {
+        $sanitized = [];
+
+        foreach ($data as $key => $value) {
+            if (in_array($key, $except)) {
+                $sanitized[$key] = $value;
+            } elseif (is_string($value)) {
+                $sanitized[$key] = self::sanitizeString($value);
+            } elseif (is_array($value)) {
+                $sanitized[$key] = self::sanitizeArray($value, $except);
+            } else {
+                $sanitized[$key] = $value;
+            }
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * Clean HTML tags from string (strip completely)
+     * 
+     * @param string|null $value Value to clean
+     * @return string|null Cleaned value
+     */
+    public static function stripTags(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return strip_tags($value);
+    }
+
+    /**
+     * Sanitize email address
+     * 
+     * @param string|null $email Email to sanitize
+     * @return string|null Sanitized email or null if invalid
+     */
+    public static function sanitizeEmail(?string $email): ?string
+    {
+        if ($email === null) {
+            return null;
+        }
+
+        $sanitized = filter_var($email, FILTER_SANITIZE_EMAIL);
+        
+        return filter_var($sanitized, FILTER_VALIDATE_EMAIL) ? $sanitized : null;
+    }
+
+    /**
+     * Sanitize URL
+     * 
+     * @param string|null $url URL to sanitize
+     * @return string|null Sanitized URL or null if invalid
+     */
+    public static function sanitizeUrl(?string $url): ?string
+    {
+        if ($url === null) {
+            return null;
+        }
+
+        $sanitized = filter_var($url, FILTER_SANITIZE_URL);
+        
+        return filter_var($sanitized, FILTER_VALIDATE_URL) ? $sanitized : null;
+    }
+
+    /**
+     * Sanitize integer
+     * 
+     * @param mixed $value Value to sanitize
+     * @return int|null Sanitized integer
+     */
+    public static function sanitizeInt(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_INT) !== false 
+            ? (int)$value 
+            : null;
+    }
 }

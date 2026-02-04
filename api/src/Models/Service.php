@@ -183,10 +183,43 @@ class Service
     }
 
     /**
+     * Get professionals who offer this service
+     * 
+     * @param int $serviceId Service ID
+     * @return array Array of professionals
+     */
+    public static function getProfessionals(int $serviceId): array
+    {
+        return ProfessionalService::getProfessionalsForService($serviceId);
+    }
+
+    /**
+     * Get active services for an establishment
+     * 
+     * @param int $establishmentId Establishment ID
+     * @return array Array of active services
+     */
+    public static function getActiveByEstablishment(int $establishmentId): array
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where('establishment_id', '=', $establishmentId)
+            ->where('is_active', '=', 1)
+            ->orderBy('sort_order', 'ASC')
+            ->get();
+    }
+
+    /**
      * Table columns:
      * - id: bigint NOT NULL [PRI]
-     * - establishment_id: bigint NOT NULL
+     * - establishment_id: bigint NOT NULL [FK -> establishments]
      * - name: varchar(150) NOT NULL
-     * - duration_minutes: int NOT NULL
+     * - description: text NULL
+     * - duration_minutes: int NOT NULL DEFAULT 30
+     * - price: decimal(10,2) NULL
+     * - is_active: boolean NOT NULL DEFAULT TRUE
+     * - sort_order: int NOT NULL DEFAULT 0
+     * - created_at: timestamp NOT NULL
+     * - updated_at: timestamp NULL
      */
 }

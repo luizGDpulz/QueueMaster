@@ -239,13 +239,18 @@ class QueueEntry
     /**
      * Table columns:
      * - id: bigint NOT NULL [PRI]
-     * - queue_id: bigint NOT NULL
-     * - user_id: bigint NULL
+     * - queue_id: bigint NOT NULL [FK -> queues]
+     * - user_id: bigint NULL [FK -> users]
+     * - guest_name: varchar(150) NULL (for anonymous entries)
+     * - guest_phone: varchar(20) NULL (for anonymous entries)
      * - position: int NOT NULL
-     * - status: enum NOT NULL
+     * - ticket_number: varchar(20) NULL (e.g., A001)
+     * - status: enum('waiting','called','serving','done','no_show','cancelled') NOT NULL DEFAULT 'waiting'
+     * - priority: int NOT NULL DEFAULT 0
+     * - notes: text NULL
      * - created_at: timestamp NOT NULL
      * - called_at: timestamp NULL
      * - served_at: timestamp NULL
-     * - priority: int NOT NULL
+     * - completed_at: timestamp NULL
      */
 }

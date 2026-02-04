@@ -331,7 +331,7 @@ class Appointment
 
         // Validate status (optional)
         if (isset($data['status'])) {
-            $validStatuses = ['booked', 'checked_in', 'in_progress', 'completed', 'no_show', 'cancelled'];
+            $validStatuses = ['booked', 'confirmed', 'checked_in', 'in_progress', 'completed', 'no_show', 'cancelled'];
             if (!in_array($data['status'], $validStatuses)) {
                 $errors['status'] = 'Invalid status value';
             }
@@ -343,14 +343,18 @@ class Appointment
     /**
      * Table columns:
      * - id: bigint NOT NULL [PRI]
-     * - establishment_id: bigint NOT NULL
-     * - professional_id: bigint NOT NULL
-     * - service_id: bigint NOT NULL
-     * - user_id: bigint NOT NULL
+     * - establishment_id: bigint NOT NULL [FK -> establishments]
+     * - professional_id: bigint NOT NULL [FK -> professionals]
+     * - service_id: bigint NOT NULL [FK -> services]
+     * - user_id: bigint NOT NULL [FK -> users]
      * - start_at: datetime NOT NULL
      * - end_at: datetime NOT NULL
-     * - status: enum NOT NULL
+     * - status: enum('booked','confirmed','checked_in','in_progress','completed','no_show','cancelled') NOT NULL DEFAULT 'booked'
+     * - notes: text NULL
+     * - cancellation_reason: text NULL
      * - created_at: timestamp NOT NULL
+     * - updated_at: timestamp NULL
+     * - confirmed_at: timestamp NULL
      * - checkin_at: timestamp NULL
      */
 }
