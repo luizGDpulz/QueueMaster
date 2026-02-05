@@ -53,12 +53,15 @@ $requestStartTime = microtime(true);
 // Create request object
 $request = new Request();
 
+// Check if this is a Swagger route (don't apply strict CSP)
+$isSwaggerRoute = str_starts_with($request->getPath(), '/swagger');
+
 // Set CORS headers
 $allowedOrigins = $_ENV['CORS_ORIGINS'] ?? '*';
 if ($allowedOrigins !== '*') {
     $allowedOrigins = explode(',', $allowedOrigins);
 }
-Response::setCorsHeaders($allowedOrigins);
+Response::setCorsHeaders($allowedOrigins, applyStrictCsp: !$isSwaggerRoute);
 
 // Handle OPTIONS preflight
 Response::handlePreflight();

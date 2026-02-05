@@ -193,11 +193,13 @@ class Response
      * @param array|string $allowedOrigins Allowed origins (array or '*')
      * @param array $allowedMethods Allowed HTTP methods
      * @param array $allowedHeaders Allowed headers
+     * @param bool $applyStrictCsp Whether to apply strict CSP (false for Swagger/HTML)
      */
     public static function setCorsHeaders(
         array|string $allowedOrigins = '*',
         array $allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        array $allowedHeaders = ['Content-Type', 'Authorization', 'Idempotency-Key']
+        array $allowedHeaders = ['Content-Type', 'Authorization', 'Idempotency-Key'],
+        bool $applyStrictCsp = true
     ): void {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         
@@ -215,13 +217,15 @@ class Response
         header('Access-Control-Max-Age: 86400'); // 24 hours
         
         // Security headers
-        self::setSecurityHeaders();
+        self::setSecurityHeaders($applyStrictCsp);
     }
 
     /**
      * Set security headers to protect against common attacks
+     * 
+     * @param bool $isApi If true, uses strict CSP for API; if false, skips CSP
      */
-    public static function setSecurityHeaders(): void
+    public static function setSecurityHeaders(bool $isApi = true): void
     {
         // Prevent MIME type sniffing
         header('X-Content-Type-Options: nosniff');
@@ -235,8 +239,10 @@ class Response
         // Referrer policy - don't leak internal URLs
         header('Referrer-Policy: strict-origin-when-cross-origin');
         
-        // Content Security Policy for API (restrict to self)
-        header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
+        // Content Security Policy - only for API endpoints, not for Swagger/HTML pages
+        if ($isApi) {
+            header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
+        }
         
         // Permissions Policy - disable unnecessary features
         header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
