@@ -103,6 +103,7 @@ export default defineComponent({
 
     const menuItems = [
       { path: '/app', label: 'Dashboard', icon: 'dashboard' },
+      { path: '/app/businesses', label: 'Negócios', icon: 'business' },
       { path: '/app/queues', label: 'Filas', icon: 'format_list_numbered' },
       { path: '/app/appointments', label: 'Agendamentos', icon: 'event' },
       { path: '/app/establishments', label: 'Estabelecimentos', icon: 'store' },
