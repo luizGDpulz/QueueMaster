@@ -23,7 +23,7 @@
         <q-tab v-if="isAdmin" name="developer" icon="code" label="Developer" no-caps />
       </q-tabs>
 
-      <q-separator />
+      <q-separator style="margin-top: 10px;"/>
 
       <q-tab-panels v-model="activeTab" animated class="tab-panels">
         <!-- Tab: Perfil -->
@@ -75,6 +75,31 @@
                   <span class="detail-value">{{ formatDate(user?.created_at) }}</span>
                 </div>
               </div>
+              <div class="detail-card">
+                <q-icon name="phone" size="20px" />
+                <div class="detail-content">
+                  <span class="detail-label">Telefone</span>
+                  <span class="detail-value">{{ user?.phone || 'Não informado' }}</span>
+                </div>
+              </div>
+              <div class="detail-card">
+                <q-icon name="verified" size="20px" />
+                <div class="detail-content">
+                  <span class="detail-label">E-mail verificado</span>
+                  <span class="detail-value">
+                    <q-badge :color="user?.email_verified ? 'positive' : 'grey-6'" class="verification-badge">
+                      {{ user?.email_verified ? 'Verificado' : 'Não verificado' }}
+                    </q-badge>
+                  </span>
+                </div>
+              </div>
+              <div class="detail-card">
+                <q-icon name="login" size="20px" />
+                <div class="detail-content">
+                  <span class="detail-label">Último login</span>
+                  <span class="detail-value">{{ formatDate(user?.last_login_at) }}</span>
+                </div>
+              </div>
             </div>
 
             <div class="logout-section">
@@ -107,6 +132,52 @@
                 <span class="setting-description">Alterna entre modo claro e escuro</span>
               </div>
               <q-toggle v-model="isDark" @update:model-value="toggleTheme" color="primary" />
+            </div>
+
+            <div class="setting-row brand-color-row">
+              <div class="setting-icon">
+                <q-icon name="palette" size="24px" />
+              </div>
+              <div class="setting-info">
+                <span class="setting-title">Cor da marca</span>
+                <span class="setting-description">Cor principal aplicada em botões, ícones e destaques</span>
+              </div>
+            </div>
+            <div class="brand-presets">
+              <button
+                v-for="preset in brandPresets"
+                :key="preset.color"
+                class="color-swatch"
+                :class="{ active: brandColor === preset.color }"
+                :style="{ background: preset.color }"
+                @click="setBrandColor(preset.color)"
+                :title="preset.label"
+              >
+                <q-icon v-if="brandColor === preset.color" name="check" size="16px" />
+              </button>
+            </div>
+
+            <div class="custom-hex-row">
+              <q-input
+                v-model="customHex"
+                outlined
+                dense
+                label="Cor personalizada (HEX)"
+                maxlength="7"
+                class="hex-input"
+                :error="hexError"
+                :error-message="hexErrorMsg"
+                hint="Ex: #3b82f6"
+                @keyup.enter="applyCustomHex"
+              >
+                <template v-slot:prepend>
+                  <div class="hex-preview" :style="{ background: hexPreviewColor }"></div>
+                </template>
+                <template v-slot:append>
+                  <q-btn flat dense no-caps label="Aplicar" color="primary" @click="applyCustomHex" :disable="!customHex" />
+                </template>
+              </q-input>
+              <q-btn flat dense no-caps label="Restaurar padrão" icon="restart_alt" class="reset-brand-btn" @click="resetBrand" />
             </div>
           </div>
         </q-tab-panel>
@@ -159,13 +230,6 @@
               <h3>Gerenciamento de Usuários</h3>
               <p>Administre os usuários do sistema</p>
             </div>
-            <q-btn
-              color="primary"
-              icon="person_add"
-              label="Novo Usuário"
-              no-caps
-              @click="openUserDialog"
-            />
           </div>
 
           <!-- Users Table -->
@@ -236,17 +300,29 @@
 
           <div class="dev-warning">
             <q-icon name="warning" size="20px" />
-            <span>Essas informações são sensíveis. Não compartilhe com terceiros.</span>
+            <span>Tokens não ficam expostos no browser. Use o botão abaixo para gerar um token temporário para o Swagger.</span>
           </div>
 
           <div class="token-section">
             <div class="token-header">
-              <h4>Access Token (JWT)</h4>
-              <p>Use no Swagger UI: Authorize → Bearer token</p>
+              <h4>Token para Swagger</h4>
+              <p>Gera um token JWT de curta duração (5 min) para uso no Swagger UI</p>
             </div>
-            <div class="token-field">
+
+            <div v-if="!devToken" class="generate-token-area">
+              <q-btn
+                color="primary"
+                icon="vpn_key"
+                label="Gerar Token para Swagger"
+                no-caps
+                :loading="generatingToken"
+                @click="generateDevToken"
+              />
+            </div>
+
+            <div v-else class="token-field">
               <q-input
-                v-model="accessToken"
+                v-model="devToken"
                 readonly
                 outlined
                 dense
@@ -261,18 +337,31 @@
                     dense
                     icon="content_copy"
                     @click="copyToken"
-                    :color="copiedAccess ? 'positive' : 'grey'"
+                    :color="copiedAccess ? 'positive' : 'primary'"
                   >
                     <q-tooltip>{{ copiedAccess ? 'Copiado!' : 'Copiar' }}</q-tooltip>
                   </q-btn>
                 </template>
               </q-input>
+              <p class="token-expiry">
+                <q-icon name="schedule" size="14px" />
+                Expira em 5 minutos. Gere outro se necessário.
+              </p>
+              <q-btn
+                flat
+                color="primary"
+                icon="refresh"
+                label="Gerar novo"
+                no-caps
+                size="sm"
+                class="q-mt-sm"
+                :loading="generatingToken"
+                @click="generateDevToken"
+              />
             </div>
-            <p class="token-expiry">
-              <q-icon name="schedule" size="14px" />
-              Expira em ~15 minutos. Faça refresh se necessário.
-            </p>
           </div>
+
+          <q-separator class="q-my-md" />
 
           <q-btn
             outline
@@ -281,43 +370,35 @@
             label="Abrir Swagger UI"
             @click="openSwagger"
             no-caps
-            class="q-mt-md"
           />
         </q-tab-panel>
       </q-tab-panels>
     </div>
 
-    <!-- User Create/Edit Dialog -->
+    <!-- User Edit Dialog -->
     <q-dialog v-model="showUserDialog" persistent>
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <h3>{{ isEditingUser ? 'Editar Usuário' : 'Novo Usuário' }}</h3>
+          <h3>Editar Usuário</h3>
           <q-btn flat round dense icon="close" @click="closeUserDialog" />
         </q-card-section>
 
         <q-card-section class="dialog-content">
           <q-input
             v-model="userForm.name"
-            label="Nome *"
+            label="Nome"
             outlined
             dense
           />
           <q-input
             v-model="userForm.email"
-            label="E-mail *"
+            label="E-mail"
             outlined
             dense
             type="email"
             class="q-mt-md"
-          />
-          <q-input
-            v-if="!isEditingUser"
-            v-model="userForm.password"
-            label="Senha *"
-            outlined
-            dense
-            type="password"
-            class="q-mt-md"
+            disable
+            hint="E-mail vinculado ao Google"
           />
           <q-select
             v-model="userForm.role"
@@ -335,7 +416,7 @@
           <q-btn flat label="Cancelar" no-caps @click="closeUserDialog" />
           <q-btn 
             color="primary" 
-            :label="isEditingUser ? 'Salvar' : 'Criar'" 
+            label="Salvar" 
             no-caps 
             :loading="savingUser"
             @click="saveUser" 
@@ -370,6 +451,7 @@ import { defineComponent, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { copyToClipboard, useQuasar } from 'quasar'
+import { BRAND_PRESETS, loadBrandColor, saveBrandColor, resetBrandColor, isValidHex, normalizeHex } from 'src/utils/brand'
 
 export default defineComponent({
   name: 'SettingsPage',
@@ -384,12 +466,18 @@ export default defineComponent({
     // User data
     const user = ref(null)
     const verifiedRole = ref(null)
-    const accessToken = ref('')
+    const devToken = ref('')
     const copiedAccess = ref(false)
+    const generatingToken = ref(false)
     const loadingUser = ref(true)
 
     // Settings states
     const isDark = ref(false)
+    const brandColor = ref('')
+    const brandPresets = BRAND_PRESETS
+    const customHex = ref('')
+    const hexError = ref(false)
+    const hexErrorMsg = ref('')
     const emailNotifications = ref(true)
     const pushNotifications = ref(false)
     const smsNotifications = ref(false)
@@ -406,7 +494,6 @@ export default defineComponent({
     const userForm = ref({
       name: '',
       email: '',
-      password: '',
       role: 'client'
     })
 
@@ -432,7 +519,6 @@ export default defineComponent({
     onMounted(() => {
       fetchUserFromBackend()
       loadTheme()
-      loadTokens()
     })
 
     // Methods
@@ -465,7 +551,7 @@ export default defineComponent({
       try {
         const response = await api.get('/users')
         if (response.data?.success) {
-          users.value = response.data.data || []
+          users.value = response.data.data?.users || []
         }
       } catch (err) {
         console.error('Erro ao buscar usuários:', err)
@@ -481,20 +567,70 @@ export default defineComponent({
       } else {
         isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
       }
+      // Load brand color
+      brandColor.value = loadBrandColor()
     }
 
-    const loadTokens = () => {
-      accessToken.value = localStorage.getItem('access_token') || ''
+    const setBrandColor = (color) => {
+      brandColor.value = color
+      saveBrandColor(color)
+      customHex.value = ''
+      hexError.value = false
+    }
+
+    const hexPreviewColor = computed(() => {
+      if (!customHex.value) return 'var(--qm-bg-tertiary)'
+      const hex = customHex.value.startsWith('#') ? customHex.value : '#' + customHex.value
+      return isValidHex(hex) ? hex : 'var(--qm-bg-tertiary)'
+    })
+
+    const applyCustomHex = () => {
+      let hex = customHex.value.trim()
+      if (!hex.startsWith('#')) hex = '#' + hex
+      if (!isValidHex(hex)) {
+        hexError.value = true
+        hexErrorMsg.value = 'HEX inválido. Use formato #RGB ou #RRGGBB'
+        return
+      }
+      hex = normalizeHex(hex)
+      hexError.value = false
+      hexErrorMsg.value = ''
+      brandColor.value = hex
+      saveBrandColor(hex)
+      customHex.value = hex
+    }
+
+    const resetBrand = () => {
+      brandColor.value = resetBrandColor()
+      customHex.value = ''
+      hexError.value = false
+    }
+
+    const generateDevToken = async () => {
+      generatingToken.value = true
+      try {
+        const response = await api.get('/auth/dev-token')
+        if (response.data?.success) {
+          devToken.value = response.data.data.token
+        }
+      } catch (err) {
+        console.error('Erro ao gerar dev token:', err)
+        $q.notify({ type: 'negative', message: 'Erro ao gerar token. Verifique se você é admin.' })
+      } finally {
+        generatingToken.value = false
+      }
     }
 
     const toggleTheme = (value) => {
       localStorage.setItem('theme', value ? 'dark' : 'light')
       document.documentElement.setAttribute('data-theme', value ? 'dark' : 'light')
+      // Recarregar cor da marca adequada ao tema
+      brandColor.value = loadBrandColor()
     }
 
     const copyToken = async () => {
       try {
-        await copyToClipboard(accessToken.value)
+        await copyToClipboard(devToken.value)
         copiedAccess.value = true
         setTimeout(() => { copiedAccess.value = false }, 2000)
       } catch (err) {
@@ -539,19 +675,12 @@ export default defineComponent({
     }
 
     // User CRUD
-    const openUserDialog = () => {
-      isEditingUser.value = false
-      userForm.value = { name: '', email: '', password: '', role: 'client' }
-      showUserDialog.value = true
-    }
-
     const editUser = (u) => {
       isEditingUser.value = true
       selectedUser.value = u
       userForm.value = {
         name: u.name,
         email: u.email,
-        password: '',
         role: u.role
       }
       showUserDialog.value = true
@@ -562,12 +691,8 @@ export default defineComponent({
     }
 
     const saveUser = async () => {
-      if (!userForm.value.name || !userForm.value.email) {
-        $q.notify({ type: 'warning', message: 'Nome e e-mail são obrigatórios' })
-        return
-      }
-      if (!isEditingUser.value && !userForm.value.password) {
-        $q.notify({ type: 'warning', message: 'Senha é obrigatória para novo usuário' })
+      if (!userForm.value.name) {
+        $q.notify({ type: 'warning', message: 'Nome é obrigatório' })
         return
       }
 
@@ -575,20 +700,11 @@ export default defineComponent({
       try {
         const payload = {
           name: userForm.value.name,
-          email: userForm.value.email,
           role: userForm.value.role
         }
-        if (userForm.value.password) {
-          payload.password = userForm.value.password
-        }
 
-        if (isEditingUser.value) {
-          await api.put(`/users/${selectedUser.value.id}`, payload)
-          $q.notify({ type: 'positive', message: 'Usuário atualizado com sucesso' })
-        } else {
-          await api.post('/users', payload)
-          $q.notify({ type: 'positive', message: 'Usuário criado com sucesso' })
-        }
+        await api.put(`/users/${selectedUser.value.id}`, payload)
+        $q.notify({ type: 'positive', message: 'Usuário atualizado com sucesso' })
         closeUserDialog()
         fetchUsers()
       } catch (err) {
@@ -626,8 +742,6 @@ export default defineComponent({
         // Ignora erro
       }
 
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
       router.push('/login')
     }
@@ -636,9 +750,16 @@ export default defineComponent({
       activeTab,
       user,
       loadingUser,
-      accessToken,
+      devToken,
       copiedAccess,
+      generatingToken,
       isDark,
+      brandColor,
+      brandPresets,
+      customHex,
+      hexError,
+      hexErrorMsg,
+      hexPreviewColor,
       emailNotifications,
       pushNotifications,
       smsNotifications,
@@ -656,12 +777,15 @@ export default defineComponent({
       roleLabel,
       roleColor,
       toggleTheme,
+      setBrandColor,
+      applyCustomHex,
+      resetBrand,
       copyToken,
+      generateDevToken,
       openSwagger,
       formatDate,
       getRoleLabel,
       getRoleColor,
-      openUserDialog,
       editUser,
       closeUserDialog,
       saveUser,
@@ -702,10 +826,15 @@ export default defineComponent({
 }
 
 .settings-tabs {
+  margin-top: 10px;
   padding: 0 1rem;
 
   :deep(.q-tab) {
     padding: 0 1rem;
+    
+    .q-focus-helper {
+      border-radius: 15px;
+    }
   }
 
   :deep(.q-tab__label) {
@@ -854,8 +983,8 @@ export default defineComponent({
   width: 44px;
   height: 44px;
   border-radius: 10px;
-  background: var(--qm-primary-alpha);
-  color: var(--qm-primary);
+  background: var(--qm-brand-light);
+  color: var(--qm-brand);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -880,13 +1009,78 @@ export default defineComponent({
   color: var(--qm-text-muted);
 }
 
+// Brand Color Picker
+.brand-color-row {
+  border-bottom: none !important;
+  padding-bottom: 0.5rem !important;
+}
+
+.brand-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  padding: 0 0 1rem 0;
+}
+
+.custom-hex-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--qm-border);
+  flex-wrap: wrap;
+}
+
+.hex-input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.hex-preview {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--qm-border);
+}
+
+.reset-brand-btn {
+  color: var(--qm-text-muted);
+  font-size: 0.8125rem;
+  margin-top: 2px;
+}
+
+.color-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  transition: all 0.2s ease;
+  box-shadow: var(--qm-shadow-sm);
+
+  &:hover {
+    transform: scale(1.15);
+    box-shadow: var(--qm-shadow);
+  }
+
+  &.active {
+    border-color: var(--qm-text-primary);
+    transform: scale(1.1);
+    box-shadow: var(--qm-shadow-lg);
+  }
+}
+
 // Developer Section
 .dev-warning {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
-  color: #ff9800;
+  color: #e8a317;
   padding: 1rem;
   background: rgba(255, 152, 0, 0.1);
   border-radius: 10px;
@@ -895,6 +1089,13 @@ export default defineComponent({
 
 .token-section {
   margin-bottom: 1rem;
+}
+
+.generate-token-area {
+  padding: 1.5rem;
+  background: var(--qm-bg-secondary);
+  border-radius: 10px;
+  text-align: center;
 }
 
 .token-header {
@@ -985,8 +1186,8 @@ export default defineComponent({
 }
 
 .user-avatar {
-  background: var(--qm-primary-alpha);
-  color: var(--qm-primary);
+  background: var(--qm-brand-light);
+  color: var(--qm-brand);
 }
 
 .user-info {

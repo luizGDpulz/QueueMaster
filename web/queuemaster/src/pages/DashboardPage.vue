@@ -6,117 +6,142 @@
       <h1 class="page-title">Dashboard</h1>
     </div>
 
-    <!-- Cards de Estatísticas -->
-    <div class="stats-grid">
-      
-      <div class="stat-card soft-card" v-for="stat in stats" :key="stat.label">
-        <div class="stat-content">
-          <div class="stat-info">
-            <span class="stat-label">{{ stat.label }}</span>
-            <div class="stat-value-row">
-              <span class="stat-value">{{ stat.value }}</span>
-              <span 
-                class="stat-change" 
-                :class="stat.positive ? 'positive' : 'negative'"
-              >
-                {{ stat.change }}
-              </span>
-            </div>
-          </div>
-          <div class="stat-icon-wrapper">
-            <q-icon :name="stat.icon" size="24px" />
-          </div>
-        </div>
-      </div>
-
+    <!-- Loading -->
+    <div v-if="loading" class="loading-state">
+      <q-spinner-dots color="primary" size="40px" />
+      <p>Carregando dashboard...</p>
     </div>
 
-    <!-- Grid Principal -->
-    <div class="main-grid">
-      
-      <!-- Card Filas Ativas -->
-      <div class="content-card soft-card">
-        <div class="card-header">
-          <h3 class="card-title">Filas Ativas</h3>
-          <q-btn flat dense icon="more_vert" class="card-menu-btn" />
-        </div>
-        
-        <div class="card-body">
-          <div class="empty-state" v-if="!queues.length">
-            <q-icon name="format_list_numbered" size="48px" class="empty-icon" />
-            <p class="empty-text">Nenhuma fila ativa</p>
-          </div>
-          
-          <div class="queue-list" v-else>
-            <div class="queue-item" v-for="queue in queues" :key="queue.id">
-              <div class="queue-info">
-                <span class="queue-name">{{ queue.name }}</span>
-                <span class="queue-count">{{ queue.waiting }} aguardando</span>
+    <template v-else>
+      <!-- Cards de Estatísticas -->
+      <div class="stats-grid">
+        <div class="stat-card soft-card" v-for="stat in stats" :key="stat.label">
+          <div class="stat-content">
+            <div class="stat-info">
+              <span class="stat-label">{{ stat.label }}</span>
+              <div class="stat-value-row">
+                <span class="stat-value">{{ stat.value }}</span>
               </div>
-              <div class="queue-status" :class="queue.status">
-                {{ queue.status === 'open' ? 'Aberta' : 'Fechada' }}
-              </div>
+            </div>
+            <div class="stat-icon-wrapper">
+              <q-icon :name="stat.icon" size="24px" />
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Card Agendamentos do Dia -->
-      <div class="content-card soft-card">
-        <div class="card-header">
-          <h3 class="card-title">Agendamentos de Hoje</h3>
-          <q-btn flat dense icon="more_vert" class="card-menu-btn" />
-        </div>
+      <!-- Grid Principal -->
+      <div class="main-grid">
         
-        <div class="card-body">
-          <div class="empty-state" v-if="!appointments.length">
-            <q-icon name="event" size="48px" class="empty-icon" />
-            <p class="empty-text">Nenhum agendamento hoje</p>
+        <!-- Card Filas Ativas -->
+        <div class="content-card soft-card">
+          <div class="card-header">
+            <h3 class="card-title">Filas Ativas</h3>
           </div>
           
-          <div class="appointment-list" v-else>
-            <div class="appointment-item" v-for="apt in appointments" :key="apt.id">
-              <div class="appointment-time">
-                <span class="time">{{ apt.time }}</span>
-              </div>
-              <div class="appointment-info">
-                <span class="appointment-client">{{ apt.client }}</span>
-                <span class="appointment-service">{{ apt.service }}</span>
-              </div>
-              <div class="appointment-status" :class="apt.status">
-                {{ getStatusLabel(apt.status) }}
+          <div class="card-body">
+            <div class="empty-state" v-if="!queues.length">
+              <q-icon name="format_list_numbered" size="48px" class="empty-icon" />
+              <p class="empty-text">Nenhuma fila ativa</p>
+            </div>
+            
+            <div class="queue-list" v-else>
+              <div class="queue-item" v-for="queue in queues" :key="queue.id">
+                <div class="queue-info">
+                  <span class="queue-name">{{ queue.name }}</span>
+                  <span class="queue-count">{{ queue.waiting }} aguardando</span>
+                </div>
+                <div class="queue-status" :class="queue.status">
+                  {{ queue.status === 'open' ? 'Aberta' : 'Fechada' }}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-    </div>
+        <!-- Card Agendamentos do Dia -->
+        <div class="content-card soft-card">
+          <div class="card-header">
+            <h3 class="card-title">Agendamentos de Hoje</h3>
+          </div>
+          
+          <div class="card-body">
+            <div class="empty-state" v-if="!appointments.length">
+              <q-icon name="event" size="48px" class="empty-icon" />
+              <p class="empty-text">Nenhum agendamento hoje</p>
+            </div>
+            
+            <div class="appointment-list" v-else>
+              <div class="appointment-item" v-for="apt in appointments" :key="apt.id">
+                <div class="appointment-time">
+                  <span class="time">{{ apt.time }}</span>
+                </div>
+                <div class="appointment-info">
+                  <span class="appointment-client">{{ apt.client }}</span>
+                  <span class="appointment-service">{{ apt.service }}</span>
+                </div>
+                <div class="appointment-status" :class="apt.status">
+                  {{ getStatusLabel(apt.status) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </template>
 
   </q-page>
 </template>
 
 <script>
-import { defineComponent, ref, onMounted } from 'vue'
-// import { api } from 'boot/axios' // TODO: usar quando conectar com API real
+import { defineComponent, ref, computed, onMounted } from 'vue'
+import { api } from 'boot/axios'
 
 export default defineComponent({
   name: 'DashboardPage',
 
   setup() {
-    // ===== ESTATÍSTICAS =====
-    const stats = ref([
-      { label: "Clientes Hoje", value: "0", change: "+0%", positive: true, icon: "people" },
-      { label: "Na Fila", value: "0", change: "+0%", positive: true, icon: "format_list_numbered" },
-      { label: "Agendamentos", value: "0", change: "+0%", positive: true, icon: "event" },
-      { label: "Tempo Médio", value: "0 min", change: "-0%", positive: true, icon: "schedule" }
-    ])
+    // ===== STATE =====
+    const loading = ref(true)
+    const queueOverview = ref({ queues: [], totals: { served_today: 0, no_show_today: 0, currently_waiting: 0 } })
+    const appointmentsData = ref({ appointments: [], total: 0 })
+    const userRole = ref(null)
 
-    // ===== FILAS =====
-    const queues = ref([])
+    // ===== COMPUTED =====
+    const isAdminOrAttendant = computed(() => ['admin', 'attendant'].includes(userRole.value))
 
-    // ===== AGENDAMENTOS =====
-    const appointments = ref([])
+    const stats = computed(() => {
+      const totals = queueOverview.value.totals
+      const activeQueues = queueOverview.value.queues.filter(q => q.status === 'open').length
+      return [
+        { label: 'Atendidos Hoje', value: String(totals.served_today), icon: 'people' },
+        { label: 'Na Fila', value: String(totals.currently_waiting), icon: 'format_list_numbered' },
+        { label: 'Agendamentos', value: String(appointmentsData.value.total), icon: 'event' },
+        { label: 'Filas Ativas', value: String(activeQueues), icon: 'queue' },
+      ]
+    })
+
+    const queues = computed(() => {
+      return queueOverview.value.queues
+        .filter(q => q.status === 'open')
+        .map(q => ({
+          id: q.id,
+          name: q.name,
+          waiting: q.waiting_count || 0,
+          status: q.status,
+        }))
+    })
+
+    const appointments = computed(() => {
+      return appointmentsData.value.appointments.map(a => ({
+        id: a.id,
+        time: formatTime(a.start_at),
+        client: a.user_name || `Usuário #${a.user_id}`,
+        service: a.service_name || '-',
+        status: a.status,
+      }))
+    })
 
     // ===== STATUS LABELS =====
     const getStatusLabel = (status) => {
@@ -131,35 +156,85 @@ export default defineComponent({
       return labels[status] || status
     }
 
+    const formatTime = (dateString) => {
+      if (!dateString) return '-'
+      const date = new Date(dateString)
+      return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    }
+
     // ===== CARREGAR DADOS =====
-    const loadDashboard = async () => {
+    const fetchUserRole = async () => {
       try {
-        // Carregar dados do dashboard da API
-        // Por enquanto vamos usar dados de exemplo
-        
-        // Exemplo de filas
-        queues.value = [
-          { id: 1, name: 'Atendimento Geral', waiting: 5, status: 'open' },
-          { id: 2, name: 'Prioridade', waiting: 2, status: 'open' }
-        ]
+        const response = await api.get('/auth/me')
+        if (response.data?.success) {
+          userRole.value = response.data.data.user.role
+        }
+      } catch {
+        userRole.value = null
+      }
+    }
 
-        // Exemplo de agendamentos
-        appointments.value = [
-          { id: 1, time: '09:00', client: 'João Silva', service: 'Consulta', status: 'completed' },
-          { id: 2, time: '10:30', client: 'Maria Santos', service: 'Retorno', status: 'in_progress' },
-          { id: 3, time: '14:00', client: 'Pedro Costa', service: 'Consulta', status: 'booked' }
-        ]
+    const fetchQueueOverview = async () => {
+      try {
+        const response = await api.get('/dashboard/queue-overview')
+        if (response.data?.success) {
+          queueOverview.value = response.data.data
+        }
+      } catch (err) {
+        console.error('Erro ao buscar overview de filas:', err)
+      }
+    }
 
-        // Atualizar estatísticas
-        stats.value = [
-          { label: "Clientes Hoje", value: "24", change: "+12%", positive: true, icon: "people" },
-          { label: "Na Fila", value: "7", change: "+3%", positive: true, icon: "format_list_numbered" },
-          { label: "Agendamentos", value: "18", change: "+8%", positive: true, icon: "event" },
-          { label: "Tempo Médio", value: "15 min", change: "-5%", positive: true, icon: "schedule" }
-        ]
+    const fetchAppointments = async () => {
+      try {
+        const response = await api.get('/dashboard/appointments-list')
+        if (response.data?.success) {
+          appointmentsData.value = response.data.data
+        }
+      } catch (err) {
+        console.error('Erro ao buscar agendamentos:', err)
+      }
+    }
 
+    const loadDashboard = async () => {
+      loading.value = true
+      try {
+        await fetchUserRole()
+
+        if (isAdminOrAttendant.value) {
+          await Promise.all([fetchQueueOverview(), fetchAppointments()])
+        } else {
+          // Para clientes, buscar apenas dados de fila pública
+          try {
+            const response = await api.get('/queues')
+            if (response.data?.success) {
+              const allQueues = response.data.data?.queues || response.data.data || []
+              queueOverview.value = {
+                queues: allQueues.map(q => ({ ...q, waiting_count: q.waiting_count || 0 })),
+                totals: {
+                  served_today: 0,
+                  no_show_today: 0,
+                  currently_waiting: allQueues.reduce((sum, q) => sum + (q.waiting_count || 0), 0),
+                }
+              }
+            }
+          } catch {
+            // silently fail
+          }
+          try {
+            const response = await api.get('/appointments')
+            if (response.data?.success) {
+              const appts = response.data.data?.appointments || response.data.data || []
+              appointmentsData.value = { appointments: appts, total: appts.length }
+            }
+          } catch {
+            // silently fail
+          }
+        }
       } catch (error) {
         console.error('Erro ao carregar dashboard:', error)
+      } finally {
+        loading.value = false
       }
     }
 
@@ -168,6 +243,7 @@ export default defineComponent({
     })
 
     return {
+      loading,
       stats,
       queues,
       appointments,
@@ -193,6 +269,22 @@ export default defineComponent({
   font-weight: 700;
   color: var(--qm-text-primary);
   margin: 0;
+}
+
+// ===== LOADING STATE =====
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: var(--qm-text-muted);
+  text-align: center;
+
+  p {
+    margin: 1rem 0 0;
+    font-size: 0.875rem;
+  }
 }
 
 // ===== STATS GRID =====
@@ -245,25 +337,12 @@ export default defineComponent({
   color: var(--qm-text-primary);
 }
 
-.stat-change {
-  font-size: 0.75rem;
-  font-weight: 600;
-
-  &.positive {
-    color: #22c55e;
-  }
-
-  &.negative {
-    color: #ef4444;
-  }
-}
-
 .stat-icon-wrapper {
   width: 48px;
   height: 48px;
   border-radius: 0.75rem;
-  background: var(--qm-bg-tertiary);
-  color: var(--qm-text-secondary);
+  background: var(--qm-brand-light);
+  color: var(--qm-brand);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -299,10 +378,6 @@ export default defineComponent({
   font-weight: 600;
   color: var(--qm-text-primary);
   margin: 0;
-}
-
-.card-menu-btn {
-  color: var(--qm-text-muted);
 }
 
 .card-body {

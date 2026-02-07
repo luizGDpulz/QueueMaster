@@ -206,6 +206,15 @@ class Response
         if (is_array($allowedOrigins)) {
             if (in_array($origin, $allowedOrigins)) {
                 header("Access-Control-Allow-Origin: $origin");
+                header('Vary: Origin');
+            }
+        } elseif ($allowedOrigins === '*') {
+            // With credentials, we can't use wildcard - must echo the origin
+            if ($origin) {
+                header("Access-Control-Allow-Origin: $origin");
+                header('Vary: Origin');
+            } else {
+                header("Access-Control-Allow-Origin: *");
             }
         } else {
             header("Access-Control-Allow-Origin: $allowedOrigins");

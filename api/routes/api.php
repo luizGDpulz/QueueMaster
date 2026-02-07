@@ -172,6 +172,12 @@ $router->group('/api/v1', function ($router) {
             $controller = new AuthController();
             $controller->logout($request);
         });
+
+        // GET /api/v1/auth/dev-token - Generate token for Swagger (admin only)
+        $router->get('/dev-token', function ($request) {
+            $controller = new AuthController();
+            $controller->devToken($request);
+        });
         
     }, [new AuthMiddleware()]);
     

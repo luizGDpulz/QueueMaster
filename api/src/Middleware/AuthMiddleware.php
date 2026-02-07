@@ -27,7 +27,8 @@ class AuthMiddleware
      */
     public function __invoke(Request $request, callable $next): void
     {
-        $token = $request->getBearerToken();
+        // Read token from: 1) httpOnly cookie (frontend), 2) Authorization header (Swagger/API clients)
+        $token = $_COOKIE['access_token'] ?? $request->getBearerToken();
 
         if (!$token) {
             Logger::logSecurity('Missing authentication token', [
@@ -113,7 +114,7 @@ class AuthMiddleware
      * @param array $user User data
      * @return string JWT token
      */
-    public static function generateAccessToken(array $user): string
+    public static function generateAccessToken(array $user, ?int $customTtl = null): string
     {
         $privateKeyPath = $_ENV['JWT_PRIVATE_KEY_PATH'] ?? 'keys/private.key';
         $fullPath = __DIR__ . '/../../' . $privateKeyPath;
@@ -123,7 +124,7 @@ class AuthMiddleware
         }
 
         $privateKey = file_get_contents($fullPath);
-        $ttl = (int) ($_ENV['ACCESS_TOKEN_TTL'] ?? 900); // 15 minutes default
+        $ttl = $customTtl ?? (int) ($_ENV['ACCESS_TOKEN_TTL'] ?? 900); // 15 minutes default
 
         $payload = [
             'iss' => $_ENV['API_BASE_URL'] ?? 'http://localhost:8080',

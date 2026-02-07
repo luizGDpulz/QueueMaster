@@ -67,11 +67,9 @@ export default defineRouter(function (/* { store, ssrContext } */) {
 
           console.log('Login sucesso:', response.data)
 
-          const { access_token, refresh_token, user } = response.data.data
+          const { user } = response.data.data
 
-          // Salvar tokens
-          localStorage.setItem('access_token', access_token)
-          localStorage.setItem('refresh_token', refresh_token)
+          // Salvar user (tokens são httpOnly cookies)
           localStorage.setItem('user', JSON.stringify(user))
 
           // Redirecionar para o app

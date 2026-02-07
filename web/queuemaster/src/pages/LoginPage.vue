@@ -12,7 +12,20 @@
         
         <!-- Logo -->
         <div class="login-logo">
-          <img src="/icons/logo.svg" alt="QueueMaster" class="logo-image" />
+          <svg class="logo-image" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M40 110L100 140L160 110L100 80L40 110Z" fill="currentColor" opacity="0.7"/>
+            <path d="M40 110V130L100 160V140L40 110Z" fill="currentColor" opacity="0.85"/>
+            <path d="M160 110V130L100 160V140L160 110Z" fill="currentColor" opacity="0.95"/>
+            <path d="M40 90L100 120L160 90L100 60L40 90Z" fill="currentColor" opacity="0.4"/>
+            <path d="M40 90V110L100 140V120L40 90Z" fill="currentColor" opacity="0.55"/>
+            <path d="M160 90V110L100 140V120L160 90Z" fill="currentColor" opacity="0.7"/>
+            <g transform="translate(20, -20)">
+              <path d="M40 70L100 100L160 70L100 40L40 70Z" fill="currentColor" opacity="0.1"/>
+              <path d="M40 70V90L100 120V100L40 70Z" fill="currentColor" opacity="0.25"/>
+              <path d="M160 70V90L100 120V100L160 70Z" fill="currentColor" opacity="0.4"/>
+              <path d="M 80 78 L 70 62 L 90 70 L 100 50 L 110 70 L 130 62 L 120 78 Z" fill="currentColor" opacity="0.85" stroke-linejoin="round"/>
+            </g>
+          </svg>
         </div>
 
         <!-- Header -->
@@ -64,6 +77,7 @@
 import { defineComponent, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
+import { loadBrandColor } from 'src/utils/brand'
 
 export default defineComponent({
   name: 'LoginPage',
@@ -88,6 +102,7 @@ export default defineComponent({
         isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
       }
       applyTheme()
+      loadBrandColor()
 
       // Verificar se há token no hash (redirect do Google OAuth)
       checkForGoogleRedirect()
@@ -247,11 +262,9 @@ export default defineComponent({
 
         console.log('Login sucesso:', response.data)
 
-        const { access_token, refresh_token, user, is_new_user } = response.data.data
+        const { user, is_new_user } = response.data.data
 
-        // Salvar tokens
-        localStorage.setItem('access_token', access_token)
-        localStorage.setItem('refresh_token', refresh_token)
+        // Salvar user (tokens são httpOnly cookies gerenciados pelo browser)
         localStorage.setItem('user', JSON.stringify(user))
 
         // Redirecionar
@@ -344,11 +357,13 @@ export default defineComponent({
 
 // ===== LOGO =====
 .login-logo {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.2rem;
   
   .logo-image {
-    width: 80px;
-    height: 80px;
+    width: 120px;
+    height: 120px;
+    color: var(--qm-brand);
+    transition: color var(--qm-transition-duration, 0.3s) ease;
   }
 }
 
@@ -453,5 +468,6 @@ export default defineComponent({
     width: 64px;
     height: 64px;
   }
+
 }
 </style>

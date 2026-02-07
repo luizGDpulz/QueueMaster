@@ -2,7 +2,7 @@
   <div class="auth-loading">
     <!-- Logo animado -->
     <div class="auth-loading-logo">
-      <img src="/icons/logo.svg" alt="QueueMaster" class="logo-pulse" />
+      <img src="../assets/logo.svg" alt="QueueMaster" class="logo-pulse" />
     </div>
     
     <!-- Skeleton do layout do app -->
@@ -263,6 +263,7 @@ export default defineComponent({
 .auth-loading-text {
   position: absolute;
   bottom: 2rem;
+  font-weight: 700;
   font-size: 0.9rem;
   color: var(--qm-text-muted);
   display: flex;

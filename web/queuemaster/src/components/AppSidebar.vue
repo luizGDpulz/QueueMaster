@@ -4,7 +4,20 @@
     <!-- Logo -->
     <div class="sidebar-header">
       <div class="logo">
-        <img src="~assets/logo.svg" alt="QueueMaster" class="logo-img" />
+        <svg class="logo-img" width="36" height="36" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M40 110L100 140L160 110L100 80L40 110Z" fill="currentColor" opacity="0.7"/>
+          <path d="M40 110V130L100 160V140L40 110Z" fill="currentColor" opacity="0.85"/>
+          <path d="M160 110V130L100 160V140L160 110Z" fill="currentColor" opacity="0.95"/>
+          <path d="M40 90L100 120L160 90L100 60L40 90Z" fill="currentColor" opacity="0.4"/>
+          <path d="M40 90V110L100 140V120L40 90Z" fill="currentColor" opacity="0.55"/>
+          <path d="M160 90V110L100 140V120L160 90Z" fill="currentColor" opacity="0.7"/>
+          <g transform="translate(20, -20)">
+            <path d="M40 70L100 100L160 70L100 40L40 70Z" fill="currentColor" opacity="0.1"/>
+            <path d="M40 70V90L100 120V100L40 70Z" fill="currentColor" opacity="0.25"/>
+            <path d="M160 70V90L100 120V100L160 70Z" fill="currentColor" opacity="0.4"/>
+            <path d="M 80 78 L 70 62 L 90 70 L 100 50 L 110 70 L 130 62 L 120 78 Z" fill="currentColor" opacity="0.85" stroke-linejoin="round"/>
+          </g>
+        </svg>
         <span class="logo-text">QueueMaster</span>
       </div>
     </div>
@@ -147,6 +160,8 @@ export default defineComponent({
 .logo-img {
   width: 36px;
   height: 36px;
+  color: var(--qm-brand);
+  transition: color var(--qm-transition-duration, 0.3s) ease;
 }
 
 .logo-text {
@@ -190,8 +205,8 @@ export default defineComponent({
   transition: all 0.2s ease;
 
   &.active {
-    background: var(--qm-btn-primary-bg);
-    color: var(--qm-btn-primary-text);
+    background: var(--qm-brand);
+    color: var(--qm-brand-contrast);
   }
 }
 
@@ -232,8 +247,8 @@ export default defineComponent({
   width: 40px;
   height: 40px;
   border-radius: 0.75rem;
-  background: var(--qm-btn-primary-bg);
-  color: var(--qm-btn-primary-text);
+  background: var(--qm-brand);
+  color: var(--qm-brand-contrast);
   display: flex;
   align-items: center;
   justify-content: center;

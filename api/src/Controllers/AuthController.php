@@ -90,12 +90,12 @@ class AuthController
                 'is_new_user' => $isNewUser,
             ], $request->requestId);
 
+            // Set tokens as httpOnly cookies
+            self::setAccessTokenCookie($accessToken);
+            self::setRefreshTokenCookie($refreshToken);
+
             Response::success([
                 'user' => $user,
-                'access_token' => $accessToken,
-                'refresh_token' => $refreshToken,
-                'token_type' => 'Bearer',
-                'expires_in' => (int)($_ENV['ACCESS_TOKEN_TTL'] ?? 900),
                 'is_new_user' => $isNewUser,
             ]);
 
@@ -194,17 +194,13 @@ class AuthController
     {
         $data = $request->all();
 
-        // Validate input
-        $errors = Validator::make($data, [
-            'refresh_token' => 'required',
-        ]);
+        // Read refresh token from httpOnly cookie first, fallback to body
+        $refreshToken = $_COOKIE['refresh_token'] ?? ($data['refresh_token'] ?? null);
 
-        if (!empty($errors)) {
-            Response::validationError($errors, $request->requestId);
+        if (!$refreshToken) {
+            Response::validationError(['refresh_token' => ['Refresh token is required']], $request->requestId);
             return;
         }
-
-        $refreshToken = $data['refresh_token'];
 
         // Validate and rotate refresh token
         $user = TokenMiddleware::validateAndRotateRefreshToken($refreshToken);
@@ -222,16 +218,16 @@ class AuthController
         $newAccessToken = AuthMiddleware::generateAccessToken($user);
         $newRefreshToken = TokenMiddleware::generateRefreshToken((int)$user['id']);
 
+        // Set new tokens as httpOnly cookies
+        self::setAccessTokenCookie($newAccessToken);
+        self::setRefreshTokenCookie($newRefreshToken);
+
         Logger::info('Token refreshed', [
             'user_id' => $user['id'],
         ], $request->requestId);
 
         Response::success([
             'user' => $user,
-            'access_token' => $newAccessToken,
-            'refresh_token' => $newRefreshToken,
-            'token_type' => 'Bearer',
-            'expires_in' => (int)($_ENV['ACCESS_TOKEN_TTL'] ?? 900),
         ]);
     }
 
@@ -249,8 +245,16 @@ class AuthController
             return;
         }
 
+        // Fetch full user record from DB (middleware only carries basic fields)
+        $fullUser = User::find((int)$request->user['id']);
+
+        if (!$fullUser) {
+            Response::notFound('User not found', $request->requestId);
+            return;
+        }
+
         Response::success([
-            'user' => $request->user,
+            'user' => User::getSafeData($fullUser),
         ]);
     }
 
@@ -272,12 +276,132 @@ class AuthController
         // Revoke all refresh tokens
         TokenMiddleware::revokeAllUserTokens($userId);
 
+        // Clear httpOnly cookies
+        self::clearAccessTokenCookie();
+        self::clearRefreshTokenCookie();
+
         Logger::info('User logged out', [
             'user_id' => $userId,
         ], $request->requestId);
 
         Response::success([
             'message' => 'Logged out successfully',
+        ]);
+    }
+
+    /**
+     * GET /api/v1/auth/dev-token
+     * 
+     * Generate a fresh access token for Swagger/dev use (admin only).
+     * This is the ONLY endpoint that exposes a token in the response body.
+     * Requires an explicit, conscious action by an authenticated admin.
+     */
+    public function devToken(Request $request): void
+    {
+        if (!$request->user) {
+            Response::unauthorized('Authentication required', $request->requestId);
+            return;
+        }
+
+        if ($request->user['role'] !== 'admin') {
+            Response::forbidden('Admin access required', $request->requestId);
+            return;
+        }
+
+        // Generate a short-lived token for Swagger use (5 minutes)
+        $token = AuthMiddleware::generateAccessToken($request->user, 300);
+
+        Logger::info('Dev token generated for Swagger', [
+            'user_id' => $request->user['id'],
+            'ip' => $request->getIp(),
+        ], $request->requestId);
+
+        Response::success([
+            'token' => $token,
+            'expires_in' => 300,
+            'warning' => 'This token is for Swagger/development use only. Do not share.',
+        ]);
+    }
+
+    // =========================================================================
+    // Cookie Helpers
+    // =========================================================================
+
+    /**
+     * Set access token as httpOnly cookie
+     * 
+     * Security:
+     * - httpOnly: JS cannot access (XSS-proof)
+     * - Secure: only HTTPS in production
+     * - SameSite=Lax: CSRF protection
+     * - Path: /api/v1 (sent with all API requests)
+     */
+    private static function setAccessTokenCookie(string $token): void
+    {
+        $ttl = (int)($_ENV['ACCESS_TOKEN_TTL'] ?? 900);
+        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
+
+        setcookie('access_token', $token, [
+            'expires' => time() + $ttl,
+            'path' => '/api/v1',
+            'domain' => '',
+            'secure' => $isProduction,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    /**
+     * Clear access token cookie
+     */
+    private static function clearAccessTokenCookie(): void
+    {
+        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
+
+        setcookie('access_token', '', [
+            'expires' => time() - 3600,
+            'path' => '/api/v1',
+            'domain' => '',
+            'secure' => $isProduction,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    /**
+     * Set refresh token as httpOnly cookie
+     * 
+     * Path restricted to /api/v1/auth (only sent on auth endpoints)
+     */
+    private static function setRefreshTokenCookie(string $token): void
+    {
+        $ttl = (int)($_ENV['REFRESH_TOKEN_TTL'] ?? 2592000);
+        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
+
+        setcookie('refresh_token', $token, [
+            'expires' => time() + $ttl,
+            'path' => '/api/v1/auth',
+            'domain' => '',
+            'secure' => $isProduction,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    /**
+     * Clear refresh token cookie
+     */
+    private static function clearRefreshTokenCookie(): void
+    {
+        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
+
+        setcookie('refresh_token', '', [
+            'expires' => time() - 3600,
+            'path' => '/api/v1/auth',
+            'domain' => '',
+            'secure' => $isProduction,
+            'httponly' => true,
+            'samesite' => 'Lax',
         ]);
     }
 }
