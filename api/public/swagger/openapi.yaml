@@ -8,20 +8,27 @@ info:
     QueueMaster é uma API completa para gerenciamento de filas e agendamentos, 
     ideal para estabelecimentos que precisam controlar fluxo de clientes.
     
-    ## Autenticação
-    A API utiliza **JWT (JSON Web Tokens)** com algoritmo RS256:
-    - **Access Token**: Token de curta duração (15 min) para acessar recursos protegidos
-    - **Refresh Token**: Token de longa duração (7 dias) para renovar o access token
+    ## Autenticação (Google OAuth)
+    A API utiliza **Google OAuth 2.0** para autenticação:
     
-    Para autenticar, inclua o header:
+    1. **Frontend**: Usuário faz login com Google e recebe um `id_token`
+    2. **Backend**: O `id_token` é enviado para `POST /auth/google`
+    3. **Resposta**: API retorna `access_token` (JWT RS256) e `refresh_token`
+    
+    ### Como testar no Swagger:
+    1. Faça login no frontend (http://localhost:9000)
+    2. Abra o DevTools (F12) → Application → Local Storage
+    3. Copie o valor de `access_token`
+    4. Clique em "Authorize" acima e cole o token
+    
+    ### Headers de autenticação:
     ```
     Authorization: Bearer {access_token}
     ```
     
     ## Rate Limiting
     - Global: 100 requisições por minuto
-    - Login: 10 requisições por minuto
-    - Registro: 5 requisições por minuto
+    - Auth Google: 10 requisições por minuto
     
     ## Códigos de Status
     | Código | Descrição |
@@ -118,80 +125,75 @@ paths:
                         type: object
 
   # ============================================================================
-  # Authentication
+  # Authentication (Google OAuth)
   # ============================================================================
-  /auth/register:
+  /auth/google:
     post:
       tags:
         - Auth
-      summary: Registrar novo usuário
+      summary: Autenticar com Google OAuth
       description: |
-        Cria uma nova conta de usuário e retorna tokens de autenticação.
+        Autentica o usuário usando um ID Token do Google.
         
-        **Rate Limit:** 5 requisições por minuto
-      operationId: register
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
-            examples:
-              client:
-                summary: Registro de cliente
-                value:
-                  name: "João Silva"
-                  email: "joao@exemplo.com"
-                  password: "senha123456"
-              attendant:
-                summary: Registro de atendente
-                value:
-                  name: "Maria Santos"
-                  email: "maria@exemplo.com"
-                  password: "senha123456"
-                  role: "attendant"
-      responses:
-        '201':
-          description: Usuário criado com sucesso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-
-  /auth/login:
-    post:
-      tags:
-        - Auth
-      summary: Login do usuário
-      description: |
-        Autentica o usuário com email e senha.
+        **Fluxo:**
+        1. Frontend obtém `id_token` do Google Identity Services
+        2. Frontend envia o token para este endpoint
+        3. Backend valida com Google e cria/atualiza usuário
+        4. Retorna access_token (JWT) e refresh_token
+        
+        **Primeiro Admin:**
+        Configure `SUPER_ADMIN_EMAIL` no `.env` antes do primeiro login.
+        O usuário com esse email será automaticamente admin.
         
         **Rate Limit:** 10 requisições por minuto
-      operationId: login
+      operationId: authGoogle
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: '#/components/schemas/GoogleAuthRequest'
             example:
-              email: "joao@exemplo.com"
-              password: "senha123456"
+              id_token: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
       responses:
         '200':
-          description: Login realizado com sucesso
+          description: Autenticação realizada com sucesso
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
+              example:
+                success: true
+                data:
+                  user:
+                    id: 1
+                    name: "João Silva"
+                    email: "joao@gmail.com"
+                    avatar_url: "https://lh3.googleusercontent.com/..."
+                    role: "client"
+                    email_verified: true
+                  access_token: "eyJhbGciOiJSUzI1NiJ9..."
+                  refresh_token: "rt_abc123..."
+                  token_type: "Bearer"
+                  expires_in: 900
+                  is_new_user: false
         '401':
-          $ref: '#/components/responses/Unauthorized'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+          description: Token inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid Google token"
+        '403':
+          description: Email não verificado pelo Google
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '429':
           $ref: '#/components/responses/TooManyRequests'
 
@@ -1978,46 +1980,17 @@ components:
     # ============================================================================
     # Auth Schemas
     # ============================================================================
-    RegisterRequest:
+    GoogleAuthRequest:
       type: object
       required:
-        - name
-        - email
-        - password
+        - id_token
       properties:
-        name:
+        id_token:
           type: string
-          minLength: 2
-          maxLength: 150
-          example: "João Silva"
-        email:
-          type: string
-          format: email
-          example: "joao@exemplo.com"
-        password:
-          type: string
-          format: password
-          minLength: 8
-          maxLength: 100
-          example: "senha123456"
-        role:
-          type: string
-          enum: [client, attendant, admin]
-          default: client
-          description: Tipo de usuário
-
-    LoginRequest:
-      type: object
-      required:
-        - email
-        - password
-      properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          format: password
+          description: |
+            Google ID Token obtido via Google Identity Services.
+            Este token é gerado quando o usuário faz login com Google no frontend.
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhY2NvdW50cy5nb29nbGUuY29tIi..."
 
     AuthResponse:
       type: object
@@ -2031,8 +2004,10 @@ components:
               $ref: '#/components/schemas/User'
             access_token:
               type: string
+              description: JWT access token (RS256, 15 min)
             refresh_token:
               type: string
+              description: Refresh token para renovação (30 dias)
             token_type:
               type: string
               example: "Bearer"
@@ -2040,6 +2015,9 @@ components:
               type: integer
               description: Tempo de expiração em segundos
               example: 900
+            is_new_user:
+              type: boolean
+              description: True se é o primeiro login do usuário
 
     # ============================================================================
     # User Schemas
@@ -2054,15 +2032,32 @@ components:
         email:
           type: string
           format: email
+        avatar_url:
+          type: string
+          format: uri
+          description: URL da foto de perfil do Google
+        email_verified:
+          type: boolean
+          description: Email verificado pelo Google
+        phone:
+          type: string
+          nullable: true
         role:
           type: string
           enum: [client, attendant, admin]
+        is_active:
+          type: boolean
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+          nullable: true
 
     UserResponse:
       type: object
@@ -2074,10 +2069,9 @@ components:
 
     CreateUserRequest:
       type: object
-      required:
-        - name
-        - email
-        - password
+      description: |
+        Usuários são criados automaticamente via Google OAuth.
+        Este schema é para atualização de perfil por admin.
       properties:
         name:
           type: string
@@ -2086,32 +2080,16 @@ components:
         email:
           type: string
           format: email
-        password:
+        phone:
           type: string
-          format: password
-          minLength: 8
+          maxLength: 20
         role:
           type: string
           enum: [client, attendant, admin]
-          default: client
-
-    UpdateUserRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 2
-          maxLength: 150
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          format: password
-          minLength: 8
-        current_password:
-          type: string
-          description: Senha atual (obrigatório para alterar senha)
+          description: Apenas admin pode alterar role
+        is_active:
+          type: boolean
+          description: Desativar usuário sem deletar
 
     PaginatedUsers:
       type: object
@@ -2133,8 +2111,15 @@ components:
       properties:
         id:
           type: integer
+        owner_id:
+          type: integer
+          nullable: true
+          description: ID do usuário dono do estabelecimento
         name:
           type: string
+        slug:
+          type: string
+          description: URL-friendly identifier
         description:
           type: string
         address:
@@ -2144,9 +2129,20 @@ components:
         email:
           type: string
           format: email
-        opening_hours:
-          type: object
-          description: Horários de funcionamento
+        logo_url:
+          type: string
+          format: uri
+        timezone:
+          type: string
+          example: "America/Sao_Paulo"
+        opens_at:
+          type: string
+          format: time
+          example: "08:00:00"
+        closes_at:
+          type: string
+          format: time
+          example: "18:00:00"
         is_active:
           type: boolean
         created_at:
@@ -2155,6 +2151,7 @@ components:
         updated_at:
           type: string
           format: date-time
+          nullable: true
 
     EstablishmentResponse:
       type: object
@@ -2171,25 +2168,44 @@ components:
       properties:
         name:
           type: string
-          maxLength: 200
+          maxLength: 255
+        slug:
+          type: string
+          maxLength: 100
+          description: URL-friendly identifier (auto-generated if not provided)
         description:
           type: string
         address:
           type: string
+          maxLength: 255
         phone:
           type: string
+          maxLength: 20
         email:
           type: string
           format: email
-        opening_hours:
-          type: object
+        logo_url:
+          type: string
+          format: uri
+        timezone:
+          type: string
+          default: "America/Sao_Paulo"
+        opens_at:
+          type: string
+          format: time
+        closes_at:
+          type: string
+          format: time
 
     UpdateEstablishmentRequest:
       type: object
       properties:
         name:
           type: string
-          maxLength: 200
+          maxLength: 255
+        slug:
+          type: string
+          maxLength: 100
         description:
           type: string
         address:
@@ -2199,8 +2215,17 @@ components:
         email:
           type: string
           format: email
-        opening_hours:
-          type: object
+        logo_url:
+          type: string
+          format: uri
+        timezone:
+          type: string
+        opens_at:
+          type: string
+          format: time
+        closes_at:
+          type: string
+          format: time
         is_active:
           type: boolean
 
@@ -2236,6 +2261,9 @@ components:
         price:
           type: number
           format: float
+        sort_order:
+          type: integer
+          description: Ordem de exibição
         is_active:
           type: boolean
         created_at:
@@ -2273,6 +2301,9 @@ components:
         price:
           type: number
           format: float
+        sort_order:
+          type: integer
+          default: 0
 
     UpdateServiceRequest:
       type: object
@@ -2288,6 +2319,8 @@ components:
         price:
           type: number
           format: float
+        sort_order:
+          type: integer
         is_active:
           type: boolean
 
@@ -2317,10 +2350,18 @@ components:
           type: integer
         name:
           type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
         specialty:
           type: string
         bio:
           type: string
+        avatar_url:
+          type: string
+          format: uri
         is_active:
           type: boolean
         created_at:
@@ -2346,15 +2387,25 @@ components:
       properties:
         user_id:
           type: integer
+          description: ID do usuário associado (opcional)
         establishment_id:
           type: integer
         name:
           type: string
           maxLength: 150
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          maxLength: 20
         specialty:
           type: string
         bio:
           type: string
+        avatar_url:
+          type: string
+          format: uri
 
     UpdateProfessionalRequest:
       type: object
@@ -2362,10 +2413,18 @@ components:
         name:
           type: string
           maxLength: 150
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
         specialty:
           type: string
         bio:
           type: string
+        avatar_url:
+          type: string
+          format: uri
         is_active:
           type: boolean
 
@@ -2536,6 +2595,9 @@ components:
           enum: [scheduled, confirmed, in_progress, completed, cancelled, no_show]
         notes:
           type: string
+        cancellation_reason:
+          type: string
+          description: Motivo do cancelamento (quando aplicável)
         checked_in_at:
           type: string
           format: date-time
@@ -2591,8 +2653,21 @@ components:
         scheduled_time:
           type: string
           format: time
+        status:
+          type: string
+          enum: [scheduled, confirmed, in_progress, completed, cancelled, no_show]
         notes:
           type: string
+        cancellation_reason:
+          type: string
+          description: Obrigatório quando status = cancelled
+
+    CancelAppointmentRequest:
+      type: object
+      properties:
+        cancellation_reason:
+          type: string
+          description: Motivo do cancelamento
 
     PaginatedAppointments:
       type: object
@@ -2655,3 +2730,71 @@ components:
             $ref: '#/components/schemas/Notification'
         meta:
           $ref: '#/components/schemas/PaginationMeta'
+
+    # ============================================================================
+    # Professional Service (N:N Pivot) Schemas
+    # ============================================================================
+    ProfessionalService:
+      type: object
+      properties:
+        professional_id:
+          type: integer
+        service_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+      description: Relacionamento N:N entre profissionais e serviços
+
+    LinkProfessionalServiceRequest:
+      type: object
+      required:
+        - professional_id
+        - service_id
+      properties:
+        professional_id:
+          type: integer
+        service_id:
+          type: integer
+
+    # ============================================================================
+    # Establishment User (Staff) Schemas
+    # ============================================================================
+    EstablishmentUser:
+      type: object
+      properties:
+        establishment_id:
+          type: integer
+        user_id:
+          type: integer
+        role:
+          type: string
+          enum: [owner, manager, attendant]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      description: Staff/equipe de um estabelecimento
+
+    AddStaffRequest:
+      type: object
+      required:
+        - user_id
+        - role
+      properties:
+        user_id:
+          type: integer
+        role:
+          type: string
+          enum: [owner, manager, attendant]
+
+    UpdateStaffRoleRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          enum: [owner, manager, attendant]

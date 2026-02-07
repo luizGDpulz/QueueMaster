@@ -7,7 +7,7 @@ const routes = [
     children: [
       {
         path: '',
-        redirect: '/login'  // Redireciona para login por enquanto
+        redirect: '/login'
       },
       {
         path: 'login',
@@ -15,9 +15,9 @@ const routes = [
         component: () => import('pages/LoginPage.vue')
       },
       {
-        path: 'register',
-        name: 'register',
-        component: () => import('pages/RegisterPage.vue')
+        path: 'auth/loading',
+        name: 'auth-loading',
+        component: () => import('pages/AuthLoadingPage.vue')
       }
     ]
   },

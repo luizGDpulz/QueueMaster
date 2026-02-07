@@ -224,7 +224,7 @@ class Queue
 
         // Validate status (optional)
         if (isset($data['status'])) {
-            $validStatuses = ['open', 'closed'];
+            $validStatuses = ['open', 'closed', 'paused'];
             if (!in_array($data['status'], $validStatuses)) {
                 $errors['status'] = 'Invalid status value';
             }
@@ -236,10 +236,14 @@ class Queue
     /**
      * Table columns:
      * - id: bigint NOT NULL [PRI]
-     * - establishment_id: bigint NOT NULL
-     * - service_id: bigint NULL
+     * - establishment_id: bigint NOT NULL [FK -> establishments]
+     * - service_id: bigint NULL [FK -> services]
      * - name: varchar(150) NOT NULL
-     * - status: enum('open','closed') NOT NULL
+     * - description: text NULL
+     * - status: enum('open','closed','paused') NOT NULL DEFAULT 'open'
+     * - max_capacity: int NULL
+     * - avg_wait_minutes: int NULL
      * - created_at: timestamp NOT NULL
+     * - updated_at: timestamp NULL
      */
 }

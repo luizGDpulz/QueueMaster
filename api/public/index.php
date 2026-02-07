@@ -40,6 +40,10 @@ use QueueMaster\Utils\Logger;
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
 $dotenv->load();
 
+// Set timezone (default: America/Sao_Paulo for GMT-3)
+$timezone = $_ENV['APP_TIMEZONE'] ?? 'America/Sao_Paulo';
+date_default_timezone_set($timezone);
+
 // Initialize logger
 Logger::init();
 
@@ -49,12 +53,15 @@ $requestStartTime = microtime(true);
 // Create request object
 $request = new Request();
 
+// Check if this is a Swagger route (don't apply strict CSP)
+$isSwaggerRoute = str_starts_with($request->getPath(), '/swagger');
+
 // Set CORS headers
 $allowedOrigins = $_ENV['CORS_ORIGINS'] ?? '*';
 if ($allowedOrigins !== '*') {
     $allowedOrigins = explode(',', $allowedOrigins);
 }
-Response::setCorsHeaders($allowedOrigins);
+Response::setCorsHeaders($allowedOrigins, applyStrictCsp: !$isSwaggerRoute);
 
 // Handle OPTIONS preflight
 Response::handlePreflight();

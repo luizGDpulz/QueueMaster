@@ -192,11 +192,67 @@ class Establishment
     }
 
     /**
+     * Find establishment by slug
+     * 
+     * @param string $slug URL-friendly identifier
+     * @return array|null Record data or null
+     */
+    public static function findBySlug(string $slug): ?array
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where('slug', '=', $slug)
+            ->first();
+    }
+
+    /**
+     * Get establishments owned by a user
+     * 
+     * @param int $userId User ID
+     * @return array Array of establishments
+     */
+    public static function getByOwner(int $userId): array
+    {
+        return self::all(['owner_id' => $userId], 'name', 'ASC');
+    }
+
+    /**
+     * Get active establishments only
+     * 
+     * @return array Array of active establishments
+     */
+    public static function getActive(): array
+    {
+        return self::all(['is_active' => 1], 'name', 'ASC');
+    }
+
+    /**
+     * Get staff members for this establishment
+     * 
+     * @param int $establishmentId Establishment ID
+     * @return array Array of users with roles
+     */
+    public static function getStaff(int $establishmentId): array
+    {
+        return EstablishmentUser::getStaff($establishmentId);
+    }
+
+    /**
      * Table columns:
      * - id: bigint NOT NULL [PRI]
+     * - owner_id: bigint NULL [FK -> users]
      * - name: varchar(255) NOT NULL
+     * - slug: varchar(100) NULL [UNIQUE]
+     * - description: text NULL
      * - address: varchar(255) NULL
-     * - timezone: varchar(50) NOT NULL
+     * - phone: varchar(20) NULL
+     * - email: varchar(150) NULL
+     * - logo_url: varchar(500) NULL
+     * - timezone: varchar(50) NOT NULL DEFAULT 'America/Sao_Paulo'
+     * - is_active: boolean NOT NULL DEFAULT TRUE
+     * - opens_at: time NULL
+     * - closes_at: time NULL
      * - created_at: timestamp NOT NULL
+     * - updated_at: timestamp NULL
      */
 }

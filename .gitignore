@@ -1,6 +1,7 @@
-# Environment files
+# Environment files (NEVER commit these)
 .env
 .env.local
+.env.*.local
 
 # IDE files
 .idea/
@@ -29,6 +30,7 @@ phpunit.xml
 # Logs
 *.log
 api/public/logs/*.log
+api/logs/
 
 # ============================================================================
 # Web App (Quasar/Vue)

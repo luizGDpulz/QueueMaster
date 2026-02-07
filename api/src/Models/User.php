@@ -45,6 +45,142 @@ class User
     }
 
     /**
+     * Find user by Google ID
+     * 
+     * @param string $googleId Google OAuth sub (unique ID)
+     * @return array|null Record data or null
+     */
+    public static function findByGoogleId(string $googleId): ?array
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where('google_id', '=', $googleId)
+            ->first();
+    }
+
+    /**
+     * Create or update user from Google OAuth data
+     * 
+     * @param array $googleData Data from Google token (sub, email, name, picture, email_verified)
+     * @return array User data with '_is_new' flag
+     */
+    public static function findOrCreateFromGoogle(array $googleData): array
+    {
+        $googleId = $googleData['sub'];
+        $email = strtolower(trim($googleData['email']));
+        $name = $googleData['name'] ?? $googleData['email'];
+        $avatarUrl = $googleData['picture'] ?? null;
+        $emailVerified = $googleData['email_verified'] ?? false;
+
+        // First, try to find by Google ID
+        $user = self::findByGoogleId($googleId);
+
+        if ($user) {
+            // Update user info from Google (name, avatar might have changed)
+            self::updateGoogleProfile($user['id'], [
+                'name' => $name,
+                'avatar_url' => $avatarUrl,
+                'email_verified' => $emailVerified,
+            ]);
+            
+            $user = self::find($user['id']);
+            $safeUser = self::getSafeData($user);
+            $safeUser['_is_new'] = false;
+            return $safeUser;
+        }
+
+        // Check if user exists by email (linking existing account)
+        $user = self::findByEmail($email);
+
+        if ($user) {
+            // Link Google account to existing user
+            self::updateGoogleProfile($user['id'], [
+                'google_id' => $googleId,
+                'avatar_url' => $avatarUrl,
+                'email_verified' => $emailVerified,
+            ]);
+            
+            $user = self::find($user['id']);
+            $safeUser = self::getSafeData($user);
+            $safeUser['_is_new'] = false;
+            return $safeUser;
+        }
+
+        // Create new user
+        $userId = self::createFromGoogle([
+            'name' => $name,
+            'email' => $email,
+            'google_id' => $googleId,
+            'avatar_url' => $avatarUrl,
+            'email_verified' => $emailVerified,
+            'role' => self::getDefaultRole($email),
+        ]);
+
+        $user = self::find($userId);
+        $safeUser = self::getSafeData($user);
+        $safeUser['_is_new'] = true;
+        return $safeUser;
+    }
+
+    /**
+     * Create new user from Google OAuth (no password required)
+     * 
+     * @param array $data User data
+     * @return int New user ID
+     */
+    public static function createFromGoogle(array $data): int
+    {
+        // Normalize email
+        if (isset($data['email'])) {
+            $data['email'] = strtolower(trim($data['email']));
+        }
+
+        $qb = new QueryBuilder();
+        $qb->select(self::$table);
+        return $qb->insert($data);
+    }
+
+    /**
+     * Update user's Google profile data
+     * 
+     * @param int $id User ID
+     * @param array $data Google profile data to update
+     * @return int Affected rows
+     */
+    public static function updateGoogleProfile(int $id, array $data): int
+    {
+        $allowedFields = ['google_id', 'name', 'avatar_url', 'email_verified'];
+        $updateData = array_intersect_key($data, array_flip($allowedFields));
+
+        if (empty($updateData)) {
+            return 0;
+        }
+
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where(self::$primaryKey, '=', $id)
+            ->update($updateData);
+    }
+
+    /**
+     * Get default role for new user
+     * Checks SUPER_ADMIN_EMAIL env for first admin setup
+     * 
+     * @param string $email User email
+     * @return string Role
+     */
+    public static function getDefaultRole(string $email): string
+    {
+        $superAdminEmail = $_ENV['SUPER_ADMIN_EMAIL'] ?? null;
+        
+        if ($superAdminEmail && strtolower(trim($email)) === strtolower(trim($superAdminEmail))) {
+            return 'admin';
+        }
+
+        return 'client';
+    }
+
+    /**
      * Get all records
      * 
      * @param array $conditions Optional WHERE conditions ['column' => 'value']
@@ -143,59 +279,17 @@ class User
     }
 
     /**
-     * Change user password
-     * 
-     * Security: Revokes all refresh tokens for the user to force re-authentication
+     * Update user's last login timestamp
      * 
      * @param int $id User ID
-     * @param string $newPassword New password (plain text)
-     * @return int Number of affected rows
+     * @return int Affected rows
      */
-    public static function changePassword(int $id, string $newPassword): int
+    public static function updateLastLogin(int $id): int
     {
-        // Hash password using Argon2id (or bcrypt fallback)
-        if (defined('PASSWORD_ARGON2ID')) {
-            $passwordHash = password_hash($newPassword, PASSWORD_ARGON2ID);
-        } else {
-            $passwordHash = password_hash($newPassword, PASSWORD_BCRYPT);
-        }
-
         $qb = new QueryBuilder();
-        $result = $qb->select(self::$table)
+        return $qb->select(self::$table)
             ->where(self::$primaryKey, '=', $id)
-            ->update(['password_hash' => $passwordHash]);
-
-        // Revoke all refresh tokens to force re-authentication for security
-        // This is wrapped in try-catch to prevent token revocation failures from failing password change
-        if ($result > 0) {
-            try {
-                RefreshToken::revokeAllForUser($id);
-            } catch (\Exception $e) {
-                // Log the error but don't fail the password change
-                // Password was already changed successfully
-                error_log("Warning: Failed to revoke tokens for user $id: " . $e->getMessage());
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Verify user password
-     * 
-     * @param int $id User ID
-     * @param string $password Password to verify
-     * @return bool True if password matches
-     */
-    public static function verifyPassword(int $id, string $password): bool
-    {
-        $user = self::find($id);
-        
-        if (!$user) {
-            return false;
-        }
-
-        return password_verify($password, $user['password_hash']);
+            ->update(['last_login_at' => date('Y-m-d H:i:s')]);
     }
 
     /**
@@ -280,9 +374,9 @@ class User
             }
         }
 
-        // Validate password_hash (only on creation)
-        if (!$isUpdate && empty($data['password_hash'])) {
-            $errors['password_hash'] = 'Password hash is required';
+        // Validate google_id (required for Google OAuth)
+        if (!$isUpdate && empty($data['google_id'])) {
+            $errors['google_id'] = 'Google ID is required for OAuth login';
         }
 
         // Validate role
@@ -297,14 +391,14 @@ class User
     }
 
     /**
-     * Get safe user data (excludes password_hash)
+     * Get safe user data (excludes sensitive fields)
      * 
      * @param array $user User data
      * @return array Safe user data
      */
     public static function getSafeData(array $user): array
     {
-        unset($user['password_hash']);
+        unset($user['google_id']); // Don't expose Google ID to frontend
         return $user;
     }
 
@@ -313,8 +407,14 @@ class User
      * - id: bigint NOT NULL [PRI]
      * - name: varchar(150) NOT NULL
      * - email: varchar(150) NOT NULL [UNIQUE]
-     * - password_hash: varchar(255) NOT NULL
-     * - role: enum('client','attendant','admin') NOT NULL
+     * - google_id: varchar(255) NULL [UNIQUE] - Google OAuth sub
+     * - avatar_url: varchar(500) NULL - Google profile picture
+     * - email_verified: boolean NOT NULL DEFAULT FALSE
+     * - phone: varchar(20) NULL - Contact phone
+     * - role: enum('client','attendant','admin') NOT NULL DEFAULT 'client'
+     * - is_active: boolean NOT NULL DEFAULT TRUE
+     * - last_login_at: timestamp NULL
      * - created_at: timestamp NOT NULL
+     * - updated_at: timestamp NULL
      */
 }

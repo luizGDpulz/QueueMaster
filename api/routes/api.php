@@ -144,16 +144,10 @@ $router->group('/api/v1', function ($router) {
     
     $router->group('/auth', function ($router) {
         
-        // POST /api/v1/auth/register - Register new user
-        $router->post('/register', function ($request) {
+        // POST /api/v1/auth/google - Authenticate with Google OAuth
+        $router->post('/google', function ($request) {
             $controller = new AuthController();
-            $controller->register($request);
-        }, [new RateLimiter(5, 60)]); // 5 requests per minute
-        
-        // POST /api/v1/auth/login - Login user
-        $router->post('/login', function ($request) {
-            $controller = new AuthController();
-            $controller->login($request);
+            $controller->google($request);
         }, [new RateLimiter(10, 60)]); // 10 requests per minute
         
         // POST /api/v1/auth/refresh - Refresh access token
@@ -177,6 +171,12 @@ $router->group('/api/v1', function ($router) {
         $router->post('/logout', function ($request) {
             $controller = new AuthController();
             $controller->logout($request);
+        });
+
+        // GET /api/v1/auth/dev-token - Generate token for Swagger (admin only)
+        $router->get('/dev-token', function ($request) {
+            $controller = new AuthController();
+            $controller->devToken($request);
         });
         
     }, [new AuthMiddleware()]);

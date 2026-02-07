@@ -193,17 +193,28 @@ class Response
      * @param array|string $allowedOrigins Allowed origins (array or '*')
      * @param array $allowedMethods Allowed HTTP methods
      * @param array $allowedHeaders Allowed headers
+     * @param bool $applyStrictCsp Whether to apply strict CSP (false for Swagger/HTML)
      */
     public static function setCorsHeaders(
         array|string $allowedOrigins = '*',
         array $allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        array $allowedHeaders = ['Content-Type', 'Authorization', 'Idempotency-Key']
+        array $allowedHeaders = ['Content-Type', 'Authorization', 'Idempotency-Key'],
+        bool $applyStrictCsp = true
     ): void {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         
         if (is_array($allowedOrigins)) {
             if (in_array($origin, $allowedOrigins)) {
                 header("Access-Control-Allow-Origin: $origin");
+                header('Vary: Origin');
+            }
+        } elseif ($allowedOrigins === '*') {
+            // With credentials, we can't use wildcard - must echo the origin
+            if ($origin) {
+                header("Access-Control-Allow-Origin: $origin");
+                header('Vary: Origin');
+            } else {
+                header("Access-Control-Allow-Origin: *");
             }
         } else {
             header("Access-Control-Allow-Origin: $allowedOrigins");
@@ -213,6 +224,42 @@ class Response
         header('Access-Control-Allow-Headers: ' . implode(', ', $allowedHeaders));
         header('Access-Control-Allow-Credentials: true');
         header('Access-Control-Max-Age: 86400'); // 24 hours
+        
+        // Security headers
+        self::setSecurityHeaders($applyStrictCsp);
+    }
+
+    /**
+     * Set security headers to protect against common attacks
+     * 
+     * @param bool $isApi If true, uses strict CSP for API; if false, skips CSP
+     */
+    public static function setSecurityHeaders(bool $isApi = true): void
+    {
+        // Prevent MIME type sniffing
+        header('X-Content-Type-Options: nosniff');
+        
+        // Prevent clickjacking
+        header('X-Frame-Options: DENY');
+        
+        // Enable XSS filter in browsers
+        header('X-XSS-Protection: 1; mode=block');
+        
+        // Referrer policy - don't leak internal URLs
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+        
+        // Content Security Policy - only for API endpoints, not for Swagger/HTML pages
+        if ($isApi) {
+            header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
+        }
+        
+        // Permissions Policy - disable unnecessary features
+        header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+        
+        // In production, enforce HTTPS
+        if (($_ENV['APP_ENV'] ?? 'production') === 'production') {
+            header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+        }
     }
 
     /**

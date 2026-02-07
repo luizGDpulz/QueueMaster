@@ -4,7 +4,8 @@
     <!-- Logo -->
     <div class="sidebar-header">
       <div class="logo">
-        <img src="~assets/logo.svg" alt="QueueMaster" class="logo-img" />
+        <img v-if="isDark" src="../assets/logo_dark.svg" alt="QueueMaster" class="logo-img" />
+        <img v-else src="../assets/logo_light.svg" alt="QueueMaster" class="logo-img" />
         <span class="logo-text">QueueMaster</span>
       </div>
     </div>
@@ -141,12 +142,13 @@ export default defineComponent({
 .logo {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0rem;
+  flex-direction: column;
 }
 
 .logo-img {
-  width: 36px;
-  height: 36px;
+  width: 7rem;
+  height: 7rem;
 }
 
 .logo-text {
@@ -190,8 +192,8 @@ export default defineComponent({
   transition: all 0.2s ease;
 
   &.active {
-    background: var(--qm-btn-primary-bg);
-    color: var(--qm-btn-primary-text);
+    background: var(--qm-brand);
+    color: var(--qm-brand-contrast);
   }
 }
 
@@ -232,8 +234,8 @@ export default defineComponent({
   width: 40px;
   height: 40px;
   border-radius: 0.75rem;
-  background: var(--qm-btn-primary-bg);
-  color: var(--qm-btn-primary-text);
+  background: var(--qm-brand);
+  color: var(--qm-brand-contrast);
   display: flex;
   align-items: center;
   justify-content: center;

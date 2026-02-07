@@ -74,6 +74,8 @@
 <script>
 import { defineComponent, ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { api } from 'boot/axios'
+import { loadBrandColor } from 'src/utils/brand'
 import AppSidebar from 'src/components/AppSidebar.vue'
 
 export default defineComponent({
@@ -116,6 +118,7 @@ export default defineComponent({
         isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
       }
       applyTheme()
+      loadBrandColor()
     })
 
     const userName = computed(() => user.value?.name || 'Usuário')
@@ -128,9 +131,12 @@ export default defineComponent({
       return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     })
 
-    const handleLogout = () => {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
+    const handleLogout = async () => {
+      try {
+        await api.post('/auth/logout')
+      } catch {
+        // Ignora erro — limpa localmente de qualquer forma
+      }
       localStorage.removeItem('user')
       router.push('/login')
     }
@@ -159,6 +165,7 @@ export default defineComponent({
       isDark.value = !isDark.value
       localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
       applyTheme()
+      loadBrandColor()
     }
 
     return {
