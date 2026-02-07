@@ -17,7 +17,7 @@ class DashboardController
     /**
      * GET /api/v1/dashboard/queue-overview
      * 
-     * Get queue statistics (requires attendant or admin role)
+     * Get queue statistics (requires professional, manager, or admin role)
      */
     public function queueOverview(Request $request): void
     {
@@ -27,8 +27,8 @@ class DashboardController
         }
 
         $userRole = $request->user['role'];
-        if (!in_array($userRole, ['attendant', 'admin'])) {
-            Response::forbidden('Only attendants and admins can view dashboard', $request->requestId);
+        if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
+            Response::forbidden('Only professionals, managers, and admins can view dashboard', $request->requestId);
             return;
         }
 
@@ -103,7 +103,7 @@ class DashboardController
     /**
      * GET /api/v1/dashboard/appointments
      * 
-     * Get today's appointments (requires attendant or admin role)
+     * Get today's appointments (requires professional, manager, or admin role)
      */
     public function appointmentsList(Request $request): void
     {
@@ -113,8 +113,8 @@ class DashboardController
         }
 
         $userRole = $request->user['role'];
-        if (!in_array($userRole, ['attendant', 'admin'])) {
-            Response::forbidden('Only attendants and admins can view dashboard', $request->requestId);
+        if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
+            Response::forbidden('Only professionals, managers, and admins can view dashboard', $request->requestId);
             return;
         }
 
@@ -178,7 +178,7 @@ class DashboardController
     /**
      * POST /api/v1/dashboard/queue-entries/:entryId/mark-served
      * 
-     * Mark queue entry as served (requires attendant or admin role)
+     * Mark queue entry as served (requires professional, manager, or admin role)
      */
     public function markServed(Request $request, int $entryId): void
     {
@@ -188,8 +188,8 @@ class DashboardController
         }
 
         $userRole = $request->user['role'];
-        if (!in_array($userRole, ['attendant', 'admin'])) {
-            Response::forbidden('Only attendants and admins can mark as served', $request->requestId);
+        if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
+            Response::forbidden('Only professionals, managers, and admins can mark as served', $request->requestId);
             return;
         }
 
@@ -244,7 +244,7 @@ class DashboardController
     /**
      * POST /api/v1/dashboard/mark-no-show
      * 
-     * Mark queue entry or appointment as no-show (requires attendant or admin role)
+     * Mark queue entry or appointment as no-show (requires professional, manager, or admin role)
      */
     public function markNoShow(Request $request): void
     {
@@ -254,8 +254,8 @@ class DashboardController
         }
 
         $userRole = $request->user['role'];
-        if (!in_array($userRole, ['attendant', 'admin'])) {
-            Response::forbidden('Only attendants and admins can mark as no-show', $request->requestId);
+        if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
+            Response::forbidden('Only professionals, managers, and admins can mark as no-show', $request->requestId);
             return;
         }
 

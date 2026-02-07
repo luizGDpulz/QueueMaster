@@ -107,6 +107,7 @@ export default defineComponent({
       { path: '/app/queues', label: 'Filas', icon: 'format_list_numbered' },
       { path: '/app/appointments', label: 'Agendamentos', icon: 'event' },
       { path: '/app/establishments', label: 'Estabelecimentos', icon: 'store' },
+      { path: '/app/admin', label: 'Administração', icon: 'admin_panel_settings' },
       { path: '/app/settings', label: 'Configurações', icon: 'settings' }
     ]
 

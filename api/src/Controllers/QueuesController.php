@@ -279,7 +279,7 @@ class QueuesController
     /**
      * POST /api/v1/queues/:id/call-next
      * 
-     * Call next person in queue (requires attendant/professional/manager or admin role)
+     * Call next person in queue (requires professional/manager or admin role)
      */
     public function callNext(Request $request, int $id): void
     {
@@ -289,7 +289,7 @@ class QueuesController
         }
 
         $userRole = $request->user['role'];
-        if (!in_array($userRole, ['attendant', 'professional', 'manager', 'admin'])) {
+        if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
             Response::forbidden('Only staff members can call next', $request->requestId);
             return;
         }

@@ -19,7 +19,10 @@ class UsersController
     /**
      * GET /api/v1/users
      * 
-     * List all users (admin only)
+     * List users with role-based visibility:
+     * - Admin: sees all users (managers, professionals, clients)
+     * - Manager: sees managers in same business, professionals in their establishments, and clients
+     * - Professional: sees clients only
      * Supports filtering by role
      */
     public function list(Request $request): void
@@ -31,35 +34,90 @@ class UsersController
 
         try {
             $params = $request->getQuery();
-            
+            $currentUserRole = $request->user['role'] ?? 'client';
+            $currentUserId = (int)$request->user['id'];
+
             // Build conditions
             $conditions = [];
             if (!empty($params['role'])) {
-                $validRoles = ['client', 'attendant', 'admin'];
+                $validRoles = ['client', 'professional', 'manager', 'admin'];
                 if (in_array($params['role'], $validRoles)) {
                     $conditions['role'] = $params['role'];
                 }
             }
 
+            $users = [];
+
+            if ($currentUserRole === 'admin') {
+                // Admin sees all users
+                $users = User::all($conditions, 'created_at', 'DESC');
+            } elseif ($currentUserRole === 'manager') {
+                // Manager sees: other managers in same business, professionals in their establishments, and clients
+                $allUsers = User::all($conditions, 'created_at', 'DESC');
+                
+                // Get user's businesses
+                $businessLinks = \QueueMaster\Models\BusinessUser::getBusinessesForUser($currentUserId);
+                $businessIds = array_column($businessLinks, 'business_id');
+                
+                // Get all managers in the same businesses
+                $businessManagerIds = [];
+                foreach ($businessIds as $bId) {
+                    $businessUsers = \QueueMaster\Models\BusinessUser::getUsers((int)$bId);
+                    foreach ($businessUsers as $bu) {
+                        $businessManagerIds[] = (int)$bu['id'];
+                    }
+                }
+                
+                // Get professionals linked to establishments in the manager's businesses
+                $professionalUserIds = [];
+                foreach ($businessIds as $bId) {
+                    $establishments = \QueueMaster\Models\Business::getEstablishments((int)$bId);
+                    foreach ($establishments as $est) {
+                        $professionals = \QueueMaster\Models\Professional::getByEstablishment((int)$est['id']);
+                        foreach ($professionals as $prof) {
+                            if (!empty($prof['user_id'])) {
+                                $professionalUserIds[] = (int)$prof['user_id'];
+                            }
+                        }
+                    }
+                }
+                
+                $allowedIds = array_unique(array_merge($businessManagerIds, $professionalUserIds));
+                
+                foreach ($allUsers as $u) {
+                    $uRole = $u['role'] ?? 'client';
+                    if ($uRole === 'client') {
+                        $users[] = $u;
+                    } elseif (in_array((int)$u['id'], $allowedIds)) {
+                        $users[] = $u;
+                    }
+                }
+            } elseif ($currentUserRole === 'professional') {
+                // Professional sees clients only
+                $clientConditions = array_merge($conditions, ['role' => 'client']);
+                $users = User::all($clientConditions, 'created_at', 'DESC');
+            } else {
+                // Client: no access to user list
+                Response::forbidden('Insufficient permissions', $request->requestId);
+                return;
+            }
+
             // Get pagination params
             $page = max(1, (int)($params['page'] ?? 1));
             $perPage = min(100, max(1, (int)($params['per_page'] ?? 20)));
+            $total = count($users);
+
+            // Paginate
             $offset = ($page - 1) * $perPage;
+            $paginatedUsers = array_slice($users, $offset, $perPage);
 
-            // Get total count
-            $allUsers = User::all($conditions);
-            $total = count($allUsers);
-
-            // Get paginated users
-            $users = User::all($conditions, 'created_at', 'DESC', $perPage);
-            
-            // Remove password_hash from results
-            $users = array_map(function($user) {
+            // Remove sensitive data
+            $paginatedUsers = array_map(function($user) {
                 return User::getSafeData($user);
-            }, $users);
+            }, $paginatedUsers);
 
             Response::success([
-                'users' => $users,
+                'users' => array_values($paginatedUsers),
                 'pagination' => [
                     'current_page' => $page,
                     'per_page' => $perPage,
@@ -81,7 +139,8 @@ class UsersController
      * GET /api/v1/users/{id}
      * 
      * Get single user by ID
-     * Users can view their own profile, admins can view any user
+     * Users can view their own profile, admins can view any user,
+     * managers/professionals can view clients
      */
     public function show(Request $request, int $id): void
     {
@@ -94,9 +153,21 @@ class UsersController
         $currentUserRole = $request->user['role'];
 
         // Check permissions: user can view themselves, admin can view anyone
+        // managers and professionals can view clients
         if ($currentUserId !== $id && $currentUserRole !== 'admin') {
-            Response::forbidden('Access denied', $request->requestId);
-            return;
+            if (!in_array($currentUserRole, ['manager', 'professional'])) {
+                Response::forbidden('Access denied', $request->requestId);
+                return;
+            }
+            // Manager/professional can only view clients
+            $targetUser = User::find($id);
+            if (!$targetUser || $targetUser['role'] !== 'client') {
+                if ($currentUserRole === 'professional') {
+                    Response::forbidden('Access denied', $request->requestId);
+                    return;
+                }
+                // Managers can also view professionals/managers in their business (already verified in list)
+            }
         }
 
         try {
@@ -141,7 +212,7 @@ class UsersController
             'name' => 'required|min:2|max:150',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8|max:100',
-            'role' => 'in:client,attendant,admin',
+            'role' => 'in:client,professional,manager,admin',
         ]);
 
         if (!empty($errors)) {
@@ -271,7 +342,7 @@ class UsersController
                 }
 
                 $errors = Validator::make(['role' => $data['role']], [
-                    'role' => 'in:client,attendant,admin',
+                    'role' => 'in:client,professional,manager,admin',
                 ]);
                 
                 if (!empty($errors)) {

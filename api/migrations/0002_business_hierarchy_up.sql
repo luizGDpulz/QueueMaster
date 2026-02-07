@@ -138,6 +138,13 @@ INSERT INTO plans (name, max_businesses, max_establishments_per_business, max_ma
   ('Premium', NULL, NULL, NULL, NULL);
 
 -- ============================================================================
--- UPDATE establishment_users ROLE ENUM to include 'professional'
+-- UPDATE establishment_users ROLE ENUM to use 'professional' instead of 'attendant'
 -- ============================================================================
-ALTER TABLE establishment_users MODIFY COLUMN role ENUM('owner','manager','attendant','professional') NOT NULL DEFAULT 'attendant';
+-- First add 'professional' to the enum while keeping 'attendant'
+ALTER TABLE establishment_users MODIFY COLUMN role ENUM('owner','manager','attendant','professional') NOT NULL DEFAULT 'professional';
+
+-- Migrate existing 'attendant' rows to 'professional' in establishment_users
+UPDATE establishment_users SET role = 'professional' WHERE role = 'attendant';
+
+-- Now remove 'attendant' from the enum
+ALTER TABLE establishment_users MODIFY COLUMN role ENUM('owner','manager','professional') NOT NULL DEFAULT 'professional';

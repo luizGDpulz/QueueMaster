@@ -277,7 +277,7 @@ class SseController
      * GET /api/v1/streams/appointments/{establishmentId}
      * 
      * Stream appointment events for an establishment
-     * Requires attendant/admin role
+     * Requires professional/manager/admin role
      */
     public function streamAppointments(Request $request): void
     {
@@ -289,8 +289,8 @@ class SseController
             exit;
         }
 
-        // Check role (attendant or admin only)
-        if (!in_array($request->user['role'] ?? '', ['attendant', 'admin'])) {
+        // Check role (professional, manager, or admin)
+        if (!in_array($request->user['role'] ?? '', ['professional', 'manager', 'admin'])) {
             http_response_code(403);
             echo json_encode(['error' => 'Insufficient permissions']);
             exit;

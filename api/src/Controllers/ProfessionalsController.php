@@ -94,7 +94,7 @@ class ProfessionalsController
     /**
      * POST /api/v1/professionals
      * 
-     * Create new professional (admin only)
+     * Create new professional (manager/admin)
      */
     public function create(Request $request): void
     {
@@ -158,7 +158,7 @@ class ProfessionalsController
     /**
      * PUT /api/v1/professionals/{id}
      * 
-     * Update professional (admin only)
+     * Update professional (manager/admin)
      */
     public function update(Request $request, int $id): void
     {
@@ -239,7 +239,7 @@ class ProfessionalsController
     /**
      * DELETE /api/v1/professionals/{id}
      * 
-     * Delete professional (admin only)
+     * Delete professional (manager/admin)
      */
     public function delete(Request $request, int $id): void
     {

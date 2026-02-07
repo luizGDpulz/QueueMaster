@@ -8,7 +8,7 @@ use QueueMaster\Core\Database;
 /**
  * User Model - Generated from 'users' table
  * 
- * Represents a user in the system (client, attendant, or admin).
+ * Represents a user in the system (client, professional, manager, or admin).
  * Handles user authentication and profile management.
  */
 class User
@@ -331,7 +331,7 @@ class User
     /**
      * Get users by role
      * 
-     * @param string $role User role (client|attendant|admin)
+     * @param string $role User role (client|professional|manager|admin)
      * @return array Array of users
      */
     public static function getByRole(string $role): array

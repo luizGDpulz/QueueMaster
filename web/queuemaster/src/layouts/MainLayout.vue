@@ -99,6 +99,7 @@ export default defineComponent({
       { path: '/app/queues', label: 'Filas' },
       { path: '/app/appointments', label: 'Agendamentos' },
       { path: '/app/establishments', label: 'Estabelecimentos' },
+      { path: '/app/admin', label: 'Administração' },
       { path: '/app/settings', label: 'Configurações' }
     ]
 
@@ -124,7 +125,7 @@ export default defineComponent({
 
     const userName = computed(() => user.value?.name || 'Usuário')
     const userRole = computed(() => {
-      const roles = { admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', attendant: 'Atendente', client: 'Cliente' }
+      const roles = { admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', client: 'Cliente' }
       return roles[user.value?.role] || 'Usuário'
     })
     const userInitials = computed(() => {

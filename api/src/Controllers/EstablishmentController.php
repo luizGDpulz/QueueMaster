@@ -145,7 +145,8 @@ class EstablishmentController
     /**
      * POST /api/v1/establishments
      * 
-     * Create establishment (admin only)
+     * Create establishment (manager/admin)
+     * Requires business_id - establishments belong to a business, not directly to a user
      */
     public function create(Request $request): void
     {
@@ -159,6 +160,7 @@ class EstablishmentController
         // Validate input
         $errors = Validator::make($data, [
             'name' => 'required|min:2|max:255',
+            'business_id' => 'required|integer',
             'slug' => 'max:100',
             'description' => 'max:5000',
             'address' => 'max:255',
@@ -174,9 +176,25 @@ class EstablishmentController
         }
 
         try {
+            // Verify business exists and user has access
+            $businessId = (int)$data['business_id'];
+            $business = \QueueMaster\Models\Business::find($businessId);
+            if (!$business) {
+                Response::notFound('Business not found', $request->requestId);
+                return;
+            }
+
+            $userRole = $request->user['role'] ?? 'client';
+            $userId = (int)$request->user['id'];
+
+            if ($userRole !== 'admin' && !\QueueMaster\Models\BusinessUser::exists($businessId, $userId)) {
+                Response::forbidden('You do not have access to this business', $request->requestId);
+                return;
+            }
+
             $establishmentData = [
                 'name' => trim($data['name']),
-                'owner_id' => $request->user['id'], // Creator becomes owner
+                'business_id' => $businessId,
                 'timezone' => $data['timezone'] ?? 'America/Sao_Paulo',
             ];
 
@@ -191,11 +209,9 @@ class EstablishmentController
             $establishmentId = Establishment::create($establishmentData);
             $establishment = Establishment::find($establishmentId);
 
-            // Add creator as owner in establishment_users
-            EstablishmentUser::addStaff($establishmentId, (int)$request->user['id'], 'owner');
-
             Logger::info('Establishment created', [
                 'establishment_id' => $establishmentId,
+                'business_id' => $businessId,
                 'created_by' => $request->user['id'],
             ], $request->requestId);
 
@@ -219,7 +235,7 @@ class EstablishmentController
     /**
      * PUT /api/v1/establishments/{id}
      * 
-     * Update establishment (admin only)
+     * Update establishment (manager/admin)
      */
     public function update(Request $request, int $id): void
     {
@@ -235,19 +251,42 @@ class EstablishmentController
                 return;
             }
 
+            // Check access: admin can update any, manager must belong to the business
+            $userRole = $request->user['role'] ?? 'client';
+            $userId = (int)$request->user['id'];
+
+            if ($userRole !== 'admin' && $establishment['business_id']) {
+                if (!\QueueMaster\Models\BusinessUser::exists((int)$establishment['business_id'], $userId)) {
+                    Response::forbidden('You do not have access to this establishment', $request->requestId);
+                    return;
+                }
+            }
+
             $data = $request->all();
             $updateData = [];
 
-            if (isset($data['name']) && !empty(trim($data['name']))) {
-                $updateData['name'] = trim($data['name']);
+            // All updatable fields
+            $stringFields = ['name', 'slug', 'description', 'address', 'phone', 'email', 'logo_url', 'timezone'];
+            foreach ($stringFields as $field) {
+                if (isset($data[$field])) {
+                    if ($field === 'name' && empty(trim($data[$field]))) {
+                        continue; // Skip empty name
+                    }
+                    $updateData[$field] = is_string($data[$field]) ? trim($data[$field]) : $data[$field];
+                }
             }
 
-            if (isset($data['address'])) {
-                $updateData['address'] = trim($data['address']);
+            // Time fields
+            if (isset($data['opens_at'])) {
+                $updateData['opens_at'] = $data['opens_at'];
+            }
+            if (isset($data['closes_at'])) {
+                $updateData['closes_at'] = $data['closes_at'];
             }
 
-            if (isset($data['timezone'])) {
-                $updateData['timezone'] = $data['timezone'];
+            // Boolean field
+            if (isset($data['is_active'])) {
+                $updateData['is_active'] = (bool)$data['is_active'] ? 1 : 0;
             }
 
             if (empty($updateData)) {
@@ -259,7 +298,7 @@ class EstablishmentController
 
                 Response::error(
                     'NO_FIELDS_TO_UPDATE',
-                    'No valid fields provided for update. Available fields: name, address, timezone',
+                    'No valid fields provided for update. Available fields: name, slug, description, address, phone, email, logo_url, timezone, opens_at, closes_at, is_active',
                     400,
                     $request->requestId
                 );
@@ -292,7 +331,7 @@ class EstablishmentController
     /**
      * DELETE /api/v1/establishments/{id}
      * 
-     * Delete establishment (admin only)
+     * Delete establishment (manager who belongs to business, or admin)
      */
     public function delete(Request $request, int $id): void
     {
@@ -305,6 +344,20 @@ class EstablishmentController
             $establishment = Establishment::find($id);
             if (!$establishment) {
                 Response::notFound('Establishment not found', $request->requestId);
+                return;
+            }
+
+            // Check access: admin can delete any, manager must belong to the business
+            $userRole = $request->user['role'] ?? 'client';
+            $userId = (int)$request->user['id'];
+
+            if ($userRole !== 'admin' && $establishment['business_id']) {
+                if (!\QueueMaster\Models\BusinessUser::exists((int)$establishment['business_id'], $userId)) {
+                    Response::forbidden('You do not have access to this establishment', $request->requestId);
+                    return;
+                }
+            } elseif ($userRole !== 'admin') {
+                Response::forbidden('Insufficient permissions', $request->requestId);
                 return;
             }
 

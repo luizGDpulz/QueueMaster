@@ -282,7 +282,6 @@ class BusinessController
 
             $establishmentData = [
                 'name' => trim($data['name']),
-                'owner_id' => $request->user['id'],
                 'business_id' => $id,
                 'timezone' => $data['timezone'] ?? 'America/Sao_Paulo',
             ];
@@ -296,9 +295,6 @@ class BusinessController
 
             $establishmentId = Establishment::create($establishmentData);
             $establishment = Establishment::find($establishmentId);
-
-            // Add creator as owner in establishment_users
-            \QueueMaster\Models\EstablishmentUser::addStaff($establishmentId, (int)$request->user['id'], 'owner');
 
             AuditService::logFromRequest($request, 'create', 'establishment', (string)$establishmentId, $establishmentId, $id);
 
