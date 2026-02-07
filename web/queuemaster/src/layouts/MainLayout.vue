@@ -95,6 +95,7 @@ export default defineComponent({
     // Menu items para o breadcrumb
     const menuItems = [
       { path: '/app', label: 'Dashboard' },
+      { path: '/app/businesses', label: 'Negócios' },
       { path: '/app/queues', label: 'Filas' },
       { path: '/app/appointments', label: 'Agendamentos' },
       { path: '/app/establishments', label: 'Estabelecimentos' },
@@ -123,7 +124,7 @@ export default defineComponent({
 
     const userName = computed(() => user.value?.name || 'Usuário')
     const userRole = computed(() => {
-      const roles = { admin: 'Administrador', attendant: 'Atendente', client: 'Cliente' }
+      const roles = { admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', attendant: 'Atendente', client: 'Cliente' }
       return roles[user.value?.role] || 'Usuário'
     })
     const userInitials = computed(() => {

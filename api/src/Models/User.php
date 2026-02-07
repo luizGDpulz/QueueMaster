@@ -381,7 +381,7 @@ class User
 
         // Validate role
         if (isset($data['role'])) {
-            $validRoles = ['client', 'attendant', 'admin'];
+            $validRoles = ['client', 'attendant', 'professional', 'manager', 'admin'];
             if (!in_array($data['role'], $validRoles)) {
                 $errors['role'] = 'Invalid role value';
             }
@@ -411,7 +411,7 @@ class User
      * - avatar_url: varchar(500) NULL - Google profile picture
      * - email_verified: boolean NOT NULL DEFAULT FALSE
      * - phone: varchar(20) NULL - Contact phone
-     * - role: enum('client','attendant','admin') NOT NULL DEFAULT 'client'
+     * - role: enum('client','attendant','professional','manager','admin') NOT NULL DEFAULT 'client'
      * - is_active: boolean NOT NULL DEFAULT TRUE
      * - last_login_at: timestamp NULL
      * - created_at: timestamp NOT NULL

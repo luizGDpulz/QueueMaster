@@ -6,10 +6,12 @@ use QueueMaster\Core\Request;
 use QueueMaster\Core\Response;
 use QueueMaster\Core\Database;
 use QueueMaster\Services\QueueService;
+use QueueMaster\Services\AuditService;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
 use QueueMaster\Models\Queue;
 use QueueMaster\Models\QueueEntry;
+use QueueMaster\Models\QueueAccessCode;
 use QueueMaster\Models\Establishment;
 use QueueMaster\Models\Service;
 
@@ -128,7 +130,7 @@ class QueuesController
     /**
      * POST /api/v1/queues/:id/join
      * 
-     * Join queue
+     * Join queue (optionally with access_code)
      */
     public function join(Request $request, int $id): void
     {
@@ -150,11 +152,30 @@ class QueuesController
             return;
         }
 
+        // Validate access code if provided
+        if (isset($data['access_code']) && !empty($data['access_code'])) {
+            $code = QueueAccessCode::findByCode($data['access_code']);
+            if (!$code || $code['queue_id'] !== $id) {
+                Response::error('INVALID_CODE', 'Invalid or expired access code', 400, $request->requestId);
+                return;
+            }
+            if (!QueueAccessCode::isValid($code)) {
+                Response::error('INVALID_CODE', 'Access code is expired or exhausted', 400, $request->requestId);
+                return;
+            }
+            // Increment uses
+            QueueAccessCode::incrementUses($code['id']);
+        }
+
         $priority = (int)($data['priority'] ?? 0);
 
         try {
             $queueService = new QueueService();
             $entry = $queueService->join($id, $userId, $priority);
+
+            AuditService::logFromRequest($request, 'queue_join', 'queue', (string)$id, null, null, [
+                'entry_id' => $entry['id'],
+            ]);
 
             Logger::info('User joined queue', [
                 'queue_id' => $id,
@@ -258,7 +279,7 @@ class QueuesController
     /**
      * POST /api/v1/queues/:id/call-next
      * 
-     * Call next person in queue (requires attendant or admin role)
+     * Call next person in queue (requires attendant/professional/manager or admin role)
      */
     public function callNext(Request $request, int $id): void
     {
@@ -268,8 +289,8 @@ class QueuesController
         }
 
         $userRole = $request->user['role'];
-        if (!in_array($userRole, ['attendant', 'admin'])) {
-            Response::forbidden('Only attendants and admins can call next', $request->requestId);
+        if (!in_array($userRole, ['attendant', 'professional', 'manager', 'admin'])) {
+            Response::forbidden('Only staff members can call next', $request->requestId);
             return;
         }
 
@@ -483,6 +504,58 @@ class QueuesController
             ], $request->requestId);
 
             Response::serverError('Failed to delete queue', $request->requestId);
+        }
+    }
+
+    /**
+     * POST /api/v1/queues/:id/generate-code
+     * 
+     * Generate a join code for a queue (manager/admin only)
+     */
+    public function generateCode(Request $request, int $id): void
+    {
+        try {
+            $queue = Queue::find($id);
+            if (!$queue) {
+                Response::notFound('Queue not found', $request->requestId);
+                return;
+            }
+
+            $data = $request->all();
+            $expiresAt = $data['expires_at'] ?? null;
+            $maxUses = isset($data['max_uses']) ? (int)$data['max_uses'] : null;
+
+            $code = QueueAccessCode::generateCode();
+
+            $codeId = QueueAccessCode::create([
+                'queue_id' => $id,
+                'code' => $code,
+                'expires_at' => $expiresAt,
+                'max_uses' => $maxUses,
+            ]);
+
+            $codeRecord = QueueAccessCode::find($codeId);
+
+            AuditService::logFromRequest($request, 'generate_code', 'queue', (string)$id, null, null, [
+                'code_id' => $codeId,
+            ]);
+
+            Logger::info('Queue access code generated', [
+                'queue_id' => $id,
+                'code_id' => $codeId,
+            ], $request->requestId);
+
+            Response::created([
+                'access_code' => $codeRecord,
+                'message' => 'Access code generated successfully',
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to generate queue code', [
+                'queue_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to generate access code', $request->requestId);
         }
     }
 }
