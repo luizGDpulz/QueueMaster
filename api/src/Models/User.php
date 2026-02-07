@@ -8,7 +8,7 @@ use QueueMaster\Core\Database;
 /**
  * User Model - Generated from 'users' table
  * 
- * Represents a user in the system (client, attendant, or admin).
+ * Represents a user in the system (client, professional, manager, or admin).
  * Handles user authentication and profile management.
  */
 class User

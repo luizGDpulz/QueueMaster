@@ -8,7 +8,7 @@ use QueueMaster\Builders\QueryBuilder;
  * EstablishmentUser Model - Pivot table for establishments <-> users (staff)
  * 
  * Manages the relationship between establishments and their staff members.
- * Each user can have a role within the establishment (owner, manager, attendant).
+ * Each user can have a role within the establishment (owner, manager, professional).
  */
 class EstablishmentUser
 {
@@ -17,17 +17,17 @@ class EstablishmentUser
 
     public const ROLE_OWNER = 'owner';
     public const ROLE_MANAGER = 'manager';
-    public const ROLE_ATTENDANT = 'attendant';
+    public const ROLE_PROFESSIONAL = 'professional';
 
     /**
      * Add a user to an establishment's staff
      * 
      * @param int $establishmentId Establishment ID
      * @param int $userId User ID
-     * @param string $role Role (owner, manager, attendant)
+     * @param string $role Role (owner, manager, professional)
      * @return int Inserted record ID
      */
-    public static function addStaff(int $establishmentId, int $userId, string $role = self::ROLE_ATTENDANT): int
+    public static function addStaff(int $establishmentId, int $userId, string $role = self::ROLE_PROFESSIONAL): int
     {
         self::validateRole($role);
 
@@ -127,7 +127,7 @@ class EstablishmentUser
     public static function hasMinimumRole(int $establishmentId, int $userId, string $minimumRole): bool
     {
         $roleHierarchy = [
-            self::ROLE_ATTENDANT => 1,
+            self::ROLE_PROFESSIONAL => 1,
             self::ROLE_MANAGER => 2,
             self::ROLE_OWNER => 3,
         ];
@@ -200,7 +200,7 @@ class EstablishmentUser
      */
     private static function validateRole(string $role): void
     {
-        $validRoles = [self::ROLE_OWNER, self::ROLE_MANAGER, self::ROLE_ATTENDANT];
+        $validRoles = [self::ROLE_OWNER, self::ROLE_MANAGER, self::ROLE_PROFESSIONAL];
         if (!in_array($role, $validRoles)) {
             throw new \InvalidArgumentException('Invalid role. Must be: ' . implode(', ', $validRoles));
         }
@@ -211,7 +211,7 @@ class EstablishmentUser
      * - id: bigint NOT NULL [PRI]
      * - establishment_id: bigint NOT NULL [FK -> establishments]
      * - user_id: bigint NOT NULL [FK -> users]
-     * - role: enum('owner','manager','attendant') NOT NULL DEFAULT 'attendant'
+     * - role: enum('owner','manager','professional') NOT NULL DEFAULT 'professional'
      * - created_at: timestamp NOT NULL
      * - UNIQUE(establishment_id, user_id)
      */

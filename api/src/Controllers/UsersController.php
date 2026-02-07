@@ -35,7 +35,7 @@ class UsersController
             // Build conditions
             $conditions = [];
             if (!empty($params['role'])) {
-                $validRoles = ['client', 'attendant', 'admin'];
+                $validRoles = ['client', 'professional', 'manager', 'admin'];
                 if (in_array($params['role'], $validRoles)) {
                     $conditions['role'] = $params['role'];
                 }
@@ -141,7 +141,7 @@ class UsersController
             'name' => 'required|min:2|max:150',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8|max:100',
-            'role' => 'in:client,attendant,admin',
+            'role' => 'in:client,professional,manager,admin',
         ]);
 
         if (!empty($errors)) {
@@ -271,7 +271,7 @@ class UsersController
                 }
 
                 $errors = Validator::make(['role' => $data['role']], [
-                    'role' => 'in:client,attendant,admin',
+                    'role' => 'in:client,professional,manager,admin',
                 ]);
                 
                 if (!empty($errors)) {
