@@ -30,7 +30,8 @@ class BusinessMiddleware
 
         // Admin bypass
         if ($userRole === 'admin') {
-            return $next($request);
+            $next($request);
+            return;
         }
 
         // Get business ID from route params or body

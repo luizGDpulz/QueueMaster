@@ -42,14 +42,8 @@ class RoleMiddleware
             $userRole = 'professional';
         }
 
-        // Check allowed roles (also accept 'attendant' when 'professional' is allowed and vice versa)
-        $expandedAllowed = $this->allowedRoles;
-        if (in_array('attendant', $expandedAllowed) && !in_array('professional', $expandedAllowed)) {
-            $expandedAllowed[] = 'professional';
-        }
-        if (in_array('professional', $expandedAllowed) && !in_array('attendant', $expandedAllowed)) {
-            $expandedAllowed[] = 'attendant';
-        }
+        // Expand allowed roles with backward-compatible equivalents
+        $expandedAllowed = self::expandCompatibleRoles($this->allowedRoles);
 
         // Check if user has required role
         if (!in_array($userRole, $expandedAllowed)) {
@@ -66,6 +60,22 @@ class RoleMiddleware
 
         // Continue to next middleware/handler
         $next($request);
+    }
+
+    /**
+     * Expand role list with backward-compatible equivalents.
+     * 'attendant' and 'professional' are treated as interchangeable.
+     */
+    private static function expandCompatibleRoles(array $roles): array
+    {
+        $expanded = $roles;
+        if (in_array('attendant', $expanded) && !in_array('professional', $expanded)) {
+            $expanded[] = 'professional';
+        }
+        if (in_array('professional', $expanded) && !in_array('attendant', $expanded)) {
+            $expanded[] = 'attendant';
+        }
+        return $expanded;
     }
 
     /**

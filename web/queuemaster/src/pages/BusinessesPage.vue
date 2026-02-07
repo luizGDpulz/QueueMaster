@@ -74,7 +74,7 @@
                 </div>
               </td>
               <td>
-                <q-badge :color="business.user_role === 'owner' ? 'positive' : 'info'" :label="business.user_role === 'owner' ? 'Proprietário' : 'Gerente'" />
+                <q-badge :color="getRoleColor(business.user_role)" :label="getRoleLabel(business.user_role)" />
               </td>
               <td>
                 <q-badge :color="business.is_active ? 'positive' : 'negative'" :label="business.is_active ? 'Ativo' : 'Inativo'" />
@@ -319,6 +319,12 @@ export default defineComponent({
       return new Date(dateStr).toLocaleDateString('pt-BR')
     }
 
+    const roleLabels = { owner: 'Proprietário', manager: 'Gerente' }
+    const roleColors = { owner: 'positive', manager: 'info' }
+
+    const getRoleLabel = (role) => roleLabels[role] || role
+    const getRoleColor = (role) => roleColors[role] || 'grey'
+
     // Lifecycle
     onMounted(() => {
       fetchBusinesses()
@@ -340,7 +346,9 @@ export default defineComponent({
       editBusiness,
       viewBusiness,
       saveBusiness,
-      formatDate
+      formatDate,
+      getRoleLabel,
+      getRoleColor
     }
   }
 })

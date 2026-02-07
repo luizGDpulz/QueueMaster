@@ -30,7 +30,7 @@ class AuditService
             AuditLog::log($userId, $action, $entity, $entityId, $establishmentId, $businessId, $payload, $ip);
         } catch (\Exception $e) {
             // Audit logging should never break the main flow
-            error_log('AuditService error: ' . $e->getMessage());
+            error_log('AuditService error [' . $action . ' ' . ($entity ?? '') . ']: ' . $e->getMessage());
         }
     }
 

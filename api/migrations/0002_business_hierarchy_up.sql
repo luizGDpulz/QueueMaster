@@ -9,7 +9,9 @@ USE `queue_master`;
 
 -- ============================================================================
 -- EXPAND USER ROLES: add 'manager' and 'professional'
--- Maps: attendant -> professional (kept for backward compatibility)
+-- NOTE: This migrates existing 'attendant' users to 'professional'.
+-- The down migration will revert 'professional' back to 'attendant'.
+-- Both roles are treated as interchangeable by RoleMiddleware for backward compat.
 -- ============================================================================
 ALTER TABLE users MODIFY COLUMN role ENUM('client','attendant','professional','manager','admin') NOT NULL DEFAULT 'client';
 
