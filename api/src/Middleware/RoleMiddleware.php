@@ -37,8 +37,22 @@ class RoleMiddleware
 
         $userRole = $request->user['role'] ?? null;
 
+        // Map legacy 'attendant' to 'professional' for backward compatibility
+        if ($userRole === 'attendant') {
+            $userRole = 'professional';
+        }
+
+        // Check allowed roles (also accept 'attendant' when 'professional' is allowed and vice versa)
+        $expandedAllowed = $this->allowedRoles;
+        if (in_array('attendant', $expandedAllowed) && !in_array('professional', $expandedAllowed)) {
+            $expandedAllowed[] = 'professional';
+        }
+        if (in_array('professional', $expandedAllowed) && !in_array('attendant', $expandedAllowed)) {
+            $expandedAllowed[] = 'attendant';
+        }
+
         // Check if user has required role
-        if (!in_array($userRole, $this->allowedRoles)) {
+        if (!in_array($userRole, $expandedAllowed)) {
             Logger::logSecurity('Insufficient permissions', [
                 'user_id' => $request->user['id'],
                 'user_role' => $userRole,
