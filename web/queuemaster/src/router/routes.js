@@ -54,6 +54,11 @@ const routes = [
         component: () => import('pages/EstablishmentsPage.vue')
       },
       {
+        path: 'admin',
+        name: 'admin-panel',
+        component: () => import('pages/AdminPanelPage.vue')
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('pages/SettingsPage.vue')

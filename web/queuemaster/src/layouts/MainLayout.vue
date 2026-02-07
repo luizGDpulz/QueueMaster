@@ -99,6 +99,7 @@ export default defineComponent({
       { path: '/app/queues', label: 'Filas' },
       { path: '/app/appointments', label: 'Agendamentos' },
       { path: '/app/establishments', label: 'Estabelecimentos' },
+      { path: '/app/admin', label: 'Administração' },
       { path: '/app/settings', label: 'Configurações' }
     ]
 

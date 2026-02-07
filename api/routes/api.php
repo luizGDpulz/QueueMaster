@@ -499,11 +499,11 @@ $router->group('/api/v1', function ($router) {
     
     $router->group('/users', function ($router) {
         
-        // GET /api/v1/users - List all users (admin only)
+        // GET /api/v1/users - List users (role-based visibility)
         $router->get('', function ($request) {
             $controller = new UsersController();
             $controller->list($request);
-        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        }, [new AuthMiddleware(), new RoleMiddleware(['professional', 'manager', 'admin'])]);
         
         // GET /api/v1/users/{id} - Get single user (user themselves or admin)
         $router->get('/{id}', function ($request) {
