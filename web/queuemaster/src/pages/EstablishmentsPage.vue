@@ -4,11 +4,11 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">Estabelecimentos</h1>
-        <p class="page-subtitle">Gerencie todos os estabelecimentos cadastrados</p>
+        <p class="page-subtitle">Gerencie todos os estabelecimentos e seus serviços</p>
       </div>
       <div class="header-right">
         <q-btn
-          v-if="isAdmin"
+          v-if="canManage"
           color="primary"
           icon="add"
           label="Novo Estabelecimento"
@@ -58,6 +58,7 @@
             <tr>
               <th class="th-establishment">Estabelecimento</th>
               <th class="th-address">Endereço</th>
+              <th class="th-phone">Telefone</th>
               <th class="th-timezone">Timezone</th>
               <th class="th-created">Criado em</th>
               <th class="th-actions"></th>
@@ -80,6 +81,9 @@
                 <span class="address-text">{{ establishment.address || 'Não informado' }}</span>
               </td>
               <td>
+                <span class="phone-text">{{ establishment.phone || '-' }}</span>
+              </td>
+              <td>
                 <q-badge color="grey-7" class="timezone-badge">
                   {{ establishment.timezone || 'America/Sao_Paulo' }}
                 </q-badge>
@@ -90,12 +94,12 @@
               <td>
                 <div class="row-actions">
                   <q-btn flat round dense icon="visibility" size="sm" @click="viewEstablishment(establishment)">
-                    <q-tooltip>Ver detalhes</q-tooltip>
+                    <q-tooltip>Ver detalhes e serviços</q-tooltip>
                   </q-btn>
-                  <q-btn v-if="isAdmin" flat round dense icon="edit" size="sm" @click="editEstablishment(establishment)">
+                  <q-btn v-if="canManage" flat round dense icon="edit" size="sm" @click="editEstablishment(establishment)">
                     <q-tooltip>Editar</q-tooltip>
                   </q-btn>
-                  <q-btn v-if="isAdmin" flat round dense icon="delete" size="sm" color="negative" @click="confirmDelete(establishment)">
+                  <q-btn v-if="canManage" flat round dense icon="delete" size="sm" color="negative" @click="confirmDelete(establishment)">
                     <q-tooltip>Excluir</q-tooltip>
                   </q-btn>
                 </div>
@@ -106,21 +110,49 @@
       </div>
     </div>
 
-    <!-- Create/Edit Dialog -->
+    <!-- Create/Edit Establishment Dialog -->
     <q-dialog v-model="showDialog" persistent>
-      <q-card class="dialog-card">
+      <q-card class="dialog-card dialog-card-wide">
         <q-card-section class="dialog-header">
           <h3>{{ isEditing ? 'Editar Estabelecimento' : 'Novo Estabelecimento' }}</h3>
           <q-btn flat round dense icon="close" @click="closeDialog" />
         </q-card-section>
 
         <q-card-section class="dialog-content">
+          <q-select
+            v-if="!isEditing"
+            v-model="form.business_id"
+            label="Negócio *"
+            outlined
+            dense
+            :options="businessOptions"
+            emit-value
+            map-options
+            :rules="[val => !!val || 'Negócio é obrigatório']"
+          />
           <q-input
             v-model="form.name"
             label="Nome *"
             outlined
             dense
-            :rules="[val => !!val || 'Nome é© obrigatório']"
+            :class="{ 'q-mt-md': !isEditing }"
+            :rules="[val => !!val || 'Nome é obrigatório']"
+          />
+          <q-input
+            v-model="form.slug"
+            label="Slug (URL amigável)"
+            outlined
+            dense
+            class="q-mt-md"
+            hint="Ex: meu-estabelecimento"
+          />
+          <q-input
+            v-model="form.description"
+            label="Descrição"
+            outlined
+            dense
+            type="textarea"
+            class="q-mt-md"
           />
           <q-input
             v-model="form.address"
@@ -129,6 +161,24 @@
             dense
             class="q-mt-md"
           />
+          <div class="row q-col-gutter-md q-mt-xs">
+            <div class="col-6">
+              <q-input
+                v-model="form.phone"
+                label="Telefone"
+                outlined
+                dense
+              />
+            </div>
+            <div class="col-6">
+              <q-input
+                v-model="form.email"
+                label="Email"
+                outlined
+                dense
+              />
+            </div>
+          </div>
           <q-select
             v-model="form.timezone"
             label="Timezone"
@@ -137,57 +187,202 @@
             :options="timezoneOptions"
             class="q-mt-md"
           />
-        </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Cancelar" no-caps @click="closeDialog" />
-          <q-btn 
-            color="primary" 
-            :label="isEditing ? 'Salvar' : 'Criar'" 
-            no-caps 
-            :loading="saving"
-            @click="saveEstablishment" 
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- View Dialog -->
-    <q-dialog v-model="showViewDialog">
-      <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>Detalhes do Estabelecimento</h3>
-          <q-btn flat round dense icon="close" @click="showViewDialog = false" />
-        </q-card-section>
-
-        <q-card-section class="dialog-content" v-if="selectedEstablishment">
-          <div class="detail-grid">
-            <div class="detail-item">
-              <span class="detail-label">Nome</span>
-              <span class="detail-value">{{ selectedEstablishment.name }}</span>
+          <div class="row q-col-gutter-md q-mt-xs">
+            <div class="col-6">
+              <q-input
+                v-model="form.opens_at"
+                label="Abre às"
+                outlined
+                dense
+                type="time"
+              />
             </div>
-            <div class="detail-item">
-              <span class="detail-label">Endereço</span>
-              <span class="detail-value">{{ selectedEstablishment.address || 'Não informado' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Timezone</span>
-              <span class="detail-value">{{ selectedEstablishment.timezone }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Criado em</span>
-              <span class="detail-value">{{ formatDate(selectedEstablishment.created_at) }}</span>
+            <div class="col-6">
+              <q-input
+                v-model="form.closes_at"
+                label="Fecha às"
+                outlined
+                dense
+                type="time"
+              />
             </div>
           </div>
         </q-card-section>
 
         <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Fechar" no-caps @click="showViewDialog = false" />
+          <q-btn flat label="Cancelar" no-caps @click="closeDialog" />
+          <q-btn
+            color="primary"
+            :label="isEditing ? 'Salvar' : 'Criar'"
+            no-caps
+            :loading="saving"
+            @click="saveEstablishment"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
 
-    <!-- Delete Confirmation Dialog -->
+    <!-- View/Services Dialog -->
+    <q-dialog v-model="showViewDialog" maximized>
+      <q-card class="view-dialog-card">
+        <q-card-section class="dialog-header">
+          <h3>{{ selectedEstablishment?.name }} - Detalhes e Serviços</h3>
+          <q-btn flat round dense icon="close" @click="showViewDialog = false" />
+        </q-card-section>
+
+        <q-card-section class="dialog-content view-content" v-if="selectedEstablishment">
+          <!-- Establishment Details -->
+          <div class="section-block">
+            <h4 class="section-title">Informações do Estabelecimento</h4>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">Nome</span>
+                <span class="detail-value">{{ selectedEstablishment.name }}</span>
+              </div>
+              <div class="detail-item" v-if="selectedEstablishment.slug">
+                <span class="detail-label">Slug</span>
+                <span class="detail-value">{{ selectedEstablishment.slug }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Endereço</span>
+                <span class="detail-value">{{ selectedEstablishment.address || 'Não informado' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Telefone</span>
+                <span class="detail-value">{{ selectedEstablishment.phone || 'Não informado' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Email</span>
+                <span class="detail-value">{{ selectedEstablishment.email || 'Não informado' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Timezone</span>
+                <span class="detail-value">{{ selectedEstablishment.timezone }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Horário</span>
+                <span class="detail-value">{{ selectedEstablishment.opens_at || '—' }} - {{ selectedEstablishment.closes_at || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Criado em</span>
+                <span class="detail-value">{{ formatDate(selectedEstablishment.created_at) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Services Section -->
+          <div class="section-block q-mt-lg">
+            <div class="section-header">
+              <h4 class="section-title">Serviços</h4>
+              <q-btn
+                v-if="canManage"
+                color="primary"
+                icon="add"
+                label="Novo Serviço"
+                no-caps
+                size="sm"
+                @click="openServiceDialog"
+              />
+            </div>
+
+            <div v-if="loadingServices" class="loading-state-sm">
+              <q-spinner-dots color="primary" size="30px" />
+            </div>
+
+            <div v-else-if="services.length === 0" class="empty-state-sm">
+              <q-icon name="build" size="40px" />
+              <p>Nenhum serviço cadastrado</p>
+            </div>
+
+            <div v-else class="services-list">
+              <div class="service-item" v-for="service in services" :key="service.id">
+                <div class="service-info">
+                  <q-icon name="build" size="20px" class="service-icon" />
+                  <div class="service-details">
+                    <span class="service-name">{{ service.name }}</span>
+                    <span class="service-meta">
+                      {{ service.duration_minutes || service.duration || 30 }} min
+                      <template v-if="service.price"> · R$ {{ Number(service.price).toFixed(2) }}</template>
+                    </span>
+                  </div>
+                </div>
+                <div class="service-actions" v-if="canManage">
+                  <q-btn flat round dense icon="edit" size="sm" @click="editService(service)">
+                    <q-tooltip>Editar serviço</q-tooltip>
+                  </q-btn>
+                  <q-btn flat round dense icon="delete" size="sm" color="negative" @click="confirmDeleteService(service)">
+                    <q-tooltip>Excluir serviço</q-tooltip>
+                  </q-btn>
+                </div>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <!-- Service Create/Edit Dialog -->
+    <q-dialog v-model="showServiceDialog" persistent>
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-header">
+          <h3>{{ isEditingService ? 'Editar Serviço' : 'Novo Serviço' }}</h3>
+          <q-btn flat round dense icon="close" @click="showServiceDialog = false" />
+        </q-card-section>
+
+        <q-card-section class="dialog-content">
+          <q-input
+            v-model="serviceForm.name"
+            label="Nome do Serviço *"
+            outlined
+            dense
+            :rules="[val => !!val || 'Nome é obrigatório']"
+          />
+          <q-input
+            v-model="serviceForm.description"
+            label="Descrição"
+            outlined
+            dense
+            type="textarea"
+            class="q-mt-md"
+          />
+          <div class="row q-col-gutter-md q-mt-xs">
+            <div class="col-6">
+              <q-input
+                v-model.number="serviceForm.duration"
+                label="Duração (minutos) *"
+                outlined
+                dense
+                type="number"
+                :rules="[val => val > 0 || 'Duração deve ser maior que 0']"
+              />
+            </div>
+            <div class="col-6">
+              <q-input
+                v-model.number="serviceForm.price"
+                label="Preço (R$)"
+                outlined
+                dense
+                type="number"
+                step="0.01"
+              />
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="dialog-actions">
+          <q-btn flat label="Cancelar" no-caps @click="showServiceDialog = false" />
+          <q-btn
+            color="primary"
+            :label="isEditingService ? 'Salvar' : 'Criar'"
+            no-caps
+            :loading="savingService"
+            @click="saveService"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Delete Establishment Confirmation -->
     <q-dialog v-model="showDeleteDialog">
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
@@ -196,12 +391,31 @@
 
         <q-card-section class="dialog-content">
           <p>Tem certeza que deseja excluir o estabelecimento <strong>{{ selectedEstablishment?.name }}</strong>?</p>
-          <p class="delete-warning">Esta ação né£o pode ser desfeita.</p>
+          <p class="delete-warning">Esta ação não pode ser desfeita.</p>
         </q-card-section>
 
         <q-card-actions align="right" class="dialog-actions">
           <q-btn flat label="Cancelar" no-caps @click="showDeleteDialog = false" />
           <q-btn color="negative" label="Excluir" no-caps :loading="deleting" @click="deleteEstablishment" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Delete Service Confirmation -->
+    <q-dialog v-model="showDeleteServiceDialog">
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-header">
+          <h3>Confirmar Exclusão do Serviço</h3>
+        </q-card-section>
+
+        <q-card-section class="dialog-content">
+          <p>Tem certeza que deseja excluir o serviço <strong>{{ selectedService?.name }}</strong>?</p>
+          <p class="delete-warning">Esta ação não pode ser desfeita.</p>
+        </q-card-section>
+
+        <q-card-actions align="right" class="dialog-actions">
+          <q-btn flat label="Cancelar" no-caps @click="showDeleteServiceDialog = false" />
+          <q-btn color="negative" label="Excluir" no-caps :loading="deletingService" @click="deleteService" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -221,24 +435,50 @@ export default defineComponent({
 
     // State
     const establishments = ref([])
+    const businesses = ref([])
+    const services = ref([])
     const loading = ref(true)
+    const loadingServices = ref(false)
     const saving = ref(false)
+    const savingService = ref(false)
     const deleting = ref(false)
+    const deletingService = ref(false)
     const searchQuery = ref('')
     const userRole = ref(null)
 
-    // Dialogs
+    // Establishment Dialogs
     const showDialog = ref(false)
     const showViewDialog = ref(false)
     const showDeleteDialog = ref(false)
     const isEditing = ref(false)
     const selectedEstablishment = ref(null)
 
-    // Form
+    // Service Dialogs
+    const showServiceDialog = ref(false)
+    const showDeleteServiceDialog = ref(false)
+    const isEditingService = ref(false)
+    const selectedService = ref(null)
+
+    // Establishment Form
     const form = ref({
+      business_id: null,
       name: '',
+      slug: '',
+      description: '',
       address: '',
-      timezone: 'America/Sao_Paulo'
+      phone: '',
+      email: '',
+      timezone: 'America/Sao_Paulo',
+      opens_at: '',
+      closes_at: ''
+    })
+
+    // Service Form
+    const serviceForm = ref({
+      name: '',
+      description: '',
+      duration: 30,
+      price: null
     })
 
     const timezoneOptions = [
@@ -250,14 +490,22 @@ export default defineComponent({
     ]
 
     // Computed
-    const isAdmin = computed(() => userRole.value === 'admin')
+    const canManage = computed(() => ['admin', 'manager'].includes(userRole.value))
+
+    const businessOptions = computed(() => {
+      return businesses.value.map(b => ({
+        label: b.name,
+        value: b.id
+      }))
+    })
 
     const filteredEstablishments = computed(() => {
       if (!searchQuery.value) return establishments.value
       const query = searchQuery.value.toLowerCase()
-      return establishments.value.filter(e => 
+      return establishments.value.filter(e =>
         e.name.toLowerCase().includes(query) ||
-        (e.address && e.address.toLowerCase().includes(query))
+        (e.address && e.address.toLowerCase().includes(query)) ||
+        (e.phone && e.phone.includes(query))
       )
     })
 
@@ -277,6 +525,17 @@ export default defineComponent({
       }
     }
 
+    const fetchBusinesses = async () => {
+      try {
+        const response = await api.get('/businesses')
+        if (response.data?.success) {
+          businesses.value = response.data.data?.businesses || []
+        }
+      } catch (err) {
+        console.error('Erro ao buscar negócios:', err)
+      }
+    }
+
     const fetchUserRole = async () => {
       try {
         const response = await api.get('/auth/me')
@@ -288,9 +547,30 @@ export default defineComponent({
       }
     }
 
+    const fetchServices = async (establishmentId) => {
+      loadingServices.value = true
+      try {
+        const response = await api.get(`/establishments/${establishmentId}/services`)
+        if (response.data?.success) {
+          services.value = response.data.data?.services || []
+        }
+      } catch (err) {
+        console.error('Erro ao buscar serviços:', err)
+        services.value = []
+      } finally {
+        loadingServices.value = false
+      }
+    }
+
+    // Establishment CRUD
     const openCreateDialog = () => {
       isEditing.value = false
-      form.value = { name: '', address: '', timezone: 'America/Sao_Paulo' }
+      form.value = {
+        business_id: businesses.value.length === 1 ? businesses.value[0].id : null,
+        name: '', slug: '', description: '', address: '',
+        phone: '', email: '', timezone: 'America/Sao_Paulo',
+        opens_at: '', closes_at: ''
+      }
       showDialog.value = true
     }
 
@@ -298,9 +578,16 @@ export default defineComponent({
       isEditing.value = true
       selectedEstablishment.value = establishment
       form.value = {
-        name: establishment.name,
+        business_id: establishment.business_id,
+        name: establishment.name || '',
+        slug: establishment.slug || '',
+        description: establishment.description || '',
         address: establishment.address || '',
-        timezone: establishment.timezone || 'America/Sao_Paulo'
+        phone: establishment.phone || '',
+        email: establishment.email || '',
+        timezone: establishment.timezone || 'America/Sao_Paulo',
+        opens_at: establishment.opens_at || '',
+        closes_at: establishment.closes_at || ''
       }
       showDialog.value = true
     }
@@ -308,6 +595,7 @@ export default defineComponent({
     const viewEstablishment = (establishment) => {
       selectedEstablishment.value = establishment
       showViewDialog.value = true
+      fetchServices(establishment.id)
     }
 
     const confirmDelete = (establishment) => {
@@ -317,22 +605,36 @@ export default defineComponent({
 
     const closeDialog = () => {
       showDialog.value = false
-      form.value = { name: '', address: '', timezone: 'America/Sao_Paulo' }
     }
 
     const saveEstablishment = async () => {
       if (!form.value.name) {
-        $q.notify({ type: 'warning', message: 'Nome é© obrigatório' })
+        $q.notify({ type: 'warning', message: 'Nome é obrigatório' })
+        return
+      }
+
+      if (!isEditing.value && !form.value.business_id) {
+        $q.notify({ type: 'warning', message: 'Selecione um negócio' })
         return
       }
 
       saving.value = true
       try {
+        const payload = {}
+        // Include all non-empty fields
+        Object.entries(form.value).forEach(([key, value]) => {
+          if (value !== '' && value !== null && value !== undefined) {
+            payload[key] = value
+          }
+        })
+
         if (isEditing.value) {
-          await api.put(`/establishments/${selectedEstablishment.value.id}`, form.value)
+          // Don't send business_id on update
+          delete payload.business_id
+          await api.put(`/establishments/${selectedEstablishment.value.id}`, payload)
           $q.notify({ type: 'positive', message: 'Estabelecimento atualizado com sucesso' })
         } else {
-          await api.post('/establishments', form.value)
+          await api.post('/establishments', payload)
           $q.notify({ type: 'positive', message: 'Estabelecimento criado com sucesso' })
         }
         closeDialog()
@@ -349,7 +651,7 @@ export default defineComponent({
       deleting.value = true
       try {
         await api.delete(`/establishments/${selectedEstablishment.value.id}`)
-        $q.notify({ type: 'positive', message: 'Estabelecimento exclué­do com sucesso' })
+        $q.notify({ type: 'positive', message: 'Estabelecimento excluído com sucesso' })
         showDeleteDialog.value = false
         fetchEstablishments()
       } catch (err) {
@@ -360,31 +662,126 @@ export default defineComponent({
       }
     }
 
+    // Service CRUD
+    const openServiceDialog = () => {
+      isEditingService.value = false
+      serviceForm.value = { name: '', description: '', duration: 30, price: null }
+      showServiceDialog.value = true
+    }
+
+    const editService = (service) => {
+      isEditingService.value = true
+      selectedService.value = service
+      serviceForm.value = {
+        name: service.name || '',
+        description: service.description || '',
+        duration: service.duration_minutes || service.duration || 30,
+        price: service.price ? Number(service.price) : null
+      }
+      showServiceDialog.value = true
+    }
+
+    const confirmDeleteService = (service) => {
+      selectedService.value = service
+      showDeleteServiceDialog.value = true
+    }
+
+    const saveService = async () => {
+      if (!serviceForm.value.name) {
+        $q.notify({ type: 'warning', message: 'Nome do serviço é obrigatório' })
+        return
+      }
+
+      if (!serviceForm.value.duration || serviceForm.value.duration <= 0) {
+        $q.notify({ type: 'warning', message: 'Duração deve ser maior que 0' })
+        return
+      }
+
+      savingService.value = true
+      try {
+        const payload = {
+          name: serviceForm.value.name,
+          duration: serviceForm.value.duration,
+          establishment_id: selectedEstablishment.value.id
+        }
+        if (serviceForm.value.description) {
+          payload.description = serviceForm.value.description
+        }
+        if (serviceForm.value.price !== null && serviceForm.value.price !== '') {
+          payload.price = serviceForm.value.price
+        }
+
+        if (isEditingService.value) {
+          await api.put(`/services/${selectedService.value.id}`, payload)
+          $q.notify({ type: 'positive', message: 'Serviço atualizado com sucesso' })
+        } else {
+          await api.post('/services', payload)
+          $q.notify({ type: 'positive', message: 'Serviço criado com sucesso' })
+        }
+        showServiceDialog.value = false
+        fetchServices(selectedEstablishment.value.id)
+      } catch (err) {
+        console.error('Erro ao salvar serviço:', err)
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar serviço' })
+      } finally {
+        savingService.value = false
+      }
+    }
+
+    const deleteService = async () => {
+      deletingService.value = true
+      try {
+        await api.delete(`/services/${selectedService.value.id}`)
+        $q.notify({ type: 'positive', message: 'Serviço excluído com sucesso' })
+        showDeleteServiceDialog.value = false
+        fetchServices(selectedEstablishment.value.id)
+      } catch (err) {
+        console.error('Erro ao excluir serviço:', err)
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao excluir serviço' })
+      } finally {
+        deletingService.value = false
+      }
+    }
+
     const formatDate = (dateString) => {
       if (!dateString) return '-'
       return new Date(dateString).toLocaleDateString('pt-BR')
     }
 
     // Lifecycle
-    onMounted(() => {
-      fetchUserRole()
+    onMounted(async () => {
+      await fetchUserRole()
       fetchEstablishments()
+      if (['admin', 'manager'].includes(userRole.value)) {
+        fetchBusinesses()
+      }
     })
 
     return {
       establishments,
+      businesses,
+      services,
       loading,
+      loadingServices,
       saving,
+      savingService,
       deleting,
+      deletingService,
       searchQuery,
       showDialog,
       showViewDialog,
       showDeleteDialog,
+      showServiceDialog,
+      showDeleteServiceDialog,
       isEditing,
+      isEditingService,
       selectedEstablishment,
+      selectedService,
       form,
+      serviceForm,
       timezoneOptions,
-      isAdmin,
+      canManage,
+      businessOptions,
       filteredEstablishments,
       openCreateDialog,
       editEstablishment,
@@ -393,6 +790,11 @@ export default defineComponent({
       closeDialog,
       saveEstablishment,
       deleteEstablishment,
+      openServiceDialog,
+      editService,
+      confirmDeleteService,
+      saveService,
+      deleteService,
       formatDate
     }
   }
@@ -485,6 +887,21 @@ export default defineComponent({
   }
 }
 
+.loading-state-sm,
+.empty-state-sm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  color: var(--qm-text-muted);
+  text-align: center;
+
+  p {
+    margin: 0.5rem 0 0;
+    font-size: 0.8125rem;
+  }
+}
+
 // Table
 .table-container {
   overflow-x: auto;
@@ -535,25 +952,12 @@ export default defineComponent({
   }
 }
 
-.th-establishment {
-  min-width: 200px;
-}
-
-.th-address {
-  min-width: 180px;
-}
-
-.th-timezone {
-  min-width: 150px;
-}
-
-.th-created {
-  min-width: 100px;
-}
-
-.th-actions {
-  width: 120px;
-}
+.th-establishment { min-width: 200px; }
+.th-address { min-width: 180px; }
+.th-phone { min-width: 120px; }
+.th-timezone { min-width: 150px; }
+.th-created { min-width: 100px; }
+.th-actions { width: 120px; }
 
 // Establishment Info Cell
 .establishment-info {
@@ -588,7 +992,7 @@ export default defineComponent({
   color: var(--qm-text-muted);
 }
 
-.address-text {
+.address-text, .phone-text {
   font-size: 0.8125rem;
   color: var(--qm-text-secondary);
 }
@@ -623,6 +1027,18 @@ export default defineComponent({
   }
 }
 
+.dialog-card-wide {
+  max-width: 600px;
+}
+
+.view-dialog-card {
+  background: var(--qm-bg-primary);
+
+  :deep(.q-btn) {
+    min-height: 36px;
+  }
+}
+
 .dialog-header {
   display: flex;
   justify-content: space-between;
@@ -642,10 +1058,40 @@ export default defineComponent({
   padding: 1.5rem;
 }
 
+.view-content {
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
 .dialog-actions {
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--qm-border);
   gap: 0.5rem;
+}
+
+// Section blocks
+.section-block {
+  background: var(--qm-surface);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--qm-text-primary);
+  margin: 0 0 1rem;
+}
+
+.section-header .section-title {
+  margin: 0;
 }
 
 .detail-grid {
@@ -653,7 +1099,7 @@ export default defineComponent({
   grid-template-columns: repeat(2, 1fr);
   gap: 1.25rem;
 
-  @media (max-width: 500px) {
+  @media (max-width: 600px) {
     grid-template-columns: 1fr;
   }
 }
@@ -675,6 +1121,58 @@ export default defineComponent({
   font-size: 0.9375rem;
   color: var(--qm-text-primary);
   font-weight: 500;
+}
+
+// Services list
+.services-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.service-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--qm-bg-secondary);
+  transition: background 0.2s;
+
+  &:hover {
+    background: var(--qm-bg-tertiary);
+  }
+}
+
+.service-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.service-icon {
+  color: var(--qm-brand);
+}
+
+.service-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.service-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--qm-text-primary);
+}
+
+.service-meta {
+  font-size: 0.75rem;
+  color: var(--qm-text-muted);
+}
+
+.service-actions {
+  display: flex;
+  gap: 0.25rem;
 }
 
 .delete-warning {

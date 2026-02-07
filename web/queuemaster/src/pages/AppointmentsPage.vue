@@ -369,7 +369,7 @@ export default defineComponent({
     ]
 
     // Computed
-    const isAdminOrAttendant = computed(() => ['admin', 'attendant'].includes(userRole.value))
+    const canManage = computed(() => ['admin', 'manager', 'professional'].includes(userRole.value))
 
     const establishmentOptions = computed(() => 
       establishments.value.map(e => ({ label: e.name, value: e.id }))
@@ -559,12 +559,12 @@ export default defineComponent({
     }
 
     const canEdit = (appointment) => {
-      if (isAdminOrAttendant.value) return true
+      if (canManage.value) return true
       return appointment.user_id === userId.value && appointment.status === 'booked'
     }
 
     const canChangeStatus = (appointment) => {
-      return isAdminOrAttendant.value && !['completed', 'cancelled', 'no_show'].includes(appointment.status)
+      return canManage.value && !['completed', 'cancelled', 'no_show'].includes(appointment.status)
     }
 
     const getStatusColor = (status) => {

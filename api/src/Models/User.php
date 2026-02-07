@@ -331,7 +331,7 @@ class User
     /**
      * Get users by role
      * 
-     * @param string $role User role (client|attendant|admin)
+     * @param string $role User role (client|professional|manager|admin)
      * @return array Array of users
      */
     public static function getByRole(string $role): array

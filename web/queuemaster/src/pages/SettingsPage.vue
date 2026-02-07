@@ -499,7 +499,7 @@ export default defineComponent({
 
     const roleOptions = [
       { label: 'Cliente', value: 'client' },
-      { label: 'Atendente', value: 'attendant' },
+      { label: 'Profissional', value: 'professional' },
       { label: 'Gerente', value: 'manager' },
       { label: 'Administrador', value: 'admin' }
     ]
@@ -656,7 +656,7 @@ export default defineComponent({
       const roles = {
         admin: 'Administrador',
         manager: 'Gerente',
-        attendant: 'Atendente',
+        professional: 'Profissional',
         user: 'Usuário',
         client: 'Cliente'
       }
@@ -667,7 +667,7 @@ export default defineComponent({
       const colors = {
         admin: 'negative',
         manager: 'warning',
-        attendant: 'info',
+        professional: 'info',
         user: 'grey',
         client: 'grey'
       }

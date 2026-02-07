@@ -152,7 +152,7 @@
                     <q-tooltip>Entrar na fila</q-tooltip>
                   </q-btn>
                   <q-btn 
-                    v-if="isAdminOrAttendant && queue.status === 'open' && queue.waiting_count > 0" 
+                    v-if="canManage && queue.status === 'open' && queue.waiting_count > 0" 
                     flat round dense icon="campaign" size="sm" color="warning"
                     @click="callNext(queue)"
                   >
@@ -419,7 +419,7 @@ export default defineComponent({
 
     // Computed
     const isAdmin = computed(() => userRole.value === 'admin')
-    const isAdminOrAttendant = computed(() => ['admin', 'attendant'].includes(userRole.value))
+    const canManage = computed(() => ['admin', 'manager', 'professional'].includes(userRole.value))
 
     const stats = computed(() => {
       const open = queues.value.filter(q => q.status === 'open').length
@@ -698,7 +698,7 @@ export default defineComponent({
       statusOptions,
       queueStatus,
       isAdmin,
-      isAdminOrAttendant,
+      canManage,
       stats,
       establishmentOptions,
       serviceOptions,

@@ -381,7 +381,7 @@ class AppointmentsController
     /**
      * POST /api/v1/appointments/{id}/complete
      * 
-     * Mark appointment as complete (attendant/admin only)
+     * Mark appointment as complete (professional/manager/admin)
      */
     public function complete(Request $request, int $id): void
     {
@@ -423,7 +423,7 @@ class AppointmentsController
     /**
      * POST /api/v1/appointments/{id}/no-show
      * 
-     * Mark appointment as no-show (attendant/admin only)
+     * Mark appointment as no-show (professional/manager/admin)
      */
     public function noShow(Request $request, int $id): void
     {
