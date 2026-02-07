@@ -230,12 +230,12 @@ $router->group('/api/v1', function ($router) {
             $controller->update($request, $id);
         }, [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
         
-        // DELETE /api/v1/establishments/{id} - Delete establishment (admin only)
+        // DELETE /api/v1/establishments/{id} - Delete establishment (manager/admin)
         $router->delete('/{id}', function ($request) {
             $controller = new EstablishmentController();
             $id = (int)$request->getParam('id');
             $controller->delete($request, $id);
-        }, [new AuthMiddleware(), new RoleMiddleware(['admin'])]);
+        }, [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
         
     });
     
