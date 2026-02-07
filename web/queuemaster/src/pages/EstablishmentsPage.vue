@@ -301,7 +301,7 @@
                   <div class="service-details">
                     <span class="service-name">{{ service.name }}</span>
                     <span class="service-meta">
-                      {{ service.duration_minutes || service.duration || 30 }} min
+                      {{ service.duration_minutes || 30 }} min
                       <template v-if="service.price"> · R$ {{ Number(service.price).toFixed(2) }}</template>
                     </span>
                   </div>
@@ -675,7 +675,7 @@ export default defineComponent({
       serviceForm.value = {
         name: service.name || '',
         description: service.description || '',
-        duration: service.duration_minutes || service.duration || 30,
+        duration: service.duration_minutes || 30,
         price: service.price ? Number(service.price) : null
       }
       showServiceDialog.value = true

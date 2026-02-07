@@ -198,9 +198,7 @@ class ServicesController
 
             if (isset($data['duration'])) {
                 $updateData['duration_minutes'] = (int)$data['duration'];
-            }
-
-            if (isset($data['duration_minutes'])) {
+            } elseif (isset($data['duration_minutes'])) {
                 $updateData['duration_minutes'] = (int)$data['duration_minutes'];
             }
 
