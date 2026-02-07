@@ -1093,7 +1093,7 @@ export default defineComponent({
 
 .generate-token-area {
   padding: 1.5rem;
-  background: var(--qm-bg-secondary);
+  background: var(--qm-bg-tertiary);
   border-radius: 10px;
   text-align: center;
 }

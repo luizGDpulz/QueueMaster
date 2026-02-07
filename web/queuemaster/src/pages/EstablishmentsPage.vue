@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <q-page class="establishments-page">
     <!-- Header -->
     <div class="page-header">
@@ -57,7 +57,7 @@
           <thead>
             <tr>
               <th class="th-establishment">Estabelecimento</th>
-              <th class="th-address">EndereÃ§o</th>
+              <th class="th-address">Endereço</th>
               <th class="th-timezone">Timezone</th>
               <th class="th-created">Criado em</th>
               <th class="th-actions"></th>
@@ -77,7 +77,7 @@
                 </div>
               </td>
               <td>
-                <span class="address-text">{{ establishment.address || 'NÃ£o informado' }}</span>
+                <span class="address-text">{{ establishment.address || 'Não informado' }}</span>
               </td>
               <td>
                 <q-badge color="grey-7" class="timezone-badge">
@@ -120,11 +120,11 @@
             label="Nome *"
             outlined
             dense
-            :rules="[val => !!val || 'Nome Ã© obrigatÃ³rio']"
+            :rules="[val => !!val || 'Nome é© obrigatório']"
           />
           <q-input
             v-model="form.address"
-            label="EndereÃ§o"
+            label="Endereço"
             outlined
             dense
             class="q-mt-md"
@@ -167,8 +167,8 @@
               <span class="detail-value">{{ selectedEstablishment.name }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">EndereÃ§o</span>
-              <span class="detail-value">{{ selectedEstablishment.address || 'NÃ£o informado' }}</span>
+              <span class="detail-label">Endereço</span>
+              <span class="detail-value">{{ selectedEstablishment.address || 'Não informado' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Timezone</span>
@@ -191,12 +191,12 @@
     <q-dialog v-model="showDeleteDialog">
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <h3>Confirmar ExclusÃ£o</h3>
+          <h3>Confirmar Exclusão</h3>
         </q-card-section>
 
         <q-card-section class="dialog-content">
           <p>Tem certeza que deseja excluir o estabelecimento <strong>{{ selectedEstablishment?.name }}</strong>?</p>
-          <p class="delete-warning">Esta aÃ§Ã£o nÃ£o pode ser desfeita.</p>
+          <p class="delete-warning">Esta ação né£o pode ser desfeita.</p>
         </q-card-section>
 
         <q-card-actions align="right" class="dialog-actions">
@@ -322,7 +322,7 @@ export default defineComponent({
 
     const saveEstablishment = async () => {
       if (!form.value.name) {
-        $q.notify({ type: 'warning', message: 'Nome Ã© obrigatÃ³rio' })
+        $q.notify({ type: 'warning', message: 'Nome é© obrigatório' })
         return
       }
 
@@ -349,7 +349,7 @@ export default defineComponent({
       deleting.value = true
       try {
         await api.delete(`/establishments/${selectedEstablishment.value.id}`)
-        $q.notify({ type: 'positive', message: 'Estabelecimento excluÃ­do com sucesso' })
+        $q.notify({ type: 'positive', message: 'Estabelecimento exclué­do com sucesso' })
         showDeleteDialog.value = false
         fetchEstablishments()
       } catch (err) {

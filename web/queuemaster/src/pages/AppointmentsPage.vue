@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <q-page class="appointments-page">
     <!-- Header -->
     <div class="page-header">
@@ -93,7 +93,7 @@
             <tr>
               <th class="th-patient">Paciente</th>
               <th class="th-professional">Profissional</th>
-              <th class="th-service">ServiÃ§o</th>
+              <th class="th-service">Serviço</th>
               <th class="th-datetime">Data/Hora</th>
               <th class="th-status">Status</th>
               <th class="th-actions"></th>
@@ -107,7 +107,7 @@
                     <q-icon name="person" size="16px" />
                   </q-avatar>
                   <div class="patient-details">
-                    <span class="patient-name">{{ appointment.user_name || 'UsuÃ¡rio #' + appointment.user_id }}</span>
+                    <span class="patient-name">{{ appointment.user_name || 'Usué¡rio #' + appointment.user_id }}</span>
                     <span class="patient-id">ID: {{ appointment.user_id }}</span>
                   </div>
                 </div>
@@ -119,7 +119,7 @@
                 </div>
               </td>
               <td>
-                <span class="service-name">{{ appointment.service_name || 'ServiÃ§o #' + appointment.service_id }}</span>
+                <span class="service-name">{{ appointment.service_name || 'Serviço #' + appointment.service_id }}</span>
               </td>
               <td>
                 <div class="datetime-info">
@@ -163,7 +163,7 @@
                         <q-item-section>Concluir</q-item-section>
                       </q-item>
                       <q-item clickable v-close-popup @click="updateStatus(appointment, 'no_show')" v-if="appointment.status === 'booked'">
-                        <q-item-section>NÃ£o compareceu</q-item-section>
+                        <q-item-section>Não compareceu</q-item-section>
                       </q-item>
                       <q-item clickable v-close-popup @click="updateStatus(appointment, 'cancelled')" v-if="['booked', 'checked_in'].includes(appointment.status)">
                         <q-item-section class="text-negative">Cancelar</q-item-section>
@@ -221,7 +221,7 @@
             />
             <q-select
               v-model="form.service_id"
-              label="ServiÃ§o *"
+              label="Serviço *"
               outlined
               dense
               :options="serviceOptions"
@@ -271,7 +271,7 @@
               <span class="detail-value">{{ selectedAppointment.professional_name || 'ID: ' + selectedAppointment.professional_id }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">ServiÃ§o</span>
+              <span class="detail-label">Serviço</span>
               <span class="detail-value">{{ selectedAppointment.service_name || 'ID: ' + selectedAppointment.service_id }}</span>
             </div>
             <div class="detail-item">
@@ -279,11 +279,11 @@
               <span class="detail-value">{{ selectedAppointment.establishment_name || 'ID: ' + selectedAppointment.establishment_id }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">InÃ­cio</span>
+              <span class="detail-label">Iné­cio</span>
               <span class="detail-value">{{ formatDateTime(selectedAppointment.start_at) }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">TÃ©rmino</span>
+              <span class="detail-label">Té©rmino</span>
               <span class="detail-value">{{ formatDateTime(selectedAppointment.end_at) }}</span>
             </div>
             <div class="detail-item">
@@ -363,8 +363,8 @@ export default defineComponent({
       { label: 'Agendado', value: 'booked' },
       { label: 'Check-in', value: 'checked_in' },
       { label: 'Em andamento', value: 'in_progress' },
-      { label: 'ConcluÃ­do', value: 'completed' },
-      { label: 'NÃ£o compareceu', value: 'no_show' },
+      { label: 'Conclué­do', value: 'completed' },
+      { label: 'Não compareceu', value: 'no_show' },
       { label: 'Cancelado', value: 'cancelled' }
     ]
 
@@ -458,7 +458,7 @@ export default defineComponent({
           services.value = response.data.data?.services || response.data.data || []
         }
       } catch (err) {
-        console.error('Erro ao buscar serviÃ§os:', err)
+        console.error('Erro ao buscar serviços:', err)
       }
     }
 
@@ -470,7 +470,7 @@ export default defineComponent({
           userId.value = response.data.data.user.id
         }
       } catch (err) {
-        console.error('Erro ao buscar usuÃ¡rio:', err)
+        console.error('Erro ao buscar usué¡rio:', err)
       }
     }
 
@@ -518,7 +518,7 @@ export default defineComponent({
 
     const saveAppointment = async () => {
       if (!form.value.establishment_id || !form.value.professional_id || !form.value.service_id || !form.value.start_at) {
-        $q.notify({ type: 'warning', message: 'Preencha todos os campos obrigatÃ³rios' })
+        $q.notify({ type: 'warning', message: 'Preencha todos os campos obrigatórios' })
         return
       }
 
@@ -584,8 +584,8 @@ export default defineComponent({
         booked: 'Agendado',
         checked_in: 'Check-in',
         in_progress: 'Em andamento',
-        completed: 'ConcluÃ­do',
-        no_show: 'NÃ£o compareceu',
+        completed: 'Conclué­do',
+        no_show: 'Não compareceu',
         cancelled: 'Cancelado'
       }
       return labels[status] || status

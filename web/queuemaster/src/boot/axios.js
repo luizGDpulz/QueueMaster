@@ -44,8 +44,9 @@ api.interceptors.response.use(
     const originalRequest = error.config
 
     if (error.response?.status === 401 && !originalRequest._retry) {
-      // Ignora 401 em rotas de auth (login, refresh)
-      if (originalRequest.url?.includes('/auth/')) {
+      // Ignora 401 em rotas de auth que não precisam de refresh (login, refresh, logout)
+      const skipRefreshRoutes = ['/auth/google', '/auth/refresh', '/auth/logout']
+      if (skipRefreshRoutes.some(route => originalRequest.url?.includes(route))) {
         return Promise.reject(error)
       }
 

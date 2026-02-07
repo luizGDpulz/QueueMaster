@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <q-page class="queues-page">
     <!-- Header -->
     <div class="page-header">
@@ -100,7 +100,7 @@
             <tr>
               <th class="th-queue">Fila</th>
               <th class="th-establishment">Estabelecimento</th>
-              <th class="th-service">ServiÃ§o</th>
+              <th class="th-service">Serviço</th>
               <th class="th-waiting">Aguardando</th>
               <th class="th-status">Status</th>
               <th class="th-actions"></th>
@@ -156,7 +156,7 @@
                     flat round dense icon="campaign" size="sm" color="warning"
                     @click="callNext(queue)"
                   >
-                    <q-tooltip>Chamar prÃ³ximo</q-tooltip>
+                    <q-tooltip>Chamar próximo</q-tooltip>
                   </q-btn>
                   <q-btn v-if="isAdmin" flat round dense icon="edit" size="sm" @click="editQueue(queue)">
                     <q-tooltip>Editar</q-tooltip>
@@ -186,7 +186,7 @@
             label="Nome da Fila *"
             outlined
             dense
-            :rules="[val => !!val || 'Nome Ã© obrigatÃ³rio']"
+            :rules="[val => !!val || 'Nome é© obrigatório']"
           />
           <q-select
             v-model="form.establishment_id"
@@ -201,7 +201,7 @@
           />
           <q-select
             v-model="form.service_id"
-            label="ServiÃ§o (opcional)"
+            label="Serviço (opcional)"
             outlined
             dense
             :options="serviceOptions"
@@ -255,7 +255,7 @@
               <span class="detail-value">{{ selectedQueue.establishment_name || 'N/A' }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">ServiÃ§o</span>
+              <span class="detail-label">Serviço</span>
               <span class="detail-value">{{ selectedQueue.service_name || 'Geral' }}</span>
             </div>
             <div class="detail-item">
@@ -276,7 +276,7 @@
 
           <!-- Queue Status Section -->
           <div v-if="queueStatus" class="queue-status-section">
-            <h4>EstatÃ­sticas da Fila</h4>
+            <h4>Estaté­sticas da Fila</h4>
             <div class="status-grid">
               <div class="status-item">
                 <span class="status-number">{{ queueStatus.statistics?.total_waiting || 0 }}</span>
@@ -288,18 +288,18 @@
               </div>
               <div class="status-item">
                 <span class="status-number">{{ queueStatus.statistics?.total_completed_today || 0 }}</span>
-                <span class="status-text">ConcluÃ­dos hoje</span>
+                <span class="status-text">Conclué­dos hoje</span>
               </div>
               <div class="status-item">
                 <span class="status-number">{{ queueStatus.statistics?.average_wait_time_minutes || 0 }} min</span>
-                <span class="status-text">Tempo mÃ©dio</span>
+                <span class="status-text">Tempo mé©dio</span>
               </div>
             </div>
 
             <!-- User Position -->
             <div v-if="queueStatus.user_entry" class="user-position">
               <q-icon name="person" size="20px" />
-              <span>VocÃª estÃ¡ na posiÃ§Ã£o <strong>{{ queueStatus.user_entry.position }}</strong></span>
+              <span>Você está¡ na posição <strong>{{ queueStatus.user_entry.position }}</strong></span>
               <span class="wait-estimate">(~{{ queueStatus.user_entry.estimated_wait_minutes || '?' }} min)</span>
             </div>
           </div>
@@ -322,12 +322,12 @@
     <q-dialog v-model="showDeleteDialog">
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <h3>Confirmar ExclusÃ£o</h3>
+          <h3>Confirmar Exclusão</h3>
         </q-card-section>
 
         <q-card-section class="dialog-content">
           <p>Tem certeza que deseja excluir a fila <strong>{{ selectedQueue?.name }}</strong>?</p>
-          <p class="delete-warning">Esta aÃ§Ã£o nÃ£o pode ser desfeita e todas as entradas serÃ£o perdidas.</p>
+          <p class="delete-warning">Esta ação né£o pode ser desfeita e todas as entradas serão perdidas.</p>
         </q-card-section>
 
         <q-card-actions align="right" class="dialog-actions">
@@ -341,7 +341,7 @@
     <q-dialog v-model="showCallDialog">
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <h3>Chamar PrÃ³ximo</h3>
+          <h3>Chamar Próximo</h3>
           <q-btn flat round dense icon="close" @click="showCallDialog = false" />
         </q-card-section>
 
@@ -497,7 +497,7 @@ export default defineComponent({
           services.value = response.data.data?.services || response.data.data || []
         }
       } catch (err) {
-        console.error('Erro ao buscar serviÃ§os:', err)
+        console.error('Erro ao buscar serviços:', err)
       }
     }
 
@@ -575,7 +575,7 @@ export default defineComponent({
 
     const saveQueue = async () => {
       if (!form.value.name || !form.value.establishment_id) {
-        $q.notify({ type: 'warning', message: 'Nome e estabelecimento sÃ£o obrigatÃ³rios' })
+        $q.notify({ type: 'warning', message: 'Nome e estabelecimento são obrigatórios' })
         return
       }
 
@@ -602,7 +602,7 @@ export default defineComponent({
       deleting.value = true
       try {
         await api.delete(`/queues/${selectedQueue.value.id}`)
-        $q.notify({ type: 'positive', message: 'Fila excluÃ­da com sucesso' })
+        $q.notify({ type: 'positive', message: 'Fila exclué­da com sucesso' })
         showDeleteDialog.value = false
         fetchQueues()
       } catch (err) {
@@ -616,7 +616,7 @@ export default defineComponent({
     const joinQueue = async (queue) => {
       try {
         await api.post(`/queues/${queue.id}/join`)
-        $q.notify({ type: 'positive', message: 'VocÃª entrou na fila com sucesso!' })
+        $q.notify({ type: 'positive', message: 'Você entrou na fila com sucesso!' })
         fetchQueues()
       } catch (err) {
         console.error('Erro ao entrar na fila:', err)
@@ -646,18 +646,18 @@ export default defineComponent({
           const called = response.data.data.called
           $q.notify({ 
             type: 'positive', 
-            message: `Chamando: ${called.user_name || 'UsuÃ¡rio #' + called.user_id}`,
+            message: `Chamando: ${called.user_name || 'Usué¡rio #' + called.user_id}`,
             timeout: 5000
           })
         } else {
-          $q.notify({ type: 'info', message: 'PrÃ³ximo da fila foi chamado' })
+          $q.notify({ type: 'info', message: 'Próximo da fila foi chamado' })
         }
         
         showCallDialog.value = false
         fetchQueues()
       } catch (err) {
-        console.error('Erro ao chamar prÃ³ximo:', err)
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao chamar prÃ³ximo' })
+        console.error('Erro ao chamar próximo:', err)
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao chamar próximo' })
       } finally {
         calling.value = false
       }

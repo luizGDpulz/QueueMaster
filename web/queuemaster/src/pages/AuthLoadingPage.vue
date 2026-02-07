@@ -2,7 +2,8 @@
   <div class="auth-loading">
     <!-- Logo animado -->
     <div class="auth-loading-logo">
-      <img src="../assets/logo.svg" alt="QueueMaster" class="logo-pulse" />
+      <img v-if="isDark" src="../assets/logo_dark.svg" alt="QueueMaster" class="logo-pulse" />
+      <img v-else src="../assets/logo_light.svg" alt="QueueMaster" class="logo-pulse" />
     </div>
     
     <!-- Skeleton do layout do app -->
@@ -64,10 +65,27 @@
 </template>
 
 <script>
-import { defineComponent } from 'vue'
+import { defineComponent, ref, onMounted } from 'vue'
 
 export default defineComponent({
-  name: 'AuthLoadingPage'
+  name: 'AuthLoadingPage',
+
+  setup() {
+    const isDark = ref(false)
+
+    onMounted(() => {
+      const savedTheme = localStorage.getItem('theme')
+      if (savedTheme) {
+        isDark.value = savedTheme === 'dark'
+      } else {
+        isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+      }
+      // Garante que o atributo data-theme está definido para os estilos
+      document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
+    })
+
+    return { isDark }
+  }
 })
 </script>
 
