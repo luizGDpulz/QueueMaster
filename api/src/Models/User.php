@@ -72,16 +72,26 @@ class User
         $avatarUrl = $googleData['picture'] ?? null;
         $emailVerified = $googleData['email_verified'] ?? false;
 
+        // Download Google avatar and convert to base64
+        $avatarBase64 = null;
+        if ($avatarUrl) {
+            $avatarBase64 = self::downloadAvatarAsBase64($avatarUrl);
+        }
+
         // First, try to find by Google ID
         $user = self::findByGoogleId($googleId);
 
         if ($user) {
             // Update user info from Google (name, avatar might have changed)
-            self::updateGoogleProfile($user['id'], [
+            $profileUpdate = [
                 'name' => $name,
                 'avatar_url' => $avatarUrl,
                 'email_verified' => $emailVerified,
-            ]);
+            ];
+            if ($avatarBase64) {
+                $profileUpdate['avatar_base64'] = $avatarBase64;
+            }
+            self::updateGoogleProfile($user['id'], $profileUpdate);
             
             $user = self::find($user['id']);
             $safeUser = self::getSafeData($user);
@@ -94,11 +104,15 @@ class User
 
         if ($user) {
             // Link Google account to existing user
-            self::updateGoogleProfile($user['id'], [
+            $linkUpdate = [
                 'google_id' => $googleId,
                 'avatar_url' => $avatarUrl,
                 'email_verified' => $emailVerified,
-            ]);
+            ];
+            if ($avatarBase64) {
+                $linkUpdate['avatar_base64'] = $avatarBase64;
+            }
+            self::updateGoogleProfile($user['id'], $linkUpdate);
             
             $user = self::find($user['id']);
             $safeUser = self::getSafeData($user);
@@ -107,14 +121,18 @@ class User
         }
 
         // Create new user
-        $userId = self::createFromGoogle([
+        $createData = [
             'name' => $name,
             'email' => $email,
             'google_id' => $googleId,
             'avatar_url' => $avatarUrl,
             'email_verified' => $emailVerified,
             'role' => self::getDefaultRole($email),
-        ]);
+        ];
+        if ($avatarBase64) {
+            $createData['avatar_base64'] = $avatarBase64;
+        }
+        $userId = self::createFromGoogle($createData);
 
         $user = self::find($userId);
         $safeUser = self::getSafeData($user);
@@ -149,7 +167,7 @@ class User
      */
     public static function updateGoogleProfile(int $id, array $data): int
     {
-        $allowedFields = ['google_id', 'name', 'avatar_url', 'email_verified'];
+        $allowedFields = ['google_id', 'name', 'avatar_url', 'avatar_base64', 'email_verified'];
         $updateData = array_intersect_key($data, array_flip($allowedFields));
 
         if (empty($updateData)) {
@@ -398,8 +416,91 @@ class User
      */
     public static function getSafeData(array $user): array
     {
+        // Check before unsetting
+        $hasAvatar = !empty($user['avatar_base64'] ?? null) || !empty($user['avatar_url'] ?? null);
+        
         unset($user['google_id']); // Don't expose Google ID to frontend
+        unset($user['avatar_base64']); // Too large for JSON — use GET /users/{id}/avatar
+        
+        $user['has_avatar'] = $hasAvatar;
+        
         return $user;
+    }
+
+    /**
+     * Get user's avatar as base64 data URI
+     * Falls back to avatar_url if base64 not stored yet
+     * 
+     * @param int $id User ID
+     * @return string|null Base64 data URI or external URL
+     */
+    public static function getAvatarBase64(int $id): ?string
+    {
+        $db = Database::getInstance();
+        $result = $db->query(
+            "SELECT avatar_base64, avatar_url FROM " . self::$table . " WHERE id = ? LIMIT 1",
+            [$id]
+        );
+
+        if (empty($result)) {
+            return null;
+        }
+
+        // Prefer stored base64
+        if (!empty($result[0]['avatar_base64'])) {
+            return $result[0]['avatar_base64'];
+        }
+
+        return $result[0]['avatar_url'] ?? null;
+    }
+
+    /**
+     * Download an image URL and convert to base64 data URI
+     * Used to cache Google profile pictures locally
+     * 
+     * @param string $url Image URL
+     * @return string|null Base64 data URI or null on failure
+     */
+    public static function downloadAvatarAsBase64(string $url): ?string
+    {
+        try {
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'timeout' => 5,
+                    'ignore_errors' => true,
+                    'header' => "Accept: image/*\r\n",
+                ],
+                'ssl' => [
+                    'verify_peer' => true,
+                    'verify_peer_name' => true,
+                ],
+            ]);
+
+            $imageData = @file_get_contents($url, false, $context);
+
+            if ($imageData === false || empty($imageData)) {
+                return null;
+            }
+
+            // Detect MIME type from response headers or content
+            $mime = 'image/jpeg'; // default
+            if (isset($http_response_header)) {
+                foreach ($http_response_header as $header) {
+                    if (stripos($header, 'Content-Type:') === 0) {
+                        $mime = trim(explode(':', $header, 2)[1]);
+                        // Strip charset if present
+                        $mime = explode(';', $mime)[0];
+                        $mime = trim($mime);
+                        break;
+                    }
+                }
+            }
+
+            return 'data:' . $mime . ';base64,' . base64_encode($imageData);
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -408,7 +509,8 @@ class User
      * - name: varchar(150) NOT NULL
      * - email: varchar(150) NOT NULL [UNIQUE]
      * - google_id: varchar(255) NULL [UNIQUE] - Google OAuth sub
-     * - avatar_url: varchar(500) NULL - Google profile picture
+     * - avatar_url: varchar(500) NULL - Google profile picture URL
+     * - avatar_base64: MEDIUMTEXT NULL - Avatar cached as base64 data URI
      * - email_verified: boolean NOT NULL DEFAULT FALSE
      * - phone: varchar(20) NULL - Contact phone
      * - role: enum('client','attendant','professional','manager','admin') NOT NULL DEFAULT 'client'

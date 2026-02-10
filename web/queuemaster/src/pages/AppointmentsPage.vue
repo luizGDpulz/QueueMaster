@@ -100,14 +100,14 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="appointment in filteredAppointments" :key="appointment.id">
+            <tr v-for="appointment in filteredAppointments" :key="appointment.id" class="clickable-row" @click="router.push(`/app/appointments/${appointment.id}`)">
               <td>
                 <div class="patient-info">
                   <q-avatar size="32px" class="patient-avatar">
                     <q-icon name="person" size="16px" />
                   </q-avatar>
                   <div class="patient-details">
-                    <span class="patient-name">{{ appointment.user_name || 'Usué¡rio #' + appointment.user_id }}</span>
+                    <span class="patient-name">{{ appointment.user_name || 'Usuário #' + appointment.user_id }}</span>
                     <span class="patient-id">ID: {{ appointment.user_id }}</span>
                   </div>
                 </div>
@@ -134,16 +134,6 @@
               </td>
               <td>
                 <div class="row-actions">
-                  <q-btn flat round dense icon="visibility" size="sm" @click="viewAppointment(appointment)">
-                    <q-tooltip>Ver detalhes</q-tooltip>
-                  </q-btn>
-                  <q-btn 
-                    v-if="canEdit(appointment)" 
-                    flat round dense icon="edit" size="sm" 
-                    @click="editAppointment(appointment)"
-                  >
-                    <q-tooltip>Editar</q-tooltip>
-                  </q-btn>
                   <q-btn-dropdown
                     v-if="canChangeStatus(appointment)"
                     flat
@@ -151,21 +141,22 @@
                     dense
                     icon="more_vert"
                     size="sm"
+                    @click.stop
                   >
                     <q-list dense>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'checked_in')" v-if="appointment.status === 'booked'">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'checked_in')" v-if="appointment.status === 'booked'">
                         <q-item-section>Check-in</q-item-section>
                       </q-item>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'in_progress')" v-if="appointment.status === 'checked_in'">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'in_progress')" v-if="appointment.status === 'checked_in'">
                         <q-item-section>Iniciar</q-item-section>
                       </q-item>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'completed')" v-if="appointment.status === 'in_progress'">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'completed')" v-if="appointment.status === 'in_progress'">
                         <q-item-section>Concluir</q-item-section>
                       </q-item>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'no_show')" v-if="appointment.status === 'booked'">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'no_show')" v-if="appointment.status === 'booked'">
                         <q-item-section>Não compareceu</q-item-section>
                       </q-item>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'cancelled')" v-if="['booked', 'checked_in'].includes(appointment.status)">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'cancelled')" v-if="['booked', 'checked_in'].includes(appointment.status)">
                         <q-item-section class="text-negative">Cancelar</q-item-section>
                       </q-item>
                     </q-list>
@@ -252,63 +243,12 @@
       </q-card>
     </q-dialog>
 
-    <!-- View Dialog -->
-    <q-dialog v-model="showViewDialog">
-      <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>Detalhes do Agendamento</h3>
-          <q-btn flat round dense icon="close" @click="showViewDialog = false" />
-        </q-card-section>
-
-        <q-card-section class="dialog-content" v-if="selectedAppointment">
-          <div class="detail-grid">
-            <div class="detail-item">
-              <span class="detail-label">Paciente</span>
-              <span class="detail-value">{{ selectedAppointment.user_name || 'ID: ' + selectedAppointment.user_id }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Profissional</span>
-              <span class="detail-value">{{ selectedAppointment.professional_name || 'ID: ' + selectedAppointment.professional_id }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Serviço</span>
-              <span class="detail-value">{{ selectedAppointment.service_name || 'ID: ' + selectedAppointment.service_id }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Estabelecimento</span>
-              <span class="detail-value">{{ selectedAppointment.establishment_name || 'ID: ' + selectedAppointment.establishment_id }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Iné­cio</span>
-              <span class="detail-value">{{ formatDateTime(selectedAppointment.start_at) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Té©rmino</span>
-              <span class="detail-value">{{ formatDateTime(selectedAppointment.end_at) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Status</span>
-              <q-badge :color="getStatusColor(selectedAppointment.status)">
-                {{ getStatusLabel(selectedAppointment.status) }}
-              </q-badge>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Criado em</span>
-              <span class="detail-value">{{ formatDateTime(selectedAppointment.created_at) }}</span>
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Fechar" no-caps @click="showViewDialog = false" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
 <script>
 import { defineComponent, ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
 
@@ -317,6 +257,7 @@ export default defineComponent({
 
   setup() {
     const $q = useQuasar()
+    const router = useRouter()
 
     // State
     const appointments = ref([])
@@ -346,7 +287,6 @@ export default defineComponent({
 
     // Dialogs
     const showDialog = ref(false)
-    const showViewDialog = ref(false)
     const isEditing = ref(false)
     const selectedAppointment = ref(null)
 
@@ -502,11 +442,6 @@ export default defineComponent({
       showDialog.value = true
     }
 
-    const viewAppointment = (appointment) => {
-      selectedAppointment.value = appointment
-      showViewDialog.value = true
-    }
-
     const closeDialog = () => {
       showDialog.value = false
     }
@@ -625,7 +560,6 @@ export default defineComponent({
       filters,
       pagination,
       showDialog,
-      showViewDialog,
       isEditing,
       selectedAppointment,
       form,
@@ -638,7 +572,6 @@ export default defineComponent({
       clearFilters,
       openCreateDialog,
       editAppointment,
-      viewAppointment,
       closeDialog,
       onEstablishmentChange,
       saveAppointment,
@@ -650,7 +583,8 @@ export default defineComponent({
       formatDate,
       formatTime,
       formatDateTime,
-      fetchAppointments
+      fetchAppointments,
+      router
     }
   }
 })
@@ -804,6 +738,10 @@ export default defineComponent({
       &:hover {
         background: var(--qm-bg-secondary);
       }
+    }
+
+    tr.clickable-row {
+      cursor: pointer;
     }
 
     td {

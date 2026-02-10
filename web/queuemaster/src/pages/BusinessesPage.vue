@@ -59,11 +59,10 @@
               <th class="th-role">Seu Papel</th>
               <th class="th-status">Status</th>
               <th class="th-created">Criado em</th>
-              <th class="th-actions">Ações</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="business in filteredBusinesses" :key="business.id">
+            <tr v-for="business in filteredBusinesses" :key="business.id" class="clickable-row" @click="router.push(`/app/businesses/${business.id}`)">
               <td>
                 <div class="business-info">
                   <q-icon name="business" size="24px" class="business-icon" />
@@ -80,10 +79,6 @@
                 <q-badge :color="business.is_active ? 'positive' : 'negative'" :label="business.is_active ? 'Ativo' : 'Inativo'" />
               </td>
               <td class="td-date">{{ formatDate(business.created_at) }}</td>
-              <td class="td-actions">
-                <q-btn flat round dense icon="visibility" size="sm" @click="viewBusiness(business)" title="Ver detalhes" />
-                <q-btn flat round dense icon="edit" size="sm" @click="editBusiness(business)" title="Editar" />
-              </td>
             </tr>
           </tbody>
         </table>
@@ -137,65 +132,12 @@
       </q-card>
     </q-dialog>
 
-    <!-- View Dialog -->
-    <q-dialog v-model="showViewDialog">
-      <q-card class="dialog-card" style="min-width: 500px">
-        <q-card-section class="dialog-header">
-          <div class="text-h6">Detalhes do Negócio</div>
-          <q-btn flat round dense icon="close" @click="showViewDialog = false" />
-        </q-card-section>
-
-        <q-card-section v-if="selectedBusiness" class="dialog-body">
-          <div class="detail-row">
-            <span class="detail-label">Nome:</span>
-            <span class="detail-value">{{ selectedBusiness.name }}</span>
-          </div>
-          <div v-if="selectedBusiness.slug" class="detail-row">
-            <span class="detail-label">Slug:</span>
-            <span class="detail-value">{{ selectedBusiness.slug }}</span>
-          </div>
-          <div v-if="selectedBusiness.description" class="detail-row">
-            <span class="detail-label">Descrição:</span>
-            <span class="detail-value">{{ selectedBusiness.description }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Status:</span>
-            <q-badge :color="selectedBusiness.is_active ? 'positive' : 'negative'" :label="selectedBusiness.is_active ? 'Ativo' : 'Inativo'" />
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Criado em:</span>
-            <span class="detail-value">{{ formatDate(selectedBusiness.created_at) }}</span>
-          </div>
-
-          <!-- Establishments -->
-          <div class="q-mt-lg">
-            <h3 class="section-title">Estabelecimentos</h3>
-            <div v-if="businessEstablishments.length === 0" class="text-grey q-mt-sm">
-              Nenhum estabelecimento vinculado
-            </div>
-            <q-list v-else bordered separator class="q-mt-sm rounded-borders">
-              <q-item v-for="est in businessEstablishments" :key="est.id">
-                <q-item-section avatar>
-                  <q-icon name="store" color="primary" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ est.name }}</q-item-label>
-                  <q-item-label caption>{{ est.address || 'Sem endereço' }}</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-badge :color="est.is_active ? 'positive' : 'grey'" :label="est.is_active ? 'Ativo' : 'Inativo'" />
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
 <script>
 import { defineComponent, ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
 
@@ -204,6 +146,7 @@ export default defineComponent({
 
   setup() {
     const $q = useQuasar()
+    const router = useRouter()
 
     // State
     const loading = ref(false)
@@ -211,11 +154,8 @@ export default defineComponent({
     const businesses = ref([])
     const searchQuery = ref('')
     const showDialog = ref(false)
-    const showViewDialog = ref(false)
     const isEditing = ref(false)
     const editingId = ref(null)
-    const selectedBusiness = ref(null)
-    const businessEstablishments = ref([])
 
     const form = ref({
       name: '',
@@ -265,21 +205,6 @@ export default defineComponent({
         description: business.description || ''
       }
       showDialog.value = true
-    }
-
-    const viewBusiness = async (business) => {
-      selectedBusiness.value = business
-      businessEstablishments.value = []
-      showViewDialog.value = true
-
-      try {
-        const response = await api.get(`/businesses/${business.id}/establishments`)
-        if (response.data?.success) {
-          businessEstablishments.value = response.data.data?.establishments || []
-        }
-      } catch (err) {
-        console.error('Failed to fetch establishments:', err)
-      }
     }
 
     const saveBusiness = async () => {
@@ -336,19 +261,16 @@ export default defineComponent({
       businesses,
       searchQuery,
       showDialog,
-      showViewDialog,
       isEditing,
       form,
-      selectedBusiness,
-      businessEstablishments,
       filteredBusinesses,
       openCreateDialog,
       editBusiness,
-      viewBusiness,
       saveBusiness,
       formatDate,
       getRoleLabel,
-      getRoleColor
+      getRoleColor,
+      router
     }
   }
 })
@@ -449,6 +371,10 @@ export default defineComponent({
 
   tbody tr:hover {
     background: var(--qm-bg-tertiary);
+  }
+
+  tbody tr.clickable-row {
+    cursor: pointer;
   }
 }
 

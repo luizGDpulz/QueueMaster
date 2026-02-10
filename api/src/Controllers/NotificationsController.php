@@ -322,4 +322,34 @@ class NotificationsController
             Response::serverError('Failed to delete notification', $request->requestId);
         }
     }
+
+    /**
+     * GET /api/v1/notifications/unread-count
+     * 
+     * Get count of unread notifications for current user
+     */
+    public function unreadCount(Request $request): void
+    {
+        if (!$request->user) {
+            Response::unauthorized('Authentication required', $request->requestId);
+            return;
+        }
+
+        $userId = (int)$request->user['id'];
+
+        try {
+            $count = Notification::getUnreadCount($userId);
+
+            Response::success([
+                'unread_count' => $count,
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to get unread count', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to retrieve unread count', $request->requestId);
+        }
+    }
 }

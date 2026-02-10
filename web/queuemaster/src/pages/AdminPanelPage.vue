@@ -61,11 +61,10 @@
               <th class="th-role">Papel</th>
               <th class="th-status">Status</th>
               <th class="th-created">Criado em</th>
-              <th class="th-actions">Ações</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="user in filteredUsers" :key="user.id">
+            <tr v-for="user in filteredUsers" :key="user.id" class="clickable-row" @click="router.push(`/app/admin/users/${user.id}`)">
               <td>
                 <div class="user-info">
                   <div class="user-avatar-cell">
@@ -90,73 +89,11 @@
               <td>
                 <span class="date-text">{{ formatDate(user.created_at) }}</span>
               </td>
-              <td>
-                <div class="row-actions">
-                  <q-btn flat round dense icon="visibility" size="sm" @click="viewUser(user)">
-                    <q-tooltip>Ver detalhes</q-tooltip>
-                  </q-btn>
-                  <q-btn v-if="isAdmin" flat round dense icon="edit" size="sm" @click="editUser(user)">
-                    <q-tooltip>Editar</q-tooltip>
-                  </q-btn>
-                </div>
-              </td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
-
-    <!-- View User Dialog -->
-    <q-dialog v-model="showViewDialog">
-      <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>Detalhes do Usuário</h3>
-          <q-btn flat round dense icon="close" @click="showViewDialog = false" />
-        </q-card-section>
-
-        <q-card-section class="dialog-content" v-if="selectedUser">
-          <div class="user-profile-header">
-            <img v-if="selectedUser.avatar_url" :src="selectedUser.avatar_url" class="profile-avatar" />
-            <div v-else class="profile-avatar-initials">{{ getInitials(selectedUser.name) }}</div>
-            <div class="profile-info">
-              <h4>{{ selectedUser.name }}</h4>
-              <q-badge :color="getRoleColor(selectedUser.role)" :label="getRoleLabel(selectedUser.role)" />
-            </div>
-          </div>
-
-          <div class="detail-grid">
-            <div class="detail-item">
-              <span class="detail-label">Email</span>
-              <span class="detail-value">{{ selectedUser.email }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Telefone</span>
-              <span class="detail-value">{{ selectedUser.phone || 'Não informado' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Status</span>
-              <q-badge :color="selectedUser.is_active ? 'positive' : 'negative'" :label="selectedUser.is_active ? 'Ativo' : 'Inativo'" />
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Email Verificado</span>
-              <span class="detail-value">{{ selectedUser.email_verified ? 'Sim' : 'Não' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Último Login</span>
-              <span class="detail-value">{{ formatDate(selectedUser.last_login_at) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Criado em</span>
-              <span class="detail-value">{{ formatDate(selectedUser.created_at) }}</span>
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Fechar" no-caps @click="showViewDialog = false" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
 
     <!-- Edit User Dialog -->
     <q-dialog v-model="showEditDialog" persistent>
@@ -215,6 +152,7 @@
 
 <script>
 import { defineComponent, ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
 
@@ -223,6 +161,7 @@ export default defineComponent({
 
   setup() {
     const $q = useQuasar()
+    const router = useRouter()
 
     // State
     const users = ref([])
@@ -233,7 +172,6 @@ export default defineComponent({
     const currentUserRole = ref(null)
 
     // Dialogs
-    const showViewDialog = ref(false)
     const showEditDialog = ref(false)
     const selectedUser = ref(null)
 
@@ -308,11 +246,6 @@ export default defineComponent({
       } catch (err) {
         console.error('Erro ao buscar role:', err)
       }
-    }
-
-    const viewUser = (user) => {
-      selectedUser.value = user
-      showViewDialog.value = true
     }
 
     const editUser = (user) => {
@@ -396,7 +329,6 @@ export default defineComponent({
       searchQuery,
       activeTab,
       currentUserRole,
-      showViewDialog,
       showEditDialog,
       selectedUser,
       editForm,
@@ -405,13 +337,13 @@ export default defineComponent({
       canSeeManagers,
       canSeeProfessionals,
       filteredUsers,
-      viewUser,
       editUser,
       saveUser,
       getRoleLabel,
       getRoleColor,
       getInitials,
-      formatDate
+      formatDate,
+      router
     }
   }
 })
@@ -563,7 +495,10 @@ export default defineComponent({
 .th-role { min-width: 120px; }
 .th-status { min-width: 80px; }
 .th-created { min-width: 100px; }
-.th-actions { width: 100px; }
+
+tr.clickable-row {
+  cursor: pointer;
+}
 
 // User Info Cell
 .user-info {
@@ -625,11 +560,6 @@ export default defineComponent({
   color: var(--qm-text-muted);
 }
 
-.row-actions {
-  display: flex;
-  gap: 0.25rem;
-}
-
 // Dialog Styles
 .dialog-card {
   width: 100%;
@@ -661,64 +591,5 @@ export default defineComponent({
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--qm-border);
   gap: 0.5rem;
-}
-
-// Profile Header
-.user-profile-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--qm-border);
-
-  h4 {
-    margin: 0 0 0.25rem;
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--qm-text-primary);
-  }
-}
-
-.profile-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  object-fit: cover;
-}
-
-.profile-avatar-initials {
-  width: 48px;
-  height: 48px;
-  font-size: 1rem;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.25rem;
-
-  @media (max-width: 500px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.detail-label {
-  font-size: 0.75rem;
-  color: var(--qm-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.detail-value {
-  font-size: 0.9375rem;
-  color: var(--qm-text-primary);
-  font-weight: 500;
 }
 </style>

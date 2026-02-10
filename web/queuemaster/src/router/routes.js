@@ -39,9 +39,19 @@ const routes = [
         component: () => import('pages/BusinessesPage.vue')
       },
       {
+        path: 'businesses/:id',
+        name: 'business-detail',
+        component: () => import('pages/BusinessDetailPage.vue')
+      },
+      {
         path: 'queues',
         name: 'queues',
         component: () => import('pages/QueuesPage.vue')
+      },
+      {
+        path: 'queues/:id',
+        name: 'queue-detail',
+        component: () => import('pages/QueueDetailPage.vue')
       },
       {
         path: 'appointments',
@@ -49,14 +59,29 @@ const routes = [
         component: () => import('pages/AppointmentsPage.vue')
       },
       {
+        path: 'appointments/:id',
+        name: 'appointment-detail',
+        component: () => import('pages/AppointmentDetailPage.vue')
+      },
+      {
         path: 'establishments',
         name: 'establishments',
         component: () => import('pages/EstablishmentsPage.vue')
       },
       {
+        path: 'establishments/:id',
+        name: 'establishment-detail',
+        component: () => import('pages/EstablishmentDetailPage.vue')
+      },
+      {
         path: 'admin',
         name: 'admin-panel',
         component: () => import('pages/AdminPanelPage.vue')
+      },
+      {
+        path: 'admin/users/:id',
+        name: 'user-detail',
+        component: () => import('pages/UserDetailPage.vue')
       },
       {
         path: 'settings',

@@ -84,12 +84,19 @@ class BusinessController
 
     /**
      * POST /api/v1/businesses
-     * Create business (any authenticated user)
+     * Create business (manager/admin only)
      */
     public function create(Request $request): void
     {
         $data = $request->all();
         $userId = (int)$request->user['id'];
+        $userRole = $request->user['role'] ?? 'client';
+
+        // Only managers and admins can create businesses
+        if (!in_array($userRole, ['manager', 'admin'])) {
+            Response::forbidden('Only managers and administrators can create businesses', $request->requestId);
+            return;
+        }
 
         $errors = Validator::make($data, [
             'name' => 'required|min:2|max:255',
@@ -139,11 +146,6 @@ class BusinessController
             }
 
             $business = Business::find($businessId);
-
-            // Update user role to manager if currently client
-            if ($request->user['role'] === 'client') {
-                \QueueMaster\Models\User::update($userId, ['role' => 'manager']);
-            }
 
             AuditService::logFromRequest($request, 'create', 'business', (string)$businessId, null, $businessId);
 

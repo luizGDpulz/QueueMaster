@@ -42,7 +42,8 @@
       <!-- Card do Usuário -->
       <div class="user-card">
         <div class="user-avatar">
-          {{ userInitials }}
+          <img v-if="userAvatar" :src="userAvatar" alt="Avatar" class="user-avatar-img" referrerpolicy="no-referrer" />
+          <span v-else>{{ userInitials }}</span>
         </div>
         <div class="user-info">
           <span class="user-name">{{ userName }}</span>
@@ -89,6 +90,10 @@ export default defineComponent({
     userInitials: {
       type: String,
       default: 'U'
+    },
+    userAvatar: {
+      type: String,
+      default: ''
     },
     isDark: {
       type: Boolean,
@@ -244,6 +249,13 @@ export default defineComponent({
   font-size: 0.875rem;
   font-weight: 600;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .user-info {

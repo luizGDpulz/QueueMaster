@@ -1,0 +1,252 @@
+// ===== DETAIL PAGE SHARED STYLES =====
+// Imported by all detail pages for consistent look
+
+.detail-page {
+  padding: 0 1.5rem 2rem;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.back-btn {
+  color: var(--qm-text-secondary);
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--qm-text-primary);
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 0.875rem;
+  color: var(--qm-text-muted);
+  margin: 0.125rem 0 0;
+}
+
+.soft-card {
+  background: var(--qm-surface);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: var(--qm-shadow);
+}
+
+// Section
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--qm-text-primary);
+  margin: 0 0 1rem;
+}
+
+.section-header .section-title {
+  margin: 0;
+}
+
+// Detail Grid
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.25rem;
+
+  @media (max-width: 500px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-label {
+  font-size: 0.75rem;
+  color: var(--qm-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  font-size: 0.9375rem;
+  color: var(--qm-text-primary);
+  font-weight: 500;
+}
+
+// List Items (sub-items like establishments inside business)
+.list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--qm-bg-secondary);
+  transition: all 0.2s ease;
+
+  &.clickable {
+    cursor: pointer;
+
+    &:hover {
+      background: var(--qm-bg-tertiary);
+      transform: translateX(4px);
+    }
+  }
+}
+
+.list-item-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.list-item-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 0.625rem;
+  background: var(--qm-brand-light);
+  color: var(--qm-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.list-item-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.list-item-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--qm-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-item-meta {
+  font-size: 0.75rem;
+  color: var(--qm-text-muted);
+}
+
+.list-item-side {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.chevron {
+  color: var(--qm-text-muted);
+}
+
+// Loading & Empty (small)
+.loading-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--qm-text-muted);
+}
+
+.loading-state-sm,
+.empty-state-sm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  color: var(--qm-text-muted);
+  text-align: center;
+
+  p {
+    margin: 0.5rem 0 0;
+    font-size: 0.8125rem;
+  }
+}
+
+// Dialog
+.dialog-card {
+  width: 100%;
+  max-width: 500px;
+  border-radius: 1rem;
+  background: var(--qm-surface);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dialog-actions {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--qm-border);
+}
+
+// Stats grid (for queues detail etc.)
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.stat-box {
+  text-align: center;
+  padding: 1rem 0.75rem;
+  background: var(--qm-bg-secondary);
+  border-radius: 0.75rem;
+}
+
+.stat-number {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--qm-brand);
+  line-height: 1;
+}
+
+.stat-text {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--qm-text-muted);
+  margin-top: 0.25rem;
+}
+
+// User position highlight
+.highlight-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  background: var(--qm-brand-light);
+  border-radius: 0.75rem;
+  color: var(--qm-brand);
+  font-size: 0.875rem;
+}

@@ -19,6 +19,7 @@ use QueueMaster\Controllers\NotificationsController;
 use QueueMaster\Controllers\UsersController;
 use QueueMaster\Controllers\BusinessController;
 use QueueMaster\Controllers\AdminController;
+use QueueMaster\Controllers\InvitationsController;
 use QueueMaster\Stream\SseController;
 use QueueMaster\Middleware\AuthMiddleware;
 use QueueMaster\Middleware\RoleMiddleware;
@@ -382,18 +383,18 @@ $router->group('/api/v1', function ($router) {
             $controller->generateCode($request, $id);
         }, [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
         
-        // POST /api/v1/queues - Create queue (manager/admin)
+        // POST /api/v1/queues - Create queue (professional/manager/admin)
         $router->post('', function ($request) {
             $controller = new QueuesController();
             $controller->create($request);
-        }, [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
+        }, [new AuthMiddleware(), new RoleMiddleware(['professional', 'manager', 'admin'])]);
         
-        // PUT /api/v1/queues/{id} - Update queue (manager/admin)
+        // PUT /api/v1/queues/{id} - Update queue (professional/manager/admin)
         $router->put('/{id}', function ($request) {
             $controller = new QueuesController();
             $id = (int)$request->getParam('id');
             $controller->update($request, $id);
-        }, [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
+        }, [new AuthMiddleware(), new RoleMiddleware(['professional', 'manager', 'admin'])]);
         
         // DELETE /api/v1/queues/{id} - Delete queue (admin only)
         $router->delete('/{id}', function ($request) {
@@ -546,6 +547,13 @@ $router->group('/api/v1', function ($router) {
             $controller->getAppointments($request, $id);
         }, [new AuthMiddleware()]);
         
+        // GET /api/v1/users/{id}/avatar - Get user's avatar image
+        $router->get('/{id}/avatar', function ($request) {
+            $controller = new UsersController();
+            $id = (int)$request->getParam('id');
+            $controller->getAvatar($request, $id);
+        }, [new AuthMiddleware()]);
+        
     });
     
     // ============================================================================
@@ -558,6 +566,18 @@ $router->group('/api/v1', function ($router) {
         $router->get('', function ($request) {
             $controller = new NotificationsController();
             $controller->list($request);
+        });
+        
+        // GET /api/v1/notifications/unread-count - Get unread notification count
+        $router->get('/unread-count', function ($request) {
+            $controller = new NotificationsController();
+            $controller->unreadCount($request);
+        });
+        
+        // POST /api/v1/notifications/mark-all-read - Mark all as read
+        $router->post('/mark-all-read', function ($request) {
+            $controller = new NotificationsController();
+            $controller->markAllRead($request);
         });
         
         // GET /api/v1/notifications/{id} - Get single notification (authenticated)
@@ -602,11 +622,11 @@ $router->group('/api/v1', function ($router) {
             $controller->get($request, $id);
         });
         
-        // POST /api/v1/businesses - Create business (authenticated)
+        // POST /api/v1/businesses - Create business (manager/admin)
         $router->post('', function ($request) {
             $controller = new BusinessController();
             $controller->create($request);
-        });
+        }, [new RoleMiddleware(['manager', 'admin'])]);
         
         // PUT /api/v1/businesses/{id} - Update business (owner/manager/admin)
         $router->put('/{id}', function ($request) {
@@ -650,6 +670,62 @@ $router->group('/api/v1', function ($router) {
             $userId = (int)$request->getParam('userId');
             $controller->removeUser($request, $id, $userId);
         }, [new RoleMiddleware(['manager', 'admin'])]);
+        
+        // POST /api/v1/businesses/{id}/invitations - Invite professional to business
+        $router->post('/{id}/invitations', function ($request) {
+            $controller = new InvitationsController();
+            $id = (int)$request->getParam('id');
+            $controller->invite($request, $id);
+        }, [new RoleMiddleware(['manager', 'admin'])]);
+        
+        // GET /api/v1/businesses/{id}/invitations - List invitations for business
+        $router->get('/{id}/invitations', function ($request) {
+            $controller = new InvitationsController();
+            $id = (int)$request->getParam('id');
+            $controller->listForBusiness($request, $id);
+        });
+        
+        // POST /api/v1/businesses/{id}/join-request - Professional requests to join
+        $router->post('/{id}/join-request', function ($request) {
+            $controller = new InvitationsController();
+            $id = (int)$request->getParam('id');
+            $controller->joinRequest($request, $id);
+        }, [new RoleMiddleware(['professional'])]);
+        
+    }, [new AuthMiddleware()]);
+    
+    // ============================================================================
+    // Invitation Management Routes
+    // ============================================================================
+    
+    $router->group('/invitations', function ($router) {
+        
+        // GET /api/v1/invitations - List my invitations (received + sent)
+        $router->get('', function ($request) {
+            $controller = new InvitationsController();
+            $controller->list($request);
+        });
+        
+        // POST /api/v1/invitations/{id}/accept - Accept invitation
+        $router->post('/{id}/accept', function ($request) {
+            $controller = new InvitationsController();
+            $id = (int)$request->getParam('id');
+            $controller->accept($request, $id);
+        });
+        
+        // POST /api/v1/invitations/{id}/reject - Reject invitation
+        $router->post('/{id}/reject', function ($request) {
+            $controller = new InvitationsController();
+            $id = (int)$request->getParam('id');
+            $controller->reject($request, $id);
+        });
+        
+        // POST /api/v1/invitations/{id}/cancel - Cancel invitation (sender)
+        $router->post('/{id}/cancel', function ($request) {
+            $controller = new InvitationsController();
+            $id = (int)$request->getParam('id');
+            $controller->cancelInvitation($request, $id);
+        });
         
     }, [new AuthMiddleware()]);
     

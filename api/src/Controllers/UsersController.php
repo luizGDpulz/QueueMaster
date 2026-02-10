@@ -542,6 +542,70 @@ class UsersController
     }
 
     /**
+     * GET /api/v1/users/{id}/avatar
+     * 
+     * Get user's avatar image (served as base64 data URI or redirect to Google URL)
+     * Returns the cached base64 image to avoid hitting Google's servers
+     */
+    public function getAvatar(Request $request, int $id): void
+    {
+        try {
+            $avatar = User::getAvatarBase64($id);
+
+            if (!$avatar) {
+                // Return a default avatar (initials-based SVG)
+                $user = User::find($id);
+                $initials = 'U';
+                if ($user) {
+                    $parts = explode(' ', $user['name'] ?? 'U');
+                    $initials = strtoupper(substr($parts[0], 0, 1));
+                    if (count($parts) > 1) {
+                        $initials .= strtoupper(substr(end($parts), 0, 1));
+                    }
+                }
+
+                // Generate SVG avatar
+                $colors = ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
+                $color = $colors[($id ?? 0) % count($colors)];
+                $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="' . $color . '"/><text x="100" y="100" font-size="80" font-family="Arial,sans-serif" fill="white" text-anchor="middle" dominant-baseline="central">' . htmlspecialchars($initials) . '</text></svg>';
+
+                header('Content-Type: image/svg+xml');
+                header('Cache-Control: public, max-age=3600');
+                echo $svg;
+                exit;
+            }
+
+            // If it's a data URI (base64), decode and serve as image
+            if (str_starts_with($avatar, 'data:')) {
+                // Parse data URI: data:image/jpeg;base64,/9j/4AAQ...
+                preg_match('/^data:([^;]+);base64,(.+)$/', $avatar, $matches);
+                if ($matches) {
+                    $mime = $matches[1];
+                    $data = base64_decode($matches[2]);
+                    header('Content-Type: ' . $mime);
+                    header('Content-Length: ' . strlen($data));
+                    header('Cache-Control: public, max-age=86400');
+                    echo $data;
+                    exit;
+                }
+            }
+
+            // Fallback: redirect to external URL
+            header('Location: ' . $avatar);
+            header('Cache-Control: public, max-age=3600');
+            exit;
+
+        } catch (\Exception $e) {
+            Logger::error('Failed to get user avatar', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to retrieve avatar', $request->requestId);
+        }
+    }
+
+    /**
      * GET /api/v1/users/{id}/queue-entries
      * 
      * Get user's queue entries
