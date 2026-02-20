@@ -11,6 +11,7 @@ use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
 use QueueMaster\Models\User;
 use QueueMaster\Models\RefreshToken;
+use QueueMaster\Services\AuditService;
 
 /**
  * AuthController - Authentication Endpoints
@@ -93,6 +94,11 @@ class AuthController
             // Set tokens as httpOnly cookies
             self::setAccessTokenCookie($accessToken);
             self::setRefreshTokenCookie($refreshToken);
+
+            AuditService::logFromRequest($request, 'login', 'user', (string)$user['id'], null, null, [
+                'is_new_user' => $isNewUser,
+                'email' => $user['email'] ?? null,
+            ]);
 
             Response::success([
                 'user' => $user,
@@ -283,6 +289,8 @@ class AuthController
         Logger::info('User logged out', [
             'user_id' => $userId,
         ], $request->requestId);
+
+        AuditService::logFromRequest($request, 'logout', 'user', (string)$userId, null, null, null);
 
         Response::success([
             'message' => 'Logged out successfully',

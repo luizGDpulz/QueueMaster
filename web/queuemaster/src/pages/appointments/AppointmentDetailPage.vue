@@ -4,10 +4,7 @@
     <div class="page-header">
       <div class="header-left">
         <q-btn flat round dense icon="arrow_back" class="back-btn" @click="goBack" />
-        <div>
-          <h1 class="page-title">Agendamento #{{ route.params.id }}</h1>
-          <p class="page-subtitle">Detalhes do agendamento</p>
-        </div>
+        <h1 class="page-title">Agendamento #{{ route.params.id }}</h1>
       </div>
       <div class="header-right" v-if="appointment">
         <q-btn v-if="canEdit" flat icon="edit" label="Editar" no-caps @click="openEdit" />
@@ -36,6 +33,9 @@
             </q-item>
           </q-list>
         </q-btn-dropdown>
+      </div>
+      <div class="header-bottom">
+        <p class="page-subtitle">Detalhes do agendamento</p>
       </div>
     </div>
 
@@ -183,7 +183,19 @@ export default defineComponent({
 
     const updateStatus = async (status) => {
       try {
-        await api.put(`/appointments/${route.params.id}`, { status })
+        const id = route.params.id
+        const statusEndpoints = {
+          checked_in: { method: 'post', url: `/appointments/${id}/checkin` },
+          completed: { method: 'post', url: `/appointments/${id}/complete` },
+          no_show: { method: 'post', url: `/appointments/${id}/no-show` },
+          cancelled: { method: 'delete', url: `/appointments/${id}` },
+        }
+        const endpoint = statusEndpoints[status]
+        if (endpoint) {
+          await api[endpoint.method](endpoint.url)
+        } else {
+          await api.put(`/appointments/${id}`, { status })
+        }
         $q.notify({ type: 'positive', message: 'Status atualizado com sucesso' })
         fetchAppointment()
       } catch {

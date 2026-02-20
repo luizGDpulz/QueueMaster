@@ -14,6 +14,7 @@
       <AppSidebar
         :user-name="userName"
         :user-role="userRole"
+        :user-role-raw="userRoleRaw"
         :user-initials="userInitials"
         :user-avatar="userAvatar"
         :is-dark="isDark"
@@ -85,6 +86,10 @@
                     <span class="notif-title">{{ notif.title }}</span>
                     <span class="notif-body">{{ notif.body }}</span>
                     <span class="notif-time">{{ formatNotifTime(notif.created_at) }}</span>
+                    <div v-if="notif.type === 'business_invitation' && !notif.read_at && notif.data?.invitation_id" class="notif-actions" @click.stop>
+                      <q-btn dense flat no-caps size="sm" color="positive" icon="check" label="Aceitar" @click="acceptInvitation(notif)" />
+                      <q-btn dense flat no-caps size="sm" color="negative" icon="close" label="Rejeitar" @click="rejectInvitation(notif)" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -94,7 +99,11 @@
       </header>
 
       <!-- Página -->
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <transition name="page-fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
       
     </q-page-container>
 
@@ -141,6 +150,7 @@ export default defineComponent({
       const roles = { admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', client: 'Cliente' }
       return roles[user.value?.role] || 'Usuário'
     })
+    const userRoleRaw = computed(() => user.value?.role || '')
     const userInitials = computed(() => {
       const name = user.value?.name || 'U'
       return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -243,6 +253,26 @@ export default defineComponent({
       return `${diffDays}d`
     }
 
+    const acceptInvitation = async (notif) => {
+      const invId = notif.data?.invitation_id
+      if (!invId) return
+      try {
+        await api.post(`/invitations/${invId}/accept`)
+        notif.read_at = new Date().toISOString()
+        fetchNotifications()
+      } catch { /* ignore */ }
+    }
+
+    const rejectInvitation = async (notif) => {
+      const invId = notif.data?.invitation_id
+      if (!invId) return
+      try {
+        await api.post(`/invitations/${invId}/reject`)
+        notif.read_at = new Date().toISOString()
+        fetchNotifications()
+      } catch { /* ignore */ }
+    }
+
     // Close dropdown when clicking outside
     const handleClickOutside = (e) => {
       if (showNotifications.value && !e.target.closest('.notifications-wrapper')) {
@@ -306,6 +336,7 @@ export default defineComponent({
       sidebarOpen,
       userName,
       userRole,
+      userRoleRaw,
       userInitials,
       userAvatar,
       handleLogout,
@@ -317,6 +348,8 @@ export default defineComponent({
       handleNotificationClick,
       getNotifIcon,
       formatNotifTime,
+      acceptInvitation,
+      rejectInvitation,
       currentPageTitle,
       isDark,
       toggleTheme
@@ -521,5 +554,31 @@ export default defineComponent({
 .notif-time {
   font-size: 0.6875rem;
   color: var(--qm-text-muted);
+}
+
+.notif-actions {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+}
+</style>
+
+<style lang="scss">
+// ===== PAGE TRANSITIONS (must be non-scoped) =====
+.page-fade-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.page-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
 }
 </style>

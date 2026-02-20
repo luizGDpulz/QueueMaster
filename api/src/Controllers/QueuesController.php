@@ -31,7 +31,7 @@ class QueuesController
     {
         try {
             $params = $request->getQuery();
-            
+
             $conditions = [];
 
             if (isset($params['establishment_id'])) {
@@ -45,25 +45,61 @@ class QueuesController
             // Get queues using Model
             $queues = Queue::all($conditions, 'created_at', 'DESC');
 
-            // Add related data and waiting count to each queue
-            foreach ($queues as &$queue) {
-                // Get establishment name
-                if ($queue['establishment_id']) {
-                    $establishment = Establishment::find($queue['establishment_id']);
-                    $queue['establishment_name'] = $establishment['name'] ?? null;
+            if (!empty($queues)) {
+                // Batch load related data to avoid N+1 queries
+                $establishmentIds = array_filter(array_unique(array_column($queues, 'establishment_id')));
+                $serviceIds = array_filter(array_unique(array_column($queues, 'service_id')));
+                $queueIds = array_column($queues, 'id');
+
+                // Fetch all establishments in one query
+                $establishmentMap = [];
+                if (!empty($establishmentIds)) {
+                    $db = \QueueMaster\Core\Database::getInstance();
+                    $placeholders = implode(',', array_fill(0, count($establishmentIds), '?'));
+                    $establishments = $db->query(
+                        "SELECT id, name FROM establishments WHERE id IN ($placeholders)",
+                        array_values($establishmentIds)
+                    );
+                    foreach ($establishments as $est) {
+                        $establishmentMap[$est['id']] = $est['name'];
+                    }
                 }
 
-                // Get service name
-                if ($queue['service_id']) {
-                    $service = Service::find($queue['service_id']);
-                    $queue['service_name'] = $service['name'] ?? null;
-                } else {
-                    $queue['service_name'] = null;
+                // Fetch all services in one query
+                $serviceMap = [];
+                if (!empty($serviceIds)) {
+                    $db = $db ?? \QueueMaster\Core\Database::getInstance();
+                    $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
+                    $services = $db->query(
+                        "SELECT id, name FROM services WHERE id IN ($placeholders)",
+                        array_values($serviceIds)
+                    );
+                    foreach ($services as $svc) {
+                        $serviceMap[$svc['id']] = $svc['name'];
+                    }
                 }
 
-                // Get waiting count
-                $waitingEntries = QueueEntry::getWaitingByQueue($queue['id']);
-                $queue['waiting_count'] = count($waitingEntries);
+                // Fetch waiting counts in one aggregated query
+                $waitingMap = [];
+                if (!empty($queueIds)) {
+                    $db = $db ?? \QueueMaster\Core\Database::getInstance();
+                    $placeholders = implode(',', array_fill(0, count($queueIds), '?'));
+                    $waitingCounts = $db->query(
+                        "SELECT queue_id, COUNT(*) as cnt FROM queue_entries WHERE queue_id IN ($placeholders) AND status = 'waiting' GROUP BY queue_id",
+                        array_values($queueIds)
+                    );
+                    foreach ($waitingCounts as $wc) {
+                        $waitingMap[$wc['queue_id']] = (int)$wc['cnt'];
+                    }
+                }
+
+                // Map data onto queues (O(1) lookups instead of N queries)
+                foreach ($queues as &$queue) {
+                    $queue['establishment_name'] = $establishmentMap[$queue['establishment_id']] ?? null;
+                    $queue['service_name'] = $serviceMap[$queue['service_id']] ?? null;
+                    $queue['waiting_count'] = $waitingMap[$queue['id']] ?? 0;
+                }
+                unset($queue);
             }
 
             Response::success([
@@ -71,7 +107,8 @@ class QueuesController
                 'total' => count($queues),
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list queues', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -105,7 +142,8 @@ class QueuesController
             if ($queue['service_id']) {
                 $service = Service::find($queue['service_id']);
                 $queue['service_name'] = $service['name'] ?? null;
-            } else {
+            }
+            else {
                 $queue['service_name'] = null;
             }
 
@@ -117,7 +155,8 @@ class QueuesController
                 'queue' => $queue,
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get queue', [
                 'queue_id' => $id,
                 'error' => $e->getMessage(),
@@ -188,7 +227,8 @@ class QueuesController
                 'message' => 'Successfully joined queue',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to join queue', [
                 'queue_id' => $id,
                 'user_id' => $userId,
@@ -197,9 +237,11 @@ class QueuesController
 
             if (strpos($e->getMessage(), 'not found') !== false) {
                 Response::notFound('Queue not found', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'closed') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'closed') !== false) {
                 Response::error('QUEUE_CLOSED', 'Queue is closed', 400, $request->requestId);
-            } else {
+            }
+            else {
                 Response::serverError('Failed to join queue', $request->requestId);
             }
         }
@@ -208,19 +250,158 @@ class QueuesController
     /**
      * GET /api/v1/queues/:id/status
      * 
-     * Get queue status (waiting count, user position if authenticated)
+     * Get queue status with full queue data, entries list, and statistics
      */
     public function status(Request $request, int $id): void
     {
         $userId = $request->user ? (int)$request->user['id'] : null;
 
         try {
-            $queueService = new QueueService();
-            $status = $queueService->getQueueStatus($id, $userId);
+            // 1. Get queue object
+            $queue = Queue::find($id);
+            if (!$queue) {
+                Response::notFound('Queue not found', $request->requestId);
+                return;
+            }
 
-            Response::success($status);
+            // Add related names
+            if ($queue['establishment_id']) {
+                $establishment = Establishment::find($queue['establishment_id']);
+                $queue['establishment_name'] = $establishment['name'] ?? null;
+            }
+            if ($queue['service_id']) {
+                $service = Service::find($queue['service_id']);
+                $queue['service_name'] = $service['name'] ?? null;
+            }
+            else {
+                $queue['service_name'] = null;
+            }
 
-        } catch (\Exception $e) {
+            $db = Database::getInstance();
+
+            // 2. Get waiting entries with user names
+            $entriesSql = "
+                SELECT qe.*, u.name as user_name, u.email as user_email
+                FROM queue_entries qe
+                LEFT JOIN users u ON u.id = qe.user_id
+                WHERE qe.queue_id = ? AND qe.status = 'waiting'
+                ORDER BY qe.priority DESC, qe.created_at ASC
+            ";
+            $entries = $db->query($entriesSql, [$id]);
+
+            // Calculate estimated wait per entry and real wait time
+            $serviceSql = "
+                SELECT s.duration_minutes 
+                FROM queues q LEFT JOIN services s ON s.id = q.service_id
+                WHERE q.id = ? LIMIT 1
+            ";
+            $svcResult = $db->query($serviceSql, [$id]);
+            $serviceDuration = (int)($svcResult[0]['duration_minutes'] ?? 15);
+
+            $now = time();
+            foreach ($entries as $idx => &$entry) {
+                $entry['estimated_wait_minutes'] = max(0, $idx * $serviceDuration);
+                if (!empty($entry['created_at'])) {
+                    $createdTs = strtotime($entry['created_at']);
+                    $entry['waiting_since_minutes'] = max(0, (int)round(($now - $createdTs) / 60));
+                }
+                else {
+                    $entry['waiting_since_minutes'] = 0;
+                }
+                if (empty($entry['user_name'])) {
+                    $entry['user_name'] = $entry['guest_name'] ?? ('Usuário #' . ($entry['user_id'] ?? $entry['id']));
+                }
+            }
+            unset($entry);
+
+            $queue['waiting_count'] = count($entries);
+
+            // 2b. Get serving entries (called + serving)
+            $servingSql = "
+                SELECT qe.*, u.name as user_name, u.email as user_email
+                FROM queue_entries qe
+                LEFT JOIN users u ON u.id = qe.user_id
+                WHERE qe.queue_id = ? AND qe.status IN ('called','serving')
+                ORDER BY qe.called_at ASC
+            ";
+            $entriesServing = $db->query($servingSql, [$id]);
+            foreach ($entriesServing as &$es) {
+                if (empty($es['user_name'])) {
+                    $es['user_name'] = $es['guest_name'] ?? ('Usuário #' . ($es['user_id'] ?? $es['id']));
+                }
+                if (!empty($es['called_at'])) {
+                    $es['serving_since_minutes'] = max(0, (int)round(($now - strtotime($es['called_at'])) / 60));
+                }
+                else {
+                    $es['serving_since_minutes'] = 0;
+                }
+            }
+            unset($es);
+
+            // 2c. Get completed entries (today)
+            $completedSql = "
+                SELECT qe.*, u.name as user_name, u.email as user_email
+                FROM queue_entries qe
+                LEFT JOIN users u ON u.id = qe.user_id
+                WHERE qe.queue_id = ? AND qe.status = 'done' AND DATE(qe.completed_at) = CURDATE()
+                ORDER BY qe.completed_at DESC
+            ";
+            $entriesCompleted = $db->query($completedSql, [$id]);
+            foreach ($entriesCompleted as &$ec) {
+                if (empty($ec['user_name'])) {
+                    $ec['user_name'] = $ec['guest_name'] ?? ('Usuário #' . ($ec['user_id'] ?? $ec['id']));
+                }
+            }
+            unset($ec);
+
+            // 3. Statistics
+            $beingServed = count($entriesServing);
+            $completedToday = count($entriesCompleted);
+
+            $avgWaitSql = "
+                SELECT AVG(TIMESTAMPDIFF(MINUTE, created_at, called_at)) as avg_wait
+                FROM queue_entries
+                WHERE queue_id = ? AND called_at IS NOT NULL AND DATE(called_at) = CURDATE()
+            ";
+            $avgResult = $db->query($avgWaitSql, [$id]);
+            $avgWait = (int)($avgResult[0]['avg_wait'] ?? 0);
+
+            // 4. User entry (if authenticated)
+            $userEntry = null;
+            if ($userId) {
+                $userEntrySql = "
+                    SELECT * FROM queue_entries
+                    WHERE queue_id = ? AND user_id = ? AND status = 'waiting'
+                    ORDER BY created_at DESC LIMIT 1
+                ";
+                $userEntryResult = $db->query($userEntrySql, [$id, $userId]);
+                if (!empty($userEntryResult)) {
+                    $ue = $userEntryResult[0];
+                    $pos = $ue['position'];
+                    $userEntry = [
+                        'entry_id' => (int)$ue['id'],
+                        'position' => (int)$pos,
+                        'estimated_wait_minutes' => max(0, ((int)$pos - 1) * $serviceDuration),
+                    ];
+                }
+            }
+
+            Response::success([
+                'queue' => $queue,
+                'entries' => $entries,
+                'entries_serving' => $entriesServing,
+                'entries_completed' => $entriesCompleted,
+                'statistics' => [
+                    'total_waiting' => count($entries),
+                    'total_being_served' => $beingServed,
+                    'total_completed_today' => $completedToday,
+                    'average_wait_time_minutes' => $avgWait,
+                ],
+                'user_entry' => $userEntry,
+            ]);
+
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get queue status', [
                 'queue_id' => $id,
                 'error' => $e->getMessage(),
@@ -253,11 +434,16 @@ class QueuesController
                 'user_id' => $userId,
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'queue_leave', 'queue', (string)$entryId, null, null, [
+                'entry_id' => $entryId,
+            ]);
+
             Response::success([
                 'message' => 'Successfully left queue',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to leave queue', [
                 'entry_id' => $entryId,
                 'user_id' => $userId,
@@ -266,11 +452,14 @@ class QueuesController
 
             if (strpos($e->getMessage(), 'not found') !== false) {
                 Response::notFound('Queue entry not found', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'Unauthorized') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'Unauthorized') !== false) {
                 Response::forbidden('You cannot cancel this queue entry', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'Cannot cancel') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'Cannot cancel') !== false) {
                 Response::error('INVALID_STATUS', $e->getMessage(), 400, $request->requestId);
-            } else {
+            }
+            else {
                 Response::serverError('Failed to leave queue', $request->requestId);
             }
         }
@@ -328,13 +517,18 @@ class QueuesController
                 'called_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'queue_call_next', 'queue', (string)$id, null, null, [
+                'type' => $result['type'],
+            ]);
+
             Response::success([
                 'message' => 'Successfully called next',
                 'type' => $result['type'],
                 'called' => $result['data'],
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to call next', [
                 'queue_id' => $id,
                 'error' => $e->getMessage(),
@@ -392,14 +586,20 @@ class QueuesController
                 'created_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'create', 'queue', (string)$queueId, (int)$data['establishment_id'], null, [
+                'name' => trim($data['name']),
+            ]);
+
             Response::created([
                 'queue' => $queue,
                 'message' => 'Queue created successfully',
             ]);
 
-        } catch (\InvalidArgumentException $e) {
+        }
+        catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to create queue', [
                 'data' => $data,
                 'error' => $e->getMessage(),
@@ -417,34 +617,30 @@ class QueuesController
     public function update(Request $request, int $id): void
     {
         try {
-            $db = Database::getInstance();
             $body = $request->getBody();
 
-            // Verify queue exists
-            $queueCheck = $db->query("SELECT id FROM queues WHERE id = ?", [$id]);
-            if (empty($queueCheck)) {
+            // Verify queue exists using Model
+            $queue = Queue::find($id);
+            if (!$queue) {
                 Response::notFound('Queue not found', $request->requestId);
                 return;
             }
 
-            $updateFields = [];
-            $values = [];
+            $updateData = [];
 
             if (isset($body['name'])) {
-                $updateFields[] = "name = ?";
-                $values[] = $body['name'];
+                $updateData['name'] = $body['name'];
             }
 
             if (isset($body['status'])) {
                 if (!in_array($body['status'], ['open', 'closed'])) {
-                    Response::badRequest('Invalid status', $request->requestId);
+                    Response::error('BAD_REQUEST', 'Invalid status. Must be: open or closed', 400, $request->requestId);
                     return;
                 }
-                $updateFields[] = "status = ?";
-                $values[] = $body['status'];
+                $updateData['status'] = $body['status'];
             }
 
-            if (empty($updateFields)) {
+            if (empty($updateData)) {
                 Logger::warning('Update attempt with no fields', [
                     'queue_id' => $id,
                     'user_id' => $request->user['id'] ?? null,
@@ -460,13 +656,21 @@ class QueuesController
                 return;
             }
 
-            $values[] = $id;
-            $sql = "UPDATE queues SET " . implode(', ', $updateFields) . " WHERE id = ?";
-            $db->execute($sql, $values);
+            Queue::update($id, $updateData);
+
+            $changes = [];
+            foreach ($updateData as $field => $newValue) {
+                $changes[$field] = ['from' => $queue[$field] ?? null, 'to' => $newValue];
+            }
+            AuditService::logFromRequest($request, 'update', 'queue', (string)$id, null, null, [
+                'entity_name' => $queue['name'] ?? null,
+                'changes' => $changes,
+            ]);
 
             Response::success(['message' => 'Queue updated successfully']);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to update queue', [
                 'queue_id' => $id,
                 'error' => $e->getMessage(),
@@ -484,20 +688,25 @@ class QueuesController
     public function delete(Request $request, int $id): void
     {
         try {
-            $db = Database::getInstance();
-
-            // Check if queue exists
-            $queueCheck = $db->query("SELECT id FROM queues WHERE id = ?", [$id]);
-            if (empty($queueCheck)) {
+            // Check if queue exists using Model
+            $queue = Queue::find($id);
+            if (!$queue) {
                 Response::notFound('Queue not found', $request->requestId);
                 return;
             }
 
-            $db->execute("DELETE FROM queues WHERE id = ?", [$id]);
+            Queue::delete($id);
+
+            AuditService::logFromRequest($request, 'delete', 'queue', (string)$id, null, null, [
+                'name' => $queue['name'] ?? null,
+                'establishment_id' => $queue['establishment_id'] ?? null,
+                'status' => $queue['status'] ?? null,
+            ]);
 
             Response::success(['message' => 'Queue deleted successfully']);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to delete queue', [
                 'queue_id' => $id,
                 'error' => $e->getMessage(),
@@ -549,7 +758,8 @@ class QueuesController
                 'access_code' => $codeRecord,
                 'message' => 'Access code generated successfully',
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to generate queue code', [
                 'queue_id' => $id,
                 'error' => $e->getMessage(),

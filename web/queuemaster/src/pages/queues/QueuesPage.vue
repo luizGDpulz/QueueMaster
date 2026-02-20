@@ -4,7 +4,6 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">Filas</h1>
-        <p class="page-subtitle">Gerencie e monitore todas as filas de atendimento</p>
       </div>
       <div class="header-right">
         <q-btn
@@ -15,6 +14,9 @@
           no-caps
           @click="openCreateDialog"
         />
+      </div>
+      <div class="header-bottom">
+        <p class="page-subtitle">Gerencie e monitore todas as filas de atendimento</p>
       </div>
     </div>
 
@@ -154,6 +156,9 @@
                     @click.stop="callNext(queue)"
                   >
                     <q-tooltip>Chamar próximo</q-tooltip>
+                  </q-btn>
+                  <q-btn v-if="canManage" flat round dense icon="edit" size="sm" @click.stop="editQueue(queue)">
+                    <q-tooltip>Editar</q-tooltip>
                   </q-btn>
                   <q-btn v-if="isAdmin" flat round dense icon="delete" size="sm" color="negative" @click.stop="confirmDelete(queue)">
                     <q-tooltip>Excluir</q-tooltip>
@@ -624,18 +629,32 @@ export default defineComponent({
   align-items: center;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
-  gap: 1rem;
+  column-gap: 1rem;
+  row-gap: 0.25rem;
 }
 
 .header-left {
   flex: 1;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.header-bottom {
+  flex-basis: 100%;
 }
 
 .page-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--qm-text-primary);
-  margin: 0 0 0.25rem;
+  margin: 0;
 }
 
 .page-subtitle {

@@ -61,7 +61,8 @@ class Validator
                 $min = (int)($params[0] ?? 0);
                 if (is_string($value) && strlen($value) < $min) {
                     $this->errors[$field][] = "The $field must be at least $min characters";
-                } elseif (is_numeric($value) && $value < $min) {
+                }
+                elseif (is_numeric($value) && $value < $min) {
                     $this->errors[$field][] = "The $field must be at least $min";
                 }
                 break;
@@ -70,7 +71,8 @@ class Validator
                 $max = (int)($params[0] ?? 0);
                 if (is_string($value) && strlen($value) > $max) {
                     $this->errors[$field][] = "The $field must not exceed $max characters";
-                } elseif (is_numeric($value) && $value > $max) {
+                }
+                elseif (is_numeric($value) && $value > $max) {
                     $this->errors[$field][] = "The $field must not exceed $max";
                 }
                 break;
@@ -192,11 +194,18 @@ class Validator
     private function checkExists(string $table, string $column, mixed $value): bool
     {
         try {
+            // Whitelist: only allow alphanumeric + underscore for table/column names
+            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $table) ||
+            !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $column)) {
+                return false;
+            }
+
             $db = \QueueMaster\Core\Database::getInstance();
             $sql = "SELECT COUNT(*) as count FROM `$table` WHERE `$column` = ?";
             $result = $db->query($sql, [$value]);
             return ($result[0]['count'] ?? 0) > 0;
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return false;
         }
     }
@@ -207,18 +216,26 @@ class Validator
     private function checkUnique(string $table, string $column, mixed $value, ?string $ignoreId = null): bool
     {
         try {
+            // Whitelist: only allow alphanumeric + underscore for table/column names
+            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $table) ||
+            !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $column)) {
+                return false;
+            }
+
             $db = \QueueMaster\Core\Database::getInstance();
-            
+
             if ($ignoreId) {
                 $sql = "SELECT COUNT(*) as count FROM `$table` WHERE `$column` = ? AND id != ?";
                 $result = $db->query($sql, [$value, $ignoreId]);
-            } else {
+            }
+            else {
                 $sql = "SELECT COUNT(*) as count FROM `$table` WHERE `$column` = ?";
                 $result = $db->query($sql, [$value]);
             }
-            
+
             return ($result[0]['count'] ?? 0) === 0;
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return false;
         }
     }
@@ -256,7 +273,7 @@ class Validator
         if ($value === null) {
             return null;
         }
-        
+
         // Convert special characters to HTML entities
         return htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
@@ -275,11 +292,14 @@ class Validator
         foreach ($data as $key => $value) {
             if (in_array($key, $except)) {
                 $sanitized[$key] = $value;
-            } elseif (is_string($value)) {
+            }
+            elseif (is_string($value)) {
                 $sanitized[$key] = self::sanitizeString($value);
-            } elseif (is_array($value)) {
+            }
+            elseif (is_array($value)) {
                 $sanitized[$key] = self::sanitizeArray($value, $except);
-            } else {
+            }
+            else {
                 $sanitized[$key] = $value;
             }
         }
@@ -315,7 +335,7 @@ class Validator
         }
 
         $sanitized = filter_var($email, FILTER_SANITIZE_EMAIL);
-        
+
         return filter_var($sanitized, FILTER_VALIDATE_EMAIL) ? $sanitized : null;
     }
 
@@ -332,7 +352,7 @@ class Validator
         }
 
         $sanitized = filter_var($url, FILTER_SANITIZE_URL);
-        
+
         return filter_var($sanitized, FILTER_VALIDATE_URL) ? $sanitized : null;
     }
 
@@ -348,8 +368,8 @@ class Validator
             return null;
         }
 
-        return filter_var($value, FILTER_VALIDATE_INT) !== false 
-            ? (int)$value 
+        return filter_var($value, FILTER_VALIDATE_INT) !== false
+            ? (int)$value
             : null;
     }
 }

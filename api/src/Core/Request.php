@@ -15,10 +15,11 @@ class Request
     private array $headers;
     private mixed $body;
     private array $params = []; // Route parameters (e.g., {id})
-    
+
     // Attached data from middleware (e.g., authenticated user)
     public ?array $user = null;
     public ?string $requestId = null;
+    public ?string $businessUserRole = null;
 
     public function __construct()
     {
@@ -52,7 +53,7 @@ class Request
                 $headers[strtolower($headerKey)] = $value;
             }
         }
-        
+
         // Also include CONTENT_TYPE and CONTENT_LENGTH
         if (isset($_SERVER['CONTENT_TYPE'])) {
             $headers['content-type'] = $_SERVER['CONTENT_TYPE'];
@@ -60,7 +61,7 @@ class Request
         if (isset($_SERVER['CONTENT_LENGTH'])) {
             $headers['content-length'] = $_SERVER['CONTENT_LENGTH'];
         }
-        
+
         return $headers;
     }
 
@@ -70,18 +71,18 @@ class Request
     private function parseBody(): mixed
     {
         $contentType = $this->getHeader('content-type') ?? '';
-        
+
         if (str_contains($contentType, 'application/json')) {
             $raw = file_get_contents('php://input');
             $decoded = json_decode($raw, true);
             return $decoded ?? [];
         }
-        
+
         // For POST form data
         if ($this->method === 'POST') {
             return $_POST;
         }
-        
+
         return [];
     }
 
@@ -145,11 +146,11 @@ class Request
         if ($key === null) {
             return $this->body;
         }
-        
+
         if (is_array($this->body)) {
             return $this->body[$key] ?? $default;
         }
-        
+
         return $default;
     }
 
@@ -208,23 +209,39 @@ class Request
 
     /**
      * Get client IP address
+     * 
+     * Only trusts proxy headers (X-Forwarded-For, X-Real-IP) when the request
+     * comes from a configured trusted proxy. Set TRUSTED_PROXIES env as a
+     * comma-separated list of proxy IPs (e.g. "10.0.0.1,10.0.0.2").
      */
     public function getIp(): string
     {
-        // Check for proxy headers first
-        $headers = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'REMOTE_ADDR'];
-        
-        foreach ($headers as $header) {
-            if (!empty($_SERVER[$header])) {
-                $ip = $_SERVER[$header];
-                // Handle comma-separated IPs (X-Forwarded-For)
-                if (str_contains($ip, ',')) {
-                    $ip = trim(explode(',', $ip)[0]);
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+        // Only trust proxy headers if REMOTE_ADDR is a known proxy
+        $trustedProxies = array_filter(
+            array_map('trim', explode(',', $_ENV['TRUSTED_PROXIES'] ?? ''))
+        );
+
+        if (!empty($trustedProxies) && in_array($remoteAddr, $trustedProxies, true)) {
+            // Trust X-Forwarded-For first, then X-Real-IP
+            $proxyHeaders = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP'];
+
+            foreach ($proxyHeaders as $header) {
+                if (!empty($_SERVER[$header])) {
+                    $ip = $_SERVER[$header];
+                    // X-Forwarded-For is comma-separated; take the leftmost (client) IP
+                    if (str_contains($ip, ',')) {
+                        $ip = trim(explode(',', $ip)[0]);
+                    }
+                    // Validate IP format
+                    if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                        return $ip;
+                    }
                 }
-                return $ip;
             }
         }
-        
-        return '0.0.0.0';
+
+        return filter_var($remoteAddr, FILTER_VALIDATE_IP) ? $remoteAddr : '0.0.0.0';
     }
 }

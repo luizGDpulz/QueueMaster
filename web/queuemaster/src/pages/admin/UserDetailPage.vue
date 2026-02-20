@@ -4,13 +4,13 @@
     <div class="page-header">
       <div class="header-left">
         <q-btn flat round dense icon="arrow_back" class="back-btn" @click="goBack" />
-        <div>
-          <h1 class="page-title">{{ user?.name || 'Carregando...' }}</h1>
-          <p class="page-subtitle">Detalhes do usuário</p>
-        </div>
+        <h1 class="page-title">{{ user?.name || '\u00A0' }}</h1>
       </div>
       <div class="header-right" v-if="isAdmin">
         <q-btn flat icon="edit" label="Editar" no-caps @click="openEdit" />
+      </div>
+      <div class="header-bottom">
+        <p class="page-subtitle">Detalhes do usuário</p>
       </div>
     </div>
 

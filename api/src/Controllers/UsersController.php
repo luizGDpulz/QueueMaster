@@ -7,6 +7,7 @@ use QueueMaster\Core\Response;
 use QueueMaster\Models\User;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
+use QueueMaster\Services\AuditService;
 
 /**
  * UsersController - User Management Endpoints (CRUD)
@@ -51,14 +52,15 @@ class UsersController
             if ($currentUserRole === 'admin') {
                 // Admin sees all users
                 $users = User::all($conditions, 'created_at', 'DESC');
-            } elseif ($currentUserRole === 'manager') {
+            }
+            elseif ($currentUserRole === 'manager') {
                 // Manager sees: other managers in same business, professionals in their establishments, and clients
                 $allUsers = User::all($conditions, 'created_at', 'DESC');
-                
+
                 // Get user's businesses
                 $businessLinks = \QueueMaster\Models\BusinessUser::getBusinessesForUser($currentUserId);
                 $businessIds = array_column($businessLinks, 'business_id');
-                
+
                 // Get all managers in the same businesses
                 $businessManagerIds = [];
                 foreach ($businessIds as $bId) {
@@ -67,7 +69,7 @@ class UsersController
                         $businessManagerIds[] = (int)$bu['id'];
                     }
                 }
-                
+
                 // Get professionals linked to establishments in the manager's businesses
                 $professionalUserIds = [];
                 foreach ($businessIds as $bId) {
@@ -81,22 +83,25 @@ class UsersController
                         }
                     }
                 }
-                
+
                 $allowedIds = array_unique(array_merge($businessManagerIds, $professionalUserIds));
-                
+
                 foreach ($allUsers as $u) {
                     $uRole = $u['role'] ?? 'client';
                     if ($uRole === 'client') {
                         $users[] = $u;
-                    } elseif (in_array((int)$u['id'], $allowedIds)) {
+                    }
+                    elseif (in_array((int)$u['id'], $allowedIds)) {
                         $users[] = $u;
                     }
                 }
-            } elseif ($currentUserRole === 'professional') {
+            }
+            elseif ($currentUserRole === 'professional') {
                 // Professional sees clients only
                 $clientConditions = array_merge($conditions, ['role' => 'client']);
                 $users = User::all($clientConditions, 'created_at', 'DESC');
-            } else {
+            }
+            else {
                 // Client: no access to user list
                 Response::forbidden('Insufficient permissions', $request->requestId);
                 return;
@@ -112,7 +117,7 @@ class UsersController
             $paginatedUsers = array_slice($users, $offset, $perPage);
 
             // Remove sensitive data
-            $paginatedUsers = array_map(function($user) {
+            $paginatedUsers = array_map(function ($user) {
                 return User::getSafeData($user);
             }, $paginatedUsers);
 
@@ -126,7 +131,8 @@ class UsersController
                 ],
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list users', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -166,7 +172,7 @@ class UsersController
                     Response::forbidden('Access denied', $request->requestId);
                     return;
                 }
-                // Managers can also view professionals/managers in their business (already verified in list)
+            // Managers can also view professionals/managers in their business (already verified in list)
             }
         }
 
@@ -183,7 +189,8 @@ class UsersController
 
             Response::success(['user' => $user]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get user', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),
@@ -229,7 +236,8 @@ class UsersController
             // Hash password
             if (defined('PASSWORD_ARGON2ID')) {
                 $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
-            } else {
+            }
+            else {
                 $passwordHash = password_hash($password, PASSWORD_BCRYPT);
             }
 
@@ -252,14 +260,22 @@ class UsersController
                 'created_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'create', 'user', (string)$userId, null, null, [
+                'name' => $name,
+                'email' => $email,
+                'role' => $role,
+            ]);
+
             Response::created([
                 'user' => $user,
                 'message' => 'User created successfully',
             ]);
 
-        } catch (\InvalidArgumentException $e) {
+        }
+        catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to create user', [
                 'data' => $data,
                 'error' => $e->getMessage(),
@@ -307,29 +323,29 @@ class UsersController
                 $errors = Validator::make(['name' => $data['name']], [
                     'name' => 'min:2|max:150',
                 ]);
-                
+
                 if (!empty($errors)) {
                     Response::validationError($errors, $request->requestId);
                     return;
                 }
-                
+
                 $updateData['name'] = trim($data['name']);
             }
 
             // Email update (with uniqueness check)
             if (isset($data['email'])) {
                 $newEmail = strtolower(trim($data['email']));
-                
+
                 if ($newEmail !== $user['email']) {
                     $errors = Validator::make(['email' => $newEmail], [
                         'email' => 'required|email|unique:users,email',
                     ]);
-                    
+
                     if (!empty($errors)) {
                         Response::validationError($errors, $request->requestId);
                         return;
                     }
-                    
+
                     $updateData['email'] = $newEmail;
                 }
             }
@@ -344,12 +360,12 @@ class UsersController
                 $errors = Validator::make(['role' => $data['role']], [
                     'role' => 'in:client,professional,manager,admin',
                 ]);
-                
+
                 if (!empty($errors)) {
                     Response::validationError($errors, $request->requestId);
                     return;
                 }
-                
+
                 $updateData['role'] = $data['role'];
             }
 
@@ -365,7 +381,7 @@ class UsersController
                 $errors = Validator::make(['password' => $data['password']], [
                     'password' => 'min:8|max:100',
                 ]);
-                
+
                 if (!empty($errors)) {
                     Response::validationError($errors, $request->requestId);
                     return;
@@ -379,13 +395,13 @@ class UsersController
                             'user_id' => $id,
                             'is_admin' => $currentUserRole === 'admin',
                         ], $request->requestId);
-                        
+
                         Response::error('CURRENT_PASSWORD_REQUIRED', 'Current password is required to change password', 400, $request->requestId);
                         return;
                     }
 
                     $isValidPassword = User::verifyPassword($id, $data['current_password']);
-                    
+
                     Logger::info('Current password verification', [
                         'user_id' => $id,
                         'is_valid' => $isValidPassword,
@@ -396,11 +412,12 @@ class UsersController
                         Logger::warning('Password change rejected: invalid current password', [
                             'user_id' => $id,
                         ], $request->requestId);
-                        
+
                         Response::error('INVALID_CURRENT_PASSWORD', 'Current password is incorrect', 400, $request->requestId);
                         return;
                     }
-                } elseif ($currentUserRole === 'admin') {
+                }
+                elseif ($currentUserRole === 'admin') {
                     // Admin is changing ANOTHER user's password - no current password required
                     Logger::info('Admin changing another user password', [
                         'target_user_id' => $id,
@@ -410,22 +427,23 @@ class UsersController
 
                 try {
                     User::changePassword($id, $data['password']);
-                    
+
                     Logger::info('Password changed successfully - tokens revoked', [
                         'user_id' => $id,
                         'changed_by' => $currentUserId,
                     ], $request->requestId);
-                } catch (\Exception $e) {
+                }
+                catch (\Exception $e) {
                     Logger::error('Failed to change password', [
                         'user_id' => $id,
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString(),
                     ], $request->requestId);
-                    
+
                     Response::serverError('Failed to change password', $request->requestId);
                     return;
                 }
-                
+
                 // If only password was updated, return success immediately
                 if (empty($updateData)) {
                     $updatedUser = User::find($id);
@@ -473,12 +491,22 @@ class UsersController
                 'updated_by' => $currentUserId,
             ], $request->requestId);
 
+            $changes = [];
+            foreach ($updateData as $field => $newValue) {
+                $changes[$field] = ['from' => $user[$field] ?? null, 'to' => $newValue];
+            }
+            AuditService::logFromRequest($request, 'update', 'user', (string)$id, null, null, [
+                'entity_name' => $user['name'] ?? null,
+                'changes' => $changes,
+            ]);
+
             Response::success([
                 'user' => $updatedUser,
                 'message' => 'User updated successfully',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to update user', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),
@@ -529,9 +557,16 @@ class UsersController
                 'deleted_by' => $currentUserId,
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'delete', 'user', (string)$id, null, null, [
+                'name' => $user['name'] ?? null,
+                'email' => $user['email'] ?? null,
+                'role' => $user['role'] ?? null,
+            ]);
+
             Response::success(['message' => 'User deleted successfully']);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to delete user', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),
@@ -595,7 +630,8 @@ class UsersController
             header('Cache-Control: public, max-age=3600');
             exit;
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get user avatar', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),
@@ -643,7 +679,8 @@ class UsersController
                 'count' => count($entries),
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get user queue entries', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),
@@ -691,7 +728,8 @@ class UsersController
                 'count' => count($appointments),
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get user appointments', [
                 'user_id' => $id,
                 'error' => $e->getMessage(),

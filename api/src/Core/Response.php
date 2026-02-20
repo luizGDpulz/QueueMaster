@@ -22,18 +22,18 @@ class Response
     {
         http_response_code($statusCode);
         header('Content-Type: application/json');
-        
+
         $response = [
             'success' => true,
             'data' => $data,
         ];
-        
+
         if (!empty($meta)) {
             $response['meta'] = $meta;
         }
-        
+
         echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        exit;
+        return;
     }
 
     /**
@@ -51,30 +51,31 @@ class Response
         int $statusCode = 400,
         ?string $requestId = null,
         array $details = []
-    ): void {
+        ): void
+    {
         http_response_code($statusCode);
         header('Content-Type: application/json');
-        
+
         $error = [
             'code' => $code,
             'message' => $message,
         ];
-        
+
         if ($requestId) {
             $error['request_id'] = $requestId;
         }
-        
+
         if (!empty($details)) {
             $error['details'] = $details;
         }
-        
+
         $response = [
             'success' => false,
             'error' => $error,
         ];
-        
+
         echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        exit;
+        return;
     }
 
     /**
@@ -87,7 +88,7 @@ class Response
             'The request data is invalid',
             422,
             $requestId,
-            ['validation_errors' => $errors]
+        ['validation_errors' => $errors]
         );
     }
 
@@ -140,7 +141,8 @@ class Response
     public static function serverError(
         string $message = 'Internal server error',
         ?string $requestId = null
-    ): void {
+        ): void
+    {
         self::error('INTERNAL_ERROR', $message, 500, $requestId);
     }
 
@@ -166,7 +168,7 @@ class Response
     public static function noContent(): void
     {
         http_response_code(204);
-        exit;
+        return;
     }
 
     /**
@@ -196,35 +198,54 @@ class Response
      * @param bool $applyStrictCsp Whether to apply strict CSP (false for Swagger/HTML)
      */
     public static function setCorsHeaders(
-        array|string $allowedOrigins = '*',
+        array |string $allowedOrigins = '*',
         array $allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         array $allowedHeaders = ['Content-Type', 'Authorization', 'Idempotency-Key'],
         bool $applyStrictCsp = true
-    ): void {
+        ): void
+    {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-        
-        if (is_array($allowedOrigins)) {
-            if (in_array($origin, $allowedOrigins)) {
-                header("Access-Control-Allow-Origin: $origin");
-                header('Vary: Origin');
+
+        // Resolve allowed origins from env if not explicitly passed
+        if ($allowedOrigins === '*') {
+            $envOrigins = $_ENV['CORS_ORIGINS'] ?? '';
+            if (!empty($envOrigins) && $envOrigins !== '*') {
+                $allowedOrigins = array_map('trim', explode(',', $envOrigins));
             }
-        } elseif ($allowedOrigins === '*') {
-            // With credentials, we can't use wildcard - must echo the origin
-            if ($origin) {
-                header("Access-Control-Allow-Origin: $origin");
-                header('Vary: Origin');
-            } else {
-                header("Access-Control-Allow-Origin: *");
-            }
-        } else {
-            header("Access-Control-Allow-Origin: $allowedOrigins");
         }
-        
+
+        if (is_array($allowedOrigins)) {
+            // Whitelist mode: only allow configured origins
+            if ($origin && in_array($origin, $allowedOrigins)) {
+                header("Access-Control-Allow-Origin: $origin");
+                header('Vary: Origin');
+                header('Access-Control-Allow-Credentials: true');
+            }
+        // If origin not in whitelist, do NOT set Access-Control-Allow-Origin
+        }
+        elseif ($allowedOrigins === '*') {
+            // Wildcard mode: only safe without credentials
+            // In dev mode, echo origin for convenience; in production, use wildcard without credentials
+            $isDev = ($_ENV['APP_ENV'] ?? 'production') === 'development';
+            if ($isDev && $origin) {
+                header("Access-Control-Allow-Origin: $origin");
+                header('Vary: Origin');
+                header('Access-Control-Allow-Credentials: true');
+            }
+            else {
+                header("Access-Control-Allow-Origin: *");
+            // Note: credentials NOT allowed with wildcard origin (per CORS spec)
+            }
+        }
+        else {
+            header("Access-Control-Allow-Origin: $allowedOrigins");
+            header('Access-Control-Allow-Credentials: true');
+        }
+
         header('Access-Control-Allow-Methods: ' . implode(', ', $allowedMethods));
         header('Access-Control-Allow-Headers: ' . implode(', ', $allowedHeaders));
-        header('Access-Control-Allow-Credentials: true');
         header('Access-Control-Max-Age: 86400'); // 24 hours
-        
+
         // Security headers
         self::setSecurityHeaders($applyStrictCsp);
     }
@@ -238,24 +259,24 @@ class Response
     {
         // Prevent MIME type sniffing
         header('X-Content-Type-Options: nosniff');
-        
+
         // Prevent clickjacking
         header('X-Frame-Options: DENY');
-        
+
         // Enable XSS filter in browsers
         header('X-XSS-Protection: 1; mode=block');
-        
+
         // Referrer policy - don't leak internal URLs
         header('Referrer-Policy: strict-origin-when-cross-origin');
-        
+
         // Content Security Policy - only for API endpoints, not for Swagger/HTML pages
         if ($isApi) {
             header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
         }
-        
+
         // Permissions Policy - disable unnecessary features
         header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
-        
+
         // In production, enforce HTTPS
         if (($_ENV['APP_ENV'] ?? 'production') === 'production') {
             header('Strict-Transport-Security: max-age=31536000; includeSubDomains');

@@ -29,9 +29,9 @@ class Logger
         if ($path === null) {
             $path = $_ENV['LOG_PATH'] ?? __DIR__ . '/../../logs';
         }
-        
+
         self::$logPath = rtrim($path, '/');
-        
+
         // Create log directory if it doesn't exist
         if (!is_dir(self::$logPath)) {
             mkdir(self::$logPath, 0755, true);
@@ -112,10 +112,14 @@ class Logger
         $sanitized = [];
 
         foreach ($context as $key => $value) {
-            // Check if key contains secret pattern
+            // Check if key IS a secret (exact match or word boundary)
+            // Matches: "password", "token", "api_key", "current_password"
+            // Does NOT match: "password_length", "token_count", "has_password_hash"
             $isSecret = false;
             foreach (self::$secretPatterns as $pattern) {
-                if (stripos($key, $pattern) !== false) {
+                // Match if the key equals the pattern OR ends with the pattern (e.g., "current_password")
+                // but NOT if the pattern is a prefix followed by more descriptor words (e.g., "password_length")
+                if ($key === $pattern || preg_match('/(?:^|_)' . preg_quote($pattern, '/') . '$/', $key)) {
                     $isSecret = true;
                     break;
                 }
@@ -123,9 +127,11 @@ class Logger
 
             if ($isSecret) {
                 $sanitized[$key] = '[REDACTED]';
-            } elseif (is_array($value)) {
+            }
+            elseif (is_array($value)) {
                 $sanitized[$key] = self::sanitizeContext($value);
-            } else {
+            }
+            else {
                 $sanitized[$key] = $value;
             }
         }
@@ -142,7 +148,8 @@ class Logger
         int $statusCode,
         float $duration,
         ?string $requestId = null
-    ): void {
+        ): void
+    {
         self::info('HTTP Request', [
             'method' => $method,
             'path' => $path,
@@ -158,7 +165,8 @@ class Logger
         string $event,
         array $details = [],
         ?string $requestId = null
-    ): void {
+        ): void
+    {
         self::warning("Security: $event", $details, $requestId);
     }
 }

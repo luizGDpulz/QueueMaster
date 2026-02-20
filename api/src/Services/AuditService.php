@@ -24,10 +24,11 @@ class AuditService
         ?int $establishmentId = null,
         ?int $businessId = null,
         ?array $payload = null,
-        ?string $ip = null
+        ?string $ip = null,
+        ?string $userAgent = null
     ): void {
         try {
-            AuditLog::log($userId, $action, $entity, $entityId, $establishmentId, $businessId, $payload, $ip);
+            AuditLog::log($userId, $action, $entity, $entityId, $establishmentId, $businessId, $payload, $ip, $userAgent);
         } catch (\Exception $e) {
             // Audit logging should never break the main flow
             error_log('AuditService error [' . $action . ' ' . ($entity ?? '') . ']: ' . $e->getMessage());
@@ -35,7 +36,7 @@ class AuditService
     }
 
     /**
-     * Log from a request context (auto-extracts user ID and IP)
+     * Log from a request context (auto-extracts user ID, IP and User-Agent)
      */
     public static function logFromRequest(
         Request $request,
@@ -48,7 +49,8 @@ class AuditService
     ): void {
         $userId = $request->user ? (int)$request->user['id'] : null;
         $ip = $request->getIp();
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
 
-        self::log($userId, $action, $entity, $entityId, $establishmentId, $businessId, $payload, $ip);
+        self::log($userId, $action, $entity, $entityId, $establishmentId, $businessId, $payload, $ip, $userAgent);
     }
 }

@@ -4,7 +4,6 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">Negócios</h1>
-        <p class="page-subtitle">Gerencie seus negócios e estabelecimentos</p>
       </div>
       <div class="header-right">
         <q-btn
@@ -14,6 +13,9 @@
           no-caps
           @click="openCreateDialog"
         />
+      </div>
+      <div class="header-bottom">
+        <p class="page-subtitle">Gerencie seus negócios e estabelecimentos</p>
       </div>
     </div>
 
@@ -59,6 +61,7 @@
               <th class="th-role">Seu Papel</th>
               <th class="th-status">Status</th>
               <th class="th-created">Criado em</th>
+              <th class="th-actions"></th>
             </tr>
           </thead>
           <tbody>
@@ -79,6 +82,13 @@
                 <q-badge :color="business.is_active ? 'positive' : 'negative'" :label="business.is_active ? 'Ativo' : 'Inativo'" />
               </td>
               <td class="td-date">{{ formatDate(business.created_at) }}</td>
+              <td>
+                <div class="row-actions">
+                  <q-btn flat round dense icon="edit" size="sm" @click.stop="editBusiness(business)">
+                    <q-tooltip>Editar</q-tooltip>
+                  </q-btn>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -278,16 +288,35 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .businesses-page {
-  padding: 0 1.5rem 2rem;
+  padding: 0 1.5rem 1.5rem;
 }
 
+// Header
 .page-header {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
-  gap: 1rem;
+  column-gap: 1rem;
+  row-gap: 0.25rem;
+}
+
+.header-left {
+  flex: 1;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.header-bottom {
+  flex-basis: 100%;
 }
 
 .page-title {
@@ -300,21 +329,21 @@ export default defineComponent({
 .page-subtitle {
   font-size: 0.875rem;
   color: var(--qm-text-muted);
-  margin: 0.25rem 0 0;
+  margin: 0;
 }
 
-.soft-card {
-  background: var(--qm-surface);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: var(--qm-shadow);
+// Table Card
+.table-card {
+  padding: 0;
+  overflow: hidden;
 }
 
 .table-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--qm-border);
   flex-wrap: wrap;
   gap: 1rem;
 }
@@ -327,21 +356,37 @@ export default defineComponent({
 }
 
 .search-input {
-  width: 220px;
+  width: 250px;
+
+  @media (max-width: 600px) {
+    width: 100%;
+  }
 }
 
+// Loading & Empty States
 .loading-state,
 .empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
   color: var(--qm-text-muted);
+  text-align: center;
+
+  h3 {
+    margin: 1rem 0 0.5rem;
+    font-size: 1.125rem;
+    color: var(--qm-text-primary);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+  }
 }
 
-.empty-state h3 {
-  margin: 1rem 0 0.5rem;
-  color: var(--qm-text-secondary);
-}
-
+// Table
 .table-container {
   overflow-x: auto;
 }
@@ -351,31 +396,57 @@ export default defineComponent({
   border-collapse: collapse;
 
   th, td {
-    padding: 0.75rem 1rem;
+    padding: 0.875rem 1.5rem;
     text-align: left;
-    border-bottom: 1px solid var(--qm-border);
   }
 
-  th {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--qm-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+  thead {
+    tr {
+      background: var(--qm-bg-secondary);
+    }
+
+    th {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--qm-text-muted);
+      border-bottom: 1px solid var(--qm-border);
+    }
   }
 
-  td {
-    font-size: 0.875rem;
-    color: var(--qm-text-primary);
-  }
+  tbody {
+    tr {
+      border-bottom: 1px solid var(--qm-border);
+      transition: background 0.2s ease;
 
-  tbody tr:hover {
-    background: var(--qm-bg-tertiary);
-  }
+      &:last-child {
+        border-bottom: none;
+      }
 
-  tbody tr.clickable-row {
-    cursor: pointer;
+      &:hover {
+        background: var(--qm-bg-secondary);
+      }
+    }
+
+    td {
+      font-size: 0.875rem;
+      color: var(--qm-text-primary);
+    }
   }
+}
+
+tbody tr.clickable-row {
+  cursor: pointer;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.th-actions {
+  width: 80px;
 }
 
 .business-info {

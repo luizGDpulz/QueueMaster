@@ -11,6 +11,7 @@ use QueueMaster\Models\Establishment;
 use QueueMaster\Models\EstablishmentUser;
 use QueueMaster\Models\Service;
 use QueueMaster\Models\Professional;
+use QueueMaster\Services\AuditService;
 
 /**
  * EstablishmentController - Establishment Management Endpoints
@@ -35,7 +36,8 @@ class EstablishmentController
                 'total' => count($establishments),
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list establishments', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -64,7 +66,8 @@ class EstablishmentController
                 'establishment' => $establishment,
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get establishment', [
                 'establishment_id' => $id,
                 'error' => $e->getMessage(),
@@ -98,7 +101,8 @@ class EstablishmentController
                 'total' => count($services),
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get establishment services', [
                 'establishment_id' => $id,
                 'error' => $e->getMessage(),
@@ -132,7 +136,8 @@ class EstablishmentController
                 'total' => count($professionals),
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get establishment professionals', [
                 'establishment_id' => $id,
                 'error' => $e->getMessage(),
@@ -215,14 +220,24 @@ class EstablishmentController
                 'created_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'create', 'establishment', (string)$establishmentId, null, $businessId, [
+                'name' => $establishmentData['name'] ?? null,
+                'business_id' => $businessId,
+                'address' => $establishmentData['address'] ?? null,
+                'phone' => $establishmentData['phone'] ?? null,
+                'timezone' => $establishmentData['timezone'] ?? null,
+            ]);
+
             Response::created([
                 'establishment' => $establishment,
                 'message' => 'Establishment created successfully',
             ]);
 
-        } catch (\InvalidArgumentException $e) {
+        }
+        catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to create establishment', [
                 'data' => $data,
                 'error' => $e->getMessage(),
@@ -313,12 +328,22 @@ class EstablishmentController
                 'updated_by' => $request->user['id'],
             ], $request->requestId);
 
+            $changes = [];
+            foreach ($updateData as $field => $newValue) {
+                $changes[$field] = ['from' => $establishment[$field] ?? null, 'to' => $newValue];
+            }
+            AuditService::logFromRequest($request, 'update', 'establishment', (string)$id, $id, $establishment['business_id'] ?? null, [
+                'entity_name' => $establishment['name'] ?? null,
+                'changes' => $changes,
+            ]);
+
             Response::success([
                 'establishment' => $updatedEstablishment,
                 'message' => 'Establishment updated successfully',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to update establishment', [
                 'establishment_id' => $id,
                 'error' => $e->getMessage(),
@@ -356,7 +381,8 @@ class EstablishmentController
                     Response::forbidden('You do not have access to this establishment', $request->requestId);
                     return;
                 }
-            } elseif ($userRole !== 'admin') {
+            }
+            elseif ($userRole !== 'admin') {
                 Response::forbidden('Insufficient permissions', $request->requestId);
                 return;
             }
@@ -368,9 +394,16 @@ class EstablishmentController
                 'deleted_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'delete', 'establishment', (string)$id, $id, $establishment['business_id'] ?? null, [
+                'name' => $establishment['name'] ?? null,
+                'business_id' => $establishment['business_id'] ?? null,
+                'address' => $establishment['address'] ?? null,
+            ]);
+
             Response::success(['message' => 'Establishment deleted successfully']);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to delete establishment', [
                 'establishment_id' => $id,
                 'error' => $e->getMessage(),

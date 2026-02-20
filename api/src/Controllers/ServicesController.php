@@ -8,6 +8,7 @@ use QueueMaster\Utils\Logger;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Models\Service;
 use QueueMaster\Models\Establishment;
+use QueueMaster\Services\AuditService;
 
 /**
  * ServicesController - Service Management Endpoints
@@ -149,6 +150,10 @@ class ServicesController
                 'created_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'create', 'service', (string)$serviceId, (int)$data['establishment_id'], null, [
+                'name' => $serviceData['name'] ?? null,
+            ]);
+
             Response::created([
                 'service' => $service,
                 'message' => 'Service created successfully',
@@ -242,6 +247,10 @@ class ServicesController
                 'updated_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'update', 'service', (string)$id, $service['establishment_id'] ?? null, null, [
+                'updated_fields' => array_keys($updateData),
+            ]);
+
             Response::success([
                 'service' => $updatedService,
                 'message' => 'Service updated successfully',
@@ -284,6 +293,10 @@ class ServicesController
                 'service_id' => $id,
                 'deleted_by' => $request->user['id'],
             ], $request->requestId);
+
+            AuditService::logFromRequest($request, 'delete', 'service', (string)$id, $service['establishment_id'] ?? null, null, [
+                'name' => $service['name'] ?? null,
+            ]);
 
             Response::success(['message' => 'Service deleted successfully']);
 

@@ -2,14 +2,14 @@
 
 namespace QueueMaster\Models;
 
-use QueueMaster\Builders\QueryBuilder;
+use QueueMaster\Core\Database;
 
 /**
  * AuditLog Model - Tracks critical actions for observability
  * 
  * Logs create/update/delete operations on businesses, establishments,
  * subscriptions, queue operations, etc.
- * Can be filtered by establishment or business for manager dashboards.
+ * Supports advanced filtering, pagination, and date-range queries.
  */
 class AuditLog
 {
@@ -21,10 +21,10 @@ class AuditLog
      */
     public static function find(int $id): ?array
     {
-        $qb = new QueryBuilder();
-        return $qb->select(self::$table)
-            ->where(self::$primaryKey, '=', $id)
-            ->first();
+        $db = Database::getInstance();
+        $sql = "SELECT * FROM " . self::$table . " WHERE id = ? LIMIT 1";
+        $results = $db->query($sql, [$id]);
+        return $results[0] ?? null;
     }
 
     /**
@@ -38,24 +38,183 @@ class AuditLog
         ?int $establishmentId = null,
         ?int $businessId = null,
         ?array $payload = null,
-        ?string $ip = null
+        ?string $ip = null,
+        ?string $userAgent = null
     ): int {
-        $qb = new QueryBuilder();
-        $qb->select(self::$table);
-        return $qb->insert([
-            'user_id' => $userId,
-            'action' => $action,
-            'entity' => $entity,
-            'entity_id' => $entityId !== null ? (string)$entityId : null,
-            'establishment_id' => $establishmentId,
-            'business_id' => $businessId,
-            'payload' => $payload !== null ? json_encode($payload) : null,
-            'ip' => $ip,
+        $db = Database::getInstance();
+        $sql = "INSERT INTO " . self::$table
+            . " (user_id, action, entity, entity_id, establishment_id, business_id, payload, ip, user_agent)"
+            . " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        $db->execute($sql, [
+            $userId,
+            $action,
+            $entity,
+            $entityId !== null ? (string)$entityId : null,
+            $establishmentId,
+            $businessId,
+            $payload !== null ? json_encode($payload) : null,
+            $ip,
+            $userAgent,
         ]);
+
+        return (int)$db->lastInsertId();
     }
 
     /**
-     * Get all records with optional filters
+     * Paginated search with advanced filters
+     *
+     * Supported filters (all optional):
+     *   business_id, establishment_id, user_id, action, entity,
+     *   date_from (Y-m-d), date_to (Y-m-d), search (free-text on action/entity/entity_id)
+     *
+     * @return array{logs: array, total: int, page: int, per_page: int, total_pages: int}
+     */
+    public static function search(array $filters = [], int $page = 1, int $perPage = 25): array
+    {
+        $db = Database::getInstance();
+
+        $where = [];
+        $bindings = [];
+
+        // Exact-match filters
+        if (!empty($filters['business_id'])) {
+            $where[] = 'al.business_id = ?';
+            $bindings[] = (int)$filters['business_id'];
+        }
+        if (!empty($filters['establishment_id'])) {
+            $where[] = 'al.establishment_id = ?';
+            $bindings[] = (int)$filters['establishment_id'];
+        }
+        if (!empty($filters['user_id'])) {
+            $where[] = 'al.user_id = ?';
+            $bindings[] = (int)$filters['user_id'];
+        }
+        if (!empty($filters['action'])) {
+            $where[] = 'al.action = ?';
+            $bindings[] = $filters['action'];
+        }
+        if (!empty($filters['entity'])) {
+            $where[] = 'al.entity = ?';
+            $bindings[] = $filters['entity'];
+        }
+
+        // Date range filters
+        if (!empty($filters['date_from'])) {
+            $where[] = 'al.created_at >= ?';
+            $bindings[] = $filters['date_from'] . ' 00:00:00';
+        }
+        if (!empty($filters['date_to'])) {
+            $where[] = 'al.created_at <= ?';
+            $bindings[] = $filters['date_to'] . ' 23:59:59';
+        }
+
+        // Free-text search
+        if (!empty($filters['search'])) {
+            $searchTerm = '%' . $filters['search'] . '%';
+            $where[] = '(al.action LIKE ? OR al.entity LIKE ? OR al.entity_id LIKE ? OR u.name LIKE ? OR u.email LIKE ?)';
+            $bindings[] = $searchTerm;
+            $bindings[] = $searchTerm;
+            $bindings[] = $searchTerm;
+            $bindings[] = $searchTerm;
+            $bindings[] = $searchTerm;
+        }
+
+        // Multi-business filter (for managers with multiple businesses)
+        if (!empty($filters['business_ids']) && is_array($filters['business_ids'])) {
+            $placeholders = implode(',', array_fill(0, count($filters['business_ids']), '?'));
+            $where[] = "al.business_id IN ($placeholders)";
+            foreach ($filters['business_ids'] as $bid) {
+                $bindings[] = (int)$bid;
+            }
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        // Count total
+        $countSql = "SELECT COUNT(*) as total FROM " . self::$table . " al"
+            . " LEFT JOIN users u ON u.id = al.user_id"
+            . " $whereClause";
+        $countResult = $db->query($countSql, $bindings);
+        $total = (int)($countResult[0]['total'] ?? 0);
+
+        // Pagination
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $totalPages = $total > 0 ? (int)ceil($total / $perPage) : 1;
+        $offset = ($page - 1) * $perPage;
+
+        // Fetch logs with user info
+        $sql = "SELECT al.*, u.name AS user_name, u.email AS user_email, u.avatar_url AS user_avatar"
+            . " FROM " . self::$table . " al"
+            . " LEFT JOIN users u ON u.id = al.user_id"
+            . " $whereClause"
+            . " ORDER BY al.created_at DESC"
+            . " LIMIT $perPage OFFSET $offset";
+
+        $logs = $db->query($sql, $bindings);
+
+        // Decode JSON payload
+        foreach ($logs as &$log) {
+            if (!empty($log['payload']) && is_string($log['payload'])) {
+                $decoded = json_decode($log['payload'], true);
+                $log['payload'] = $decoded !== null ? $decoded : $log['payload'];
+            }
+        }
+
+        return [
+            'logs' => $logs,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => $totalPages,
+        ];
+    }
+
+    /**
+     * Get distinct action values for filter dropdowns
+     */
+    public static function getDistinctActions(?array $businessIds = null): array
+    {
+        $db = Database::getInstance();
+        $bindings = [];
+
+        $sql = "SELECT DISTINCT action FROM " . self::$table;
+
+        if (!empty($businessIds)) {
+            $placeholders = implode(',', array_fill(0, count($businessIds), '?'));
+            $sql .= " WHERE business_id IN ($placeholders)";
+            $bindings = array_map('intval', $businessIds);
+        }
+
+        $sql .= " ORDER BY action ASC";
+        $results = $db->query($sql, $bindings);
+        return array_column($results, 'action');
+    }
+
+    /**
+     * Get distinct entity values for filter dropdowns
+     */
+    public static function getDistinctEntities(?array $businessIds = null): array
+    {
+        $db = Database::getInstance();
+        $bindings = [];
+
+        $sql = "SELECT DISTINCT entity FROM " . self::$table . " WHERE entity IS NOT NULL";
+
+        if (!empty($businessIds)) {
+            $placeholders = implode(',', array_fill(0, count($businessIds), '?'));
+            $sql .= " AND business_id IN ($placeholders)";
+            $bindings = array_map('intval', $businessIds);
+        }
+
+        $sql .= " ORDER BY entity ASC";
+        $results = $db->query($sql, $bindings);
+        return array_column($results, 'entity');
+    }
+
+    /**
+     * Get all records with optional filters (backward compat)
      */
     public static function all(
         array $conditions = [],
@@ -63,22 +222,25 @@ class AuditLog
         string $direction = 'DESC',
         ?int $limit = 50
     ): array {
-        $qb = new QueryBuilder();
-        $qb->select(self::$table);
+        $db = Database::getInstance();
+        $where = [];
+        $bindings = [];
 
         foreach ($conditions as $column => $value) {
-            $qb->where($column, '=', $value);
+            $where[] = "$column = ?";
+            $bindings[] = $value;
         }
 
-        if (!empty($orderBy)) {
-            $qb->orderBy($orderBy, $direction);
-        }
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+        $direction = strtoupper($direction) === 'DESC' ? 'DESC' : 'ASC';
+
+        $sql = "SELECT * FROM " . self::$table . " $whereClause ORDER BY $orderBy $direction";
 
         if ($limit !== null) {
-            $qb->limit($limit);
+            $sql .= " LIMIT $limit";
         }
 
-        return $qb->get();
+        return $db->query($sql, $bindings);
     }
 
     /**

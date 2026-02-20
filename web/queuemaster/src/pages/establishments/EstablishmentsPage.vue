@@ -4,7 +4,6 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">Estabelecimentos</h1>
-        <p class="page-subtitle">Gerencie todos os estabelecimentos e seus serviços</p>
       </div>
       <div class="header-right">
         <q-btn
@@ -15,6 +14,9 @@
           no-caps
           @click="openCreateDialog"
         />
+      </div>
+      <div class="header-bottom">
+        <p class="page-subtitle">Gerencie todos os estabelecimentos e seus serviços</p>
       </div>
     </div>
 
@@ -61,6 +63,7 @@
               <th class="th-phone">Telefone</th>
               <th class="th-timezone">Timezone</th>
               <th class="th-created">Criado em</th>
+              <th v-if="canManage" class="th-actions"></th>
             </tr>
           </thead>
           <tbody>
@@ -89,6 +92,16 @@
               </td>
               <td>
                 <span class="date-text">{{ formatDate(establishment.created_at) }}</span>
+              </td>
+              <td v-if="canManage">
+                <div class="row-actions">
+                  <q-btn flat round dense icon="edit" size="sm" @click.stop="editEstablishment(establishment)">
+                    <q-tooltip>Editar</q-tooltip>
+                  </q-btn>
+                  <q-btn flat round dense icon="delete" size="sm" color="negative" @click.stop="confirmDelete(establishment)">
+                    <q-tooltip>Excluir</q-tooltip>
+                  </q-btn>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -208,6 +221,25 @@
       </q-card>
     </q-dialog>
 
+    <!-- Delete Confirmation Dialog -->
+    <q-dialog v-model="showDeleteDialog">
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-header">
+          <h3>Confirmar Exclusão</h3>
+        </q-card-section>
+
+        <q-card-section class="dialog-content">
+          <p>Tem certeza que deseja excluir o estabelecimento <strong>{{ selectedEstablishment?.name }}</strong>?</p>
+          <p class="delete-warning">Esta ação não pode ser desfeita.</p>
+        </q-card-section>
+
+        <q-card-actions align="right" class="dialog-actions">
+          <q-btn flat label="Cancelar" no-caps @click="showDeleteDialog = false" />
+          <q-btn color="negative" label="Excluir" no-caps :loading="deleting" @click="deleteEstablishment" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
@@ -219,7 +251,6 @@ import { useQuasar } from 'quasar'
 
 export default defineComponent({
   name: 'EstablishmentsPage',
-
   setup() {
     const $q = useQuasar()
     const router = useRouter()
@@ -229,11 +260,14 @@ export default defineComponent({
     const businesses = ref([])
     const loading = ref(true)
     const saving = ref(false)
+    const deleting = ref(false)
+
     const searchQuery = ref('')
     const userRole = ref(null)
 
     // Establishment Dialogs
     const showDialog = ref(false)
+    const showDeleteDialog = ref(false)
     const isEditing = ref(false)
     const selectedEstablishment = ref(null)
 
@@ -373,6 +407,44 @@ export default defineComponent({
       }
     }
 
+    const editEstablishment = (establishment) => {
+      isEditing.value = true
+      selectedEstablishment.value = establishment
+      form.value = {
+        business_id: establishment.business_id || null,
+        name: establishment.name || '',
+        slug: establishment.slug || '',
+        description: establishment.description || '',
+        address: establishment.address || '',
+        phone: establishment.phone || '',
+        email: establishment.email || '',
+        timezone: establishment.timezone || 'America/Sao_Paulo',
+        opens_at: establishment.opens_at || '',
+        closes_at: establishment.closes_at || ''
+      }
+      showDialog.value = true
+    }
+
+    const confirmDelete = (establishment) => {
+      selectedEstablishment.value = establishment
+      showDeleteDialog.value = true
+    }
+
+    const deleteEstablishment = async () => {
+      deleting.value = true
+      try {
+        await api.delete(`/establishments/${selectedEstablishment.value.id}`)
+        $q.notify({ type: 'positive', message: 'Estabelecimento excluído com sucesso' })
+        showDeleteDialog.value = false
+        fetchEstablishments()
+      } catch (err) {
+        const msg = err.response?.data?.error?.message || 'Erro ao excluir'
+        $q.notify({ type: 'negative', message: msg })
+      } finally {
+        deleting.value = false
+      }
+    }
+
     const formatDate = (dateString) => {
       if (!dateString) return '-'
       return new Date(dateString).toLocaleDateString('pt-BR')
@@ -392,8 +464,10 @@ export default defineComponent({
       businesses,
       loading,
       saving,
+      deleting,
       searchQuery,
       showDialog,
+      showDeleteDialog,
       isEditing,
       selectedEstablishment,
       form,
@@ -402,6 +476,9 @@ export default defineComponent({
       businessOptions,
       filteredEstablishments,
       openCreateDialog,
+      editEstablishment,
+      confirmDelete,
+      deleteEstablishment,
       closeDialog,
       saveEstablishment,
       formatDate,
@@ -423,18 +500,32 @@ export default defineComponent({
   align-items: center;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
-  gap: 1rem;
+  column-gap: 1rem;
+  row-gap: 0.25rem;
 }
 
 .header-left {
   flex: 1;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.header-bottom {
+  flex-basis: 100%;
 }
 
 .page-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--qm-text-primary);
-  margin: 0 0 0.25rem;
+  margin: 0;
 }
 
 .page-subtitle {
@@ -552,9 +643,15 @@ export default defineComponent({
 .th-phone { min-width: 120px; }
 .th-timezone { min-width: 150px; }
 .th-created { min-width: 100px; }
+.th-actions { width: 100px; }
 
 tr.clickable-row {
   cursor: pointer;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.25rem;
 }
 
 // Establishment Info Cell
@@ -643,5 +740,11 @@ tr.clickable-row {
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--qm-border);
   gap: 0.5rem;
+}
+
+.delete-warning {
+  color: var(--qm-error);
+  font-size: 0.8125rem;
+  margin-top: 0.5rem;
 }
 </style>

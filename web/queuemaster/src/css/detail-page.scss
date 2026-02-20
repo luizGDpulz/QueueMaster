@@ -2,22 +2,35 @@
 // Imported by all detail pages for consistent look
 
 .detail-page {
-  padding: 0 1.5rem 2rem;
+  padding: 0 1.5rem 1.5rem;
 }
 
 .page-header {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
-  gap: 1rem;
+  column-gap: 1rem;
+  row-gap: 0.25rem;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex: 1;
+  min-height: 40px;
+}
+
+.header-right {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.header-bottom {
+  flex-basis: 100%;
 }
 
 .back-btn {
@@ -29,6 +42,19 @@
   font-weight: 700;
   color: var(--qm-text-primary);
   margin: 0;
+  animation: slideInTitle 0.35s ease-out;
+}
+
+@keyframes slideInTitle {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .page-subtitle {

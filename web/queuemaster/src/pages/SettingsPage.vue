@@ -19,8 +19,6 @@
         <q-tab name="profile" icon="person" label="Perfil" no-caps />
         <q-tab name="appearance" icon="palette" label="Aparência" no-caps />
         <q-tab name="notifications" icon="notifications" label="Notificações" no-caps />
-        <q-tab v-if="isAdmin" name="users" icon="group" label="Usuários" no-caps />
-        <q-tab v-if="isAdmin" name="developer" icon="code" label="Developer" no-caps />
       </q-tabs>
 
       <q-separator style="margin-top: 10px;"/>
@@ -223,234 +221,17 @@
           </div>
         </q-tab-panel>
 
-        <!-- Tab: Usuários (Admin) -->
-        <q-tab-panel v-if="isAdmin" name="users" class="tab-panel">
-          <div class="panel-header">
-            <div class="panel-header-left">
-              <h3>Gerenciamento de Usuários</h3>
-              <p>Administre os usuários do sistema</p>
-            </div>
-          </div>
 
-          <!-- Users Table -->
-          <div class="users-table-container">
-            <div v-if="loadingUsers" class="loading-state">
-              <q-spinner-dots color="primary" size="40px" />
-              <p>Carregando usuários...</p>
-            </div>
-
-            <div v-else-if="users.length === 0" class="empty-state">
-              <q-icon name="group" size="48px" />
-              <p>Nenhum usuário encontrado</p>
-            </div>
-
-            <table v-else class="users-table">
-              <thead>
-                <tr>
-                  <th>Usuário</th>
-                  <th>Função</th>
-                  <th>Criado em</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="u in users" :key="u.id">
-                  <td>
-                    <div class="user-cell">
-                      <q-avatar size="32px" class="user-avatar">
-                        <img v-if="u.avatar_url" :src="u.avatar_url" />
-                        <q-icon v-else name="person" size="16px" />
-                      </q-avatar>
-                      <div class="user-info">
-                        <span class="user-name">{{ u.name }}</span>
-                        <span class="user-email">{{ u.email }}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <q-badge :color="getRoleColor(u.role)">{{ getRoleLabel(u.role) }}</q-badge>
-                  </td>
-                  <td class="date-cell">{{ formatDate(u.created_at) }}</td>
-                  <td>
-                    <div class="row-actions">
-                      <q-btn flat round dense icon="edit" size="sm" @click="editUser(u)">
-                        <q-tooltip>Editar</q-tooltip>
-                      </q-btn>
-                      <q-btn 
-                        v-if="u.id !== user?.id" 
-                        flat round dense icon="delete" size="sm" color="negative" 
-                        @click="confirmDeleteUser(u)"
-                      >
-                        <q-tooltip>Excluir</q-tooltip>
-                      </q-btn>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </q-tab-panel>
-
-        <!-- Tab: Developer (Admin) -->
-        <q-tab-panel v-if="isAdmin" name="developer" class="tab-panel">
-          <div class="panel-header">
-            <h3>Developer Tools</h3>
-            <p>Ferramentas de desenvolvimento e depuração</p>
-          </div>
-
-          <div class="dev-warning">
-            <q-icon name="warning" size="20px" />
-            <span>Tokens não ficam expostos no browser. Use o botão abaixo para gerar um token temporário para o Swagger.</span>
-          </div>
-
-          <div class="token-section">
-            <div class="token-header">
-              <h4>Token para Swagger</h4>
-              <p>Gera um token JWT de curta duração (5 min) para uso no Swagger UI</p>
-            </div>
-
-            <div v-if="!devToken" class="generate-token-area">
-              <q-btn
-                color="primary"
-                icon="vpn_key"
-                label="Gerar Token para Swagger"
-                no-caps
-                :loading="generatingToken"
-                @click="generateDevToken"
-              />
-            </div>
-
-            <div v-else class="token-field">
-              <q-input
-                v-model="devToken"
-                readonly
-                outlined
-                dense
-                type="textarea"
-                :rows="3"
-                class="token-input"
-              >
-                <template v-slot:append>
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    icon="content_copy"
-                    @click="copyToken"
-                    :color="copiedAccess ? 'positive' : 'primary'"
-                  >
-                    <q-tooltip>{{ copiedAccess ? 'Copiado!' : 'Copiar' }}</q-tooltip>
-                  </q-btn>
-                </template>
-              </q-input>
-              <p class="token-expiry">
-                <q-icon name="schedule" size="14px" />
-                Expira em 5 minutos. Gere outro se necessário.
-              </p>
-              <q-btn
-                flat
-                color="primary"
-                icon="refresh"
-                label="Gerar novo"
-                no-caps
-                size="sm"
-                class="q-mt-sm"
-                :loading="generatingToken"
-                @click="generateDevToken"
-              />
-            </div>
-          </div>
-
-          <q-separator class="q-my-md" />
-
-          <q-btn
-            outline
-            color="primary"
-            icon="open_in_new"
-            label="Abrir Swagger UI"
-            @click="openSwagger"
-            no-caps
-          />
-        </q-tab-panel>
       </q-tab-panels>
     </div>
 
-    <!-- User Edit Dialog -->
-    <q-dialog v-model="showUserDialog" persistent>
-      <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>Editar Usuário</h3>
-          <q-btn flat round dense icon="close" @click="closeUserDialog" />
-        </q-card-section>
-
-        <q-card-section class="dialog-content">
-          <q-input
-            v-model="userForm.name"
-            label="Nome"
-            outlined
-            dense
-          />
-          <q-input
-            v-model="userForm.email"
-            label="E-mail"
-            outlined
-            dense
-            type="email"
-            class="q-mt-md"
-            disable
-            hint="E-mail vinculado ao Google"
-          />
-          <q-select
-            v-model="userForm.role"
-            label="Função *"
-            outlined
-            dense
-            :options="roleOptions"
-            emit-value
-            map-options
-            class="q-mt-md"
-          />
-        </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Cancelar" no-caps @click="closeUserDialog" />
-          <q-btn 
-            color="primary" 
-            label="Salvar" 
-            no-caps 
-            :loading="savingUser"
-            @click="saveUser" 
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Delete User Confirmation Dialog -->
-    <q-dialog v-model="showDeleteUserDialog">
-      <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>Confirmar Exclusão</h3>
-        </q-card-section>
-
-        <q-card-section class="dialog-content">
-          <p>Tem certeza que deseja excluir o usuário <strong>{{ selectedUser?.name }}</strong>?</p>
-          <p class="delete-warning">Esta ação não pode ser desfeita.</p>
-        </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Cancelar" no-caps @click="showDeleteUserDialog = false" />
-          <q-btn color="negative" label="Excluir" no-caps :loading="deletingUser" @click="deleteUser" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
 <script>
-import { defineComponent, ref, computed, onMounted } from 'vue'
+import { defineComponent, ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
-import { copyToClipboard, useQuasar } from 'quasar'
 import { BRAND_PRESETS, loadBrandColor, saveBrandColor, resetBrandColor, isValidHex, normalizeHex } from 'src/utils/brand'
 
 export default defineComponent({
@@ -458,7 +239,6 @@ export default defineComponent({
 
   setup() {
     const router = useRouter()
-    const $q = useQuasar()
 
     // Tab state
     const activeTab = ref('profile')
@@ -466,9 +246,6 @@ export default defineComponent({
     // User data
     const user = ref(null)
     const verifiedRole = ref(null)
-    const devToken = ref('')
-    const copiedAccess = ref(false)
-    const generatingToken = ref(false)
     const loadingUser = ref(true)
 
     // Settings states
@@ -481,28 +258,6 @@ export default defineComponent({
     const emailNotifications = ref(true)
     const pushNotifications = ref(false)
     const smsNotifications = ref(false)
-
-    // Users management
-    const users = ref([])
-    const loadingUsers = ref(false)
-    const savingUser = ref(false)
-    const deletingUser = ref(false)
-    const showUserDialog = ref(false)
-    const showDeleteUserDialog = ref(false)
-    const isEditingUser = ref(false)
-    const selectedUser = ref(null)
-    const userForm = ref({
-      name: '',
-      email: '',
-      role: 'client'
-    })
-
-    const roleOptions = [
-      { label: 'Cliente', value: 'client' },
-      { label: 'Profissional', value: 'professional' },
-      { label: 'Gerente', value: 'manager' },
-      { label: 'Administrador', value: 'admin' }
-    ]
 
     // Computed
     const isAdmin = computed(() => verifiedRole.value === 'admin')
@@ -521,6 +276,11 @@ export default defineComponent({
       loadTheme()
     })
 
+    // Auto-save notification preferences on change
+    watch([emailNotifications, pushNotifications, smsNotifications], () => {
+      saveNotificationPrefs()
+    })
+
     // Methods
     const fetchUserFromBackend = async () => {
       loadingUser.value = true
@@ -532,31 +292,12 @@ export default defineComponent({
           user.value = response.data.data.user
           verifiedRole.value = response.data.data.user.role
           localStorage.setItem('user', JSON.stringify(response.data.data.user))
-          
-          // Se admin, carrega lista de usuários
-          if (verifiedRole.value === 'admin') {
-            fetchUsers()
-          }
         }
       } catch (err) {
         console.error('Erro ao buscar usuário:', err)
         verifiedRole.value = null
       } finally {
         loadingUser.value = false
-      }
-    }
-
-    const fetchUsers = async () => {
-      loadingUsers.value = true
-      try {
-        const response = await api.get('/users')
-        if (response.data?.success) {
-          users.value = response.data.data?.users || []
-        }
-      } catch (err) {
-        console.error('Erro ao buscar usuários:', err)
-      } finally {
-        loadingUsers.value = false
       }
     }
 
@@ -569,6 +310,24 @@ export default defineComponent({
       }
       // Load brand color
       brandColor.value = loadBrandColor()
+      // Load notification preferences
+      const savedNotifs = localStorage.getItem('notification_preferences')
+      if (savedNotifs) {
+        try {
+          const prefs = JSON.parse(savedNotifs)
+          emailNotifications.value = prefs.email ?? true
+          pushNotifications.value = prefs.push ?? false
+          smsNotifications.value = prefs.sms ?? false
+        } catch { /* ignore parse errors */ }
+      }
+    }
+
+    const saveNotificationPrefs = () => {
+      localStorage.setItem('notification_preferences', JSON.stringify({
+        email: emailNotifications.value,
+        push: pushNotifications.value,
+        sms: smsNotifications.value
+      }))
     }
 
     const setBrandColor = (color) => {
@@ -606,40 +365,11 @@ export default defineComponent({
       hexError.value = false
     }
 
-    const generateDevToken = async () => {
-      generatingToken.value = true
-      try {
-        const response = await api.get('/auth/dev-token')
-        if (response.data?.success) {
-          devToken.value = response.data.data.token
-        }
-      } catch (err) {
-        console.error('Erro ao gerar dev token:', err)
-        $q.notify({ type: 'negative', message: 'Erro ao gerar token. Verifique se você é admin.' })
-      } finally {
-        generatingToken.value = false
-      }
-    }
-
     const toggleTheme = (value) => {
       localStorage.setItem('theme', value ? 'dark' : 'light')
       document.documentElement.setAttribute('data-theme', value ? 'dark' : 'light')
       // Recarregar cor da marca adequada ao tema
       brandColor.value = loadBrandColor()
-    }
-
-    const copyToken = async () => {
-      try {
-        await copyToClipboard(devToken.value)
-        copiedAccess.value = true
-        setTimeout(() => { copiedAccess.value = false }, 2000)
-      } catch (err) {
-        console.error('Erro ao copiar:', err)
-      }
-    }
-
-    const openSwagger = () => {
-      window.open('http://localhost/swagger', '_blank')
     }
 
     const formatDate = (dateString) => {
@@ -674,67 +404,6 @@ export default defineComponent({
       return colors[role] || 'grey'
     }
 
-    // User CRUD
-    const editUser = (u) => {
-      isEditingUser.value = true
-      selectedUser.value = u
-      userForm.value = {
-        name: u.name,
-        email: u.email,
-        role: u.role
-      }
-      showUserDialog.value = true
-    }
-
-    const closeUserDialog = () => {
-      showUserDialog.value = false
-    }
-
-    const saveUser = async () => {
-      if (!userForm.value.name) {
-        $q.notify({ type: 'warning', message: 'Nome é obrigatório' })
-        return
-      }
-
-      savingUser.value = true
-      try {
-        const payload = {
-          name: userForm.value.name,
-          role: userForm.value.role
-        }
-
-        await api.put(`/users/${selectedUser.value.id}`, payload)
-        $q.notify({ type: 'positive', message: 'Usuário atualizado com sucesso' })
-        closeUserDialog()
-        fetchUsers()
-      } catch (err) {
-        console.error('Erro ao salvar usuário:', err)
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar usuário' })
-      } finally {
-        savingUser.value = false
-      }
-    }
-
-    const confirmDeleteUser = (u) => {
-      selectedUser.value = u
-      showDeleteUserDialog.value = true
-    }
-
-    const deleteUser = async () => {
-      deletingUser.value = true
-      try {
-        await api.delete(`/users/${selectedUser.value.id}`)
-        $q.notify({ type: 'positive', message: 'Usuário excluído com sucesso' })
-        showDeleteUserDialog.value = false
-        fetchUsers()
-      } catch (err) {
-        console.error('Erro ao excluir usuário:', err)
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao excluir usuário' })
-      } finally {
-        deletingUser.value = false
-      }
-    }
-
     const handleLogout = async () => {
       try {
         await api.post('/auth/logout')
@@ -750,9 +419,6 @@ export default defineComponent({
       activeTab,
       user,
       loadingUser,
-      devToken,
-      copiedAccess,
-      generatingToken,
       isDark,
       brandColor,
       brandPresets,
@@ -763,16 +429,6 @@ export default defineComponent({
       emailNotifications,
       pushNotifications,
       smsNotifications,
-      users,
-      loadingUsers,
-      savingUser,
-      deletingUser,
-      showUserDialog,
-      showDeleteUserDialog,
-      isEditingUser,
-      selectedUser,
-      userForm,
-      roleOptions,
       isAdmin,
       roleLabel,
       roleColor,
@@ -780,17 +436,9 @@ export default defineComponent({
       setBrandColor,
       applyCustomHex,
       resetBrand,
-      copyToken,
-      generateDevToken,
-      openSwagger,
       formatDate,
       getRoleLabel,
       getRoleColor,
-      editUser,
-      closeUserDialog,
-      saveUser,
-      confirmDeleteUser,
-      deleteUser,
       handleLogout
     }
   }
@@ -1072,147 +720,6 @@ export default defineComponent({
     transform: scale(1.1);
     box-shadow: var(--qm-shadow-lg);
   }
-}
-
-// Developer Section
-.dev-warning {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  color: #e8a317;
-  padding: 1rem;
-  background: rgba(255, 152, 0, 0.1);
-  border-radius: 10px;
-  margin-bottom: 1.5rem;
-}
-
-.token-section {
-  margin-bottom: 1rem;
-}
-
-.generate-token-area {
-  padding: 1.5rem;
-  background: var(--qm-bg-tertiary);
-  border-radius: 10px;
-  text-align: center;
-}
-
-.token-header {
-  margin-bottom: 0.75rem;
-
-  h4 {
-    margin: 0 0 0.25rem;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--qm-text-primary);
-  }
-
-  p {
-    margin: 0;
-    font-size: 0.8125rem;
-    color: var(--qm-text-muted);
-  }
-}
-
-.token-input {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 0.75rem;
-}
-
-.token-expiry {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  color: var(--qm-text-muted);
-  margin: 0.5rem 0 0;
-}
-
-// Users Table
-.users-table-container {
-  border: 1px solid var(--qm-border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.users-table {
-  width: 100%;
-  border-collapse: collapse;
-
-  th, td {
-    padding: 0.875rem 1rem;
-    text-align: left;
-  }
-
-  thead {
-    background: var(--qm-bg-secondary);
-
-    th {
-      font-size: 0.6875rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--qm-text-muted);
-      border-bottom: 1px solid var(--qm-border);
-    }
-  }
-
-  tbody {
-    tr {
-      border-bottom: 1px solid var(--qm-border);
-      transition: background 0.2s ease;
-
-      &:last-child {
-        border-bottom: none;
-      }
-
-      &:hover {
-        background: var(--qm-bg-secondary);
-      }
-    }
-
-    td {
-      font-size: 0.875rem;
-      color: var(--qm-text-primary);
-    }
-  }
-}
-
-.user-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.user-avatar {
-  background: var(--qm-brand-light);
-  color: var(--qm-brand);
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.user-name {
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.user-email {
-  font-size: 0.75rem;
-  color: var(--qm-text-muted);
-}
-
-.date-cell {
-  font-size: 0.8125rem;
-  color: var(--qm-text-muted);
-}
-
-.row-actions {
-  display: flex;
-  gap: 0.25rem;
 }
 
 // Loading & Empty States

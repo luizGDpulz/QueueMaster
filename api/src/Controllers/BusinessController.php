@@ -33,7 +33,8 @@ class BusinessController
 
             if ($userRole === 'admin') {
                 $businesses = Business::all([], 'name', 'ASC');
-            } else {
+            }
+            else {
                 $businesses = Business::getByUser($userId);
             }
 
@@ -41,7 +42,8 @@ class BusinessController
                 'businesses' => $businesses,
                 'total' => count($businesses),
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list businesses', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -73,7 +75,8 @@ class BusinessController
             Response::success([
                 'business' => $business,
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get business', [
                 'business_id' => $id,
                 'error' => $e->getMessage(),
@@ -147,7 +150,11 @@ class BusinessController
 
             $business = Business::find($businessId);
 
-            AuditService::logFromRequest($request, 'create', 'business', (string)$businessId, null, $businessId);
+            AuditService::logFromRequest($request, 'create', 'business', (string)$businessId, null, $businessId, [
+                'name' => $businessData['name'] ?? null,
+                'slug' => $businessData['slug'] ?? null,
+                'description' => $businessData['description'] ?? null,
+            ]);
 
             Logger::info('Business created', [
                 'business_id' => $businessId,
@@ -158,9 +165,11 @@ class BusinessController
                 'business' => $business,
                 'message' => 'Business created successfully',
             ]);
-        } catch (\InvalidArgumentException $e) {
+        }
+        catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to create business', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -209,13 +218,21 @@ class BusinessController
             Business::update($id, $updateData);
             $updatedBusiness = Business::find($id);
 
-            AuditService::logFromRequest($request, 'update', 'business', (string)$id, null, $id, $updateData);
+            $changes = [];
+            foreach ($updateData as $field => $newValue) {
+                $changes[$field] = ['from' => $business[$field] ?? null, 'to' => $newValue];
+            }
+            AuditService::logFromRequest($request, 'update', 'business', (string)$id, null, $id, [
+                'entity_name' => $business['name'] ?? null,
+                'changes' => $changes,
+            ]);
 
             Response::success([
                 'business' => $updatedBusiness,
                 'message' => 'Business updated successfully',
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to update business', [
                 'business_id' => $id,
                 'error' => $e->getMessage(),
@@ -242,7 +259,8 @@ class BusinessController
                 'establishments' => $establishments,
                 'total' => count($establishments),
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list business establishments', [
                 'business_id' => $id,
                 'error' => $e->getMessage(),
@@ -304,9 +322,11 @@ class BusinessController
                 'establishment' => $establishment,
                 'message' => 'Establishment created successfully',
             ]);
-        } catch (\InvalidArgumentException $e) {
+        }
+        catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to create establishment', [
                 'business_id' => $id,
                 'error' => $e->getMessage(),
@@ -376,9 +396,11 @@ class BusinessController
             Response::created([
                 'message' => 'User added to business successfully',
             ]);
-        } catch (\InvalidArgumentException $e) {
+        }
+        catch (\InvalidArgumentException $e) {
             Response::error('CONFLICT', $e->getMessage(), 409, $request->requestId);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to add user to business', [
                 'business_id' => $id,
                 'error' => $e->getMessage(),
@@ -412,7 +434,8 @@ class BusinessController
             ]);
 
             Response::success(['message' => 'User removed from business successfully']);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to remove user from business', [
                 'business_id' => $id,
                 'error' => $e->getMessage(),
@@ -440,7 +463,8 @@ class BusinessController
                 'users' => $users,
                 'total' => count($users),
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list business users', [
                 'business_id' => $id,
                 'error' => $e->getMessage(),
