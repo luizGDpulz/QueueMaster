@@ -7,6 +7,7 @@ use QueueMaster\Core\Response;
 use QueueMaster\Services\AppointmentService;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
+use QueueMaster\Services\AuditService;
 
 /**
  * AppointmentsController - Appointment Management Endpoints
@@ -55,12 +56,20 @@ class AppointmentsController
                 'user_id' => $userId,
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'create', 'appointment', (string)$appointment['id'], $data['establishment_id'] ?? null, null, [
+                'service_id' => $data['service_id'] ?? null,
+                'professional_id' => $data['professional_id'] ?? null,
+                'start_at' => $data['start_at'] ?? null,
+                'establishment_id' => $data['establishment_id'] ?? null,
+            ]);
+
             Response::created([
                 'appointment' => $appointment,
                 'message' => 'Appointment created successfully',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to create appointment', [
                 'user_id' => $userId,
                 'data' => $data,
@@ -69,11 +78,14 @@ class AppointmentsController
 
             if (strpos($e->getMessage(), 'conflict') !== false || strpos($e->getMessage(), 'already exists') !== false) {
                 Response::conflict('Time slot is already booked', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'not found') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'not found') !== false) {
                 Response::notFound($e->getMessage(), $request->requestId);
-            } elseif (strpos($e->getMessage(), 'Invalid') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'Invalid') !== false) {
                 Response::error('INVALID_DATA', $e->getMessage(), 400, $request->requestId);
-            } else {
+            }
+            else {
                 Response::serverError('Failed to create appointment', $request->requestId);
             }
         }
@@ -101,7 +113,8 @@ class AppointmentsController
         // Clients can only see their own appointments
         if ($userRole === 'client') {
             $filters['user_id'] = $userId;
-        } else {
+        }
+        else {
             // Attendants and admins can filter by user_id or professional_id
             if (isset($params['user_id'])) {
                 $filters['user_id'] = (int)$params['user_id'];
@@ -138,7 +151,8 @@ class AppointmentsController
                 ],
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list appointments', [
                 'user_id' => $userId,
                 'filters' => $filters,
@@ -183,7 +197,8 @@ class AppointmentsController
                 'appointment' => $appointment,
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get appointment', [
                 'appointment_id' => $id,
                 'user_id' => $userId,
@@ -217,12 +232,15 @@ class AppointmentsController
                 'user_id' => $userId,
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'check_in', 'appointment', (string)$id, null, null, null);
+
             Response::success([
                 'appointment' => $appointment,
                 'message' => 'Successfully checked-in',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to check-in appointment', [
                 'appointment_id' => $id,
                 'user_id' => $userId,
@@ -231,11 +249,14 @@ class AppointmentsController
 
             if (strpos($e->getMessage(), 'not found') !== false) {
                 Response::notFound('Appointment not found', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'Unauthorized') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'Unauthorized') !== false) {
                 Response::forbidden('You cannot check-in to this appointment', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'Cannot check-in') !== false || strpos($e->getMessage(), 'early') !== false || strpos($e->getMessage(), 'passed') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'Cannot check-in') !== false || strpos($e->getMessage(), 'early') !== false || strpos($e->getMessage(), 'passed') !== false) {
                 Response::error('CHECK_IN_FAILED', $e->getMessage(), 400, $request->requestId);
-            } else {
+            }
+            else {
                 Response::serverError('Failed to check-in', $request->requestId);
             }
         }
@@ -310,12 +331,21 @@ class AppointmentsController
                 'user_id' => $userId,
             ], $request->requestId);
 
+            $changes = [];
+            foreach ($updateData as $field => $newValue) {
+                $changes[$field] = ['from' => $appointment[$field] ?? null, 'to' => $newValue];
+            }
+            AuditService::logFromRequest($request, 'update', 'appointment', (string)$id, null, null, [
+                'changes' => $changes,
+            ]);
+
             Response::success([
                 'appointment' => $updatedAppointment,
                 'message' => 'Appointment updated successfully',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to update appointment', [
                 'appointment_id' => $id,
                 'user_id' => $userId,
@@ -324,9 +354,11 @@ class AppointmentsController
 
             if (strpos($e->getMessage(), 'not found') !== false) {
                 Response::notFound('Appointment not found', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'conflict') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'conflict') !== false) {
                 Response::conflict('Time slot conflict', $request->requestId);
-            } else {
+            }
+            else {
                 Response::serverError('Failed to update appointment', $request->requestId);
             }
         }
@@ -355,11 +387,14 @@ class AppointmentsController
                 'user_id' => $userId,
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'cancel', 'appointment', (string)$id, null, null, null);
+
             Response::success([
                 'message' => 'Appointment cancelled successfully',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to cancel appointment', [
                 'appointment_id' => $id,
                 'user_id' => $userId,
@@ -368,11 +403,14 @@ class AppointmentsController
 
             if (strpos($e->getMessage(), 'not found') !== false) {
                 Response::notFound('Appointment not found', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'Unauthorized') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'Unauthorized') !== false) {
                 Response::forbidden('You cannot cancel this appointment', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'Cannot cancel') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'Cannot cancel') !== false) {
                 Response::error('CANCEL_FAILED', $e->getMessage(), 400, $request->requestId);
-            } else {
+            }
+            else {
                 Response::serverError('Failed to cancel appointment', $request->requestId);
             }
         }
@@ -381,7 +419,7 @@ class AppointmentsController
     /**
      * POST /api/v1/appointments/{id}/complete
      * 
-     * Mark appointment as complete (attendant/admin only)
+     * Mark appointment as complete (professional/manager/admin)
      */
     public function complete(Request $request, int $id): void
     {
@@ -399,12 +437,15 @@ class AppointmentsController
                 'completed_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'complete', 'appointment', (string)$id, null, null, null);
+
             Response::success([
                 'appointment' => $appointment,
                 'message' => 'Appointment marked as complete',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to complete appointment', [
                 'appointment_id' => $id,
                 'error' => $e->getMessage(),
@@ -412,9 +453,11 @@ class AppointmentsController
 
             if (strpos($e->getMessage(), 'not found') !== false) {
                 Response::notFound('Appointment not found', $request->requestId);
-            } elseif (strpos($e->getMessage(), 'Cannot complete') !== false) {
+            }
+            elseif (strpos($e->getMessage(), 'Cannot complete') !== false) {
                 Response::error('COMPLETE_FAILED', $e->getMessage(), 400, $request->requestId);
-            } else {
+            }
+            else {
                 Response::serverError('Failed to complete appointment', $request->requestId);
             }
         }
@@ -423,7 +466,7 @@ class AppointmentsController
     /**
      * POST /api/v1/appointments/{id}/no-show
      * 
-     * Mark appointment as no-show (attendant/admin only)
+     * Mark appointment as no-show (professional/manager/admin)
      */
     public function noShow(Request $request, int $id): void
     {
@@ -441,12 +484,15 @@ class AppointmentsController
                 'marked_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'no_show', 'appointment', (string)$id, null, null, null);
+
             Response::success([
                 'appointment' => $appointment,
                 'message' => 'Appointment marked as no-show',
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to mark appointment as no-show', [
                 'appointment_id' => $id,
                 'error' => $e->getMessage(),
@@ -454,7 +500,8 @@ class AppointmentsController
 
             if (strpos($e->getMessage(), 'not found') !== false) {
                 Response::notFound('Appointment not found', $request->requestId);
-            } else {
+            }
+            else {
                 Response::serverError('Failed to mark as no-show', $request->requestId);
             }
         }
@@ -504,7 +551,8 @@ class AppointmentsController
                 'date' => $formattedDate,
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get available slots', [
                 'professional_id' => $professionalId,
                 'service_id' => $serviceId,
@@ -514,7 +562,8 @@ class AppointmentsController
 
             if (strpos($e->getMessage(), 'not found') !== false) {
                 Response::notFound($e->getMessage(), $request->requestId);
-            } else {
+            }
+            else {
                 Response::serverError('Failed to retrieve available slots', $request->requestId);
             }
         }

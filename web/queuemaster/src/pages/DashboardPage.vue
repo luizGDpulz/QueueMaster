@@ -109,7 +109,7 @@ export default defineComponent({
     const userRole = ref(null)
 
     // ===== COMPUTED =====
-    const isAdminOrAttendant = computed(() => ['admin', 'attendant'].includes(userRole.value))
+    const canManage = computed(() => ['admin', 'manager', 'professional'].includes(userRole.value))
 
     const stats = computed(() => {
       const totals = queueOverview.value.totals
@@ -201,7 +201,7 @@ export default defineComponent({
       try {
         await fetchUserRole()
 
-        if (isAdminOrAttendant.value) {
+        if (canManage.value) {
           await Promise.all([fetchQueueOverview(), fetchAppointments()])
         } else {
           // Para clientes, buscar apenas dados de fila pública

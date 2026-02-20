@@ -4,7 +4,6 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">Filas</h1>
-        <p class="page-subtitle">Gerencie e monitore todas as filas de atendimento</p>
       </div>
       <div class="header-right">
         <q-btn
@@ -15,6 +14,9 @@
           no-caps
           @click="openCreateDialog"
         />
+      </div>
+      <div class="header-bottom">
+        <p class="page-subtitle">Gerencie e monitore todas as filas de atendimento</p>
       </div>
     </div>
 
@@ -107,7 +109,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="queue in filteredQueues" :key="queue.id">
+            <tr v-for="queue in filteredQueues" :key="queue.id" class="clickable-row" @click="router.push(`/app/queues/${queue.id}`)">
               <td>
                 <div class="queue-info">
                   <div class="queue-avatar" :class="queue.status">
@@ -141,27 +143,24 @@
               </td>
               <td>
                 <div class="row-actions">
-                  <q-btn flat round dense icon="visibility" size="sm" @click="viewQueue(queue)">
-                    <q-tooltip>Ver detalhes</q-tooltip>
-                  </q-btn>
                   <q-btn 
                     v-if="queue.status === 'open'" 
                     flat round dense icon="person_add" size="sm" color="primary"
-                    @click="joinQueue(queue)"
+                    @click.stop="joinQueue(queue)"
                   >
                     <q-tooltip>Entrar na fila</q-tooltip>
                   </q-btn>
                   <q-btn 
-                    v-if="isAdminOrAttendant && queue.status === 'open' && queue.waiting_count > 0" 
+                    v-if="canManage && queue.status === 'open' && queue.waiting_count > 0" 
                     flat round dense icon="campaign" size="sm" color="warning"
-                    @click="callNext(queue)"
+                    @click.stop="callNext(queue)"
                   >
                     <q-tooltip>Chamar próximo</q-tooltip>
                   </q-btn>
-                  <q-btn v-if="isAdmin" flat round dense icon="edit" size="sm" @click="editQueue(queue)">
+                  <q-btn v-if="canManage" flat round dense icon="edit" size="sm" @click.stop="editQueue(queue)">
                     <q-tooltip>Editar</q-tooltip>
                   </q-btn>
-                  <q-btn v-if="isAdmin" flat round dense icon="delete" size="sm" color="negative" @click="confirmDelete(queue)">
+                  <q-btn v-if="isAdmin" flat round dense icon="delete" size="sm" color="negative" @click.stop="confirmDelete(queue)">
                     <q-tooltip>Excluir</q-tooltip>
                   </q-btn>
                 </div>
@@ -236,88 +235,6 @@
       </q-card>
     </q-dialog>
 
-    <!-- View Dialog -->
-    <q-dialog v-model="showViewDialog">
-      <q-card class="dialog-card dialog-large">
-        <q-card-section class="dialog-header">
-          <h3>Detalhes da Fila</h3>
-          <q-btn flat round dense icon="close" @click="showViewDialog = false" />
-        </q-card-section>
-
-        <q-card-section class="dialog-content" v-if="selectedQueue">
-          <div class="detail-grid">
-            <div class="detail-item">
-              <span class="detail-label">Nome</span>
-              <span class="detail-value">{{ selectedQueue.name }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Estabelecimento</span>
-              <span class="detail-value">{{ selectedQueue.establishment_name || 'N/A' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Serviço</span>
-              <span class="detail-value">{{ selectedQueue.service_name || 'Geral' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Status</span>
-              <q-badge :color="selectedQueue.status === 'open' ? 'positive' : 'grey'">
-                {{ selectedQueue.status === 'open' ? 'Aberta' : 'Fechada' }}
-              </q-badge>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Pessoas Aguardando</span>
-              <span class="detail-value">{{ selectedQueue.waiting_count || 0 }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Criada em</span>
-              <span class="detail-value">{{ formatDate(selectedQueue.created_at) }}</span>
-            </div>
-          </div>
-
-          <!-- Queue Status Section -->
-          <div v-if="queueStatus" class="queue-status-section">
-            <h4>Estaté­sticas da Fila</h4>
-            <div class="status-grid">
-              <div class="status-item">
-                <span class="status-number">{{ queueStatus.statistics?.total_waiting || 0 }}</span>
-                <span class="status-text">Aguardando</span>
-              </div>
-              <div class="status-item">
-                <span class="status-number">{{ queueStatus.statistics?.total_being_served || 0 }}</span>
-                <span class="status-text">Sendo atendidos</span>
-              </div>
-              <div class="status-item">
-                <span class="status-number">{{ queueStatus.statistics?.total_completed_today || 0 }}</span>
-                <span class="status-text">Conclué­dos hoje</span>
-              </div>
-              <div class="status-item">
-                <span class="status-number">{{ queueStatus.statistics?.average_wait_time_minutes || 0 }} min</span>
-                <span class="status-text">Tempo mé©dio</span>
-              </div>
-            </div>
-
-            <!-- User Position -->
-            <div v-if="queueStatus.user_entry" class="user-position">
-              <q-icon name="person" size="20px" />
-              <span>Você está¡ na posição <strong>{{ queueStatus.user_entry.position }}</strong></span>
-              <span class="wait-estimate">(~{{ queueStatus.user_entry.estimated_wait_minutes || '?' }} min)</span>
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Fechar" no-caps @click="showViewDialog = false" />
-          <q-btn 
-            v-if="selectedQueue?.status === 'open'" 
-            color="primary" 
-            label="Entrar na Fila" 
-            no-caps 
-            @click="joinQueue(selectedQueue); showViewDialog = false" 
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
     <!-- Delete Confirmation Dialog -->
     <q-dialog v-model="showDeleteDialog">
       <q-card class="dialog-card">
@@ -369,6 +286,7 @@
 
 <script>
 import { defineComponent, ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
 
@@ -377,6 +295,7 @@ export default defineComponent({
 
   setup() {
     const $q = useQuasar()
+    const router = useRouter()
 
     // State
     const queues = ref([])
@@ -390,11 +309,9 @@ export default defineComponent({
     const searchQuery = ref('')
     const filterStatus = ref(null)
     const userRole = ref(null)
-    const queueStatus = ref(null)
 
     // Dialogs
     const showDialog = ref(false)
-    const showViewDialog = ref(false)
     const showDeleteDialog = ref(false)
     const showCallDialog = ref(false)
     const isEditing = ref(false)
@@ -419,7 +336,7 @@ export default defineComponent({
 
     // Computed
     const isAdmin = computed(() => userRole.value === 'admin')
-    const isAdminOrAttendant = computed(() => ['admin', 'attendant'].includes(userRole.value))
+    const canManage = computed(() => ['admin', 'manager', 'professional'].includes(userRole.value))
 
     const stats = computed(() => {
       const open = queues.value.filter(q => q.status === 'open').length
@@ -523,18 +440,6 @@ export default defineComponent({
       }
     }
 
-    const fetchQueueStatus = async (queueId) => {
-      try {
-        const response = await api.get(`/queues/${queueId}/status`)
-        if (response.data?.success) {
-          queueStatus.value = response.data.data
-        }
-      } catch (err) {
-        console.error('Erro ao buscar status da fila:', err)
-        queueStatus.value = null
-      }
-    }
-
     const openCreateDialog = () => {
       isEditing.value = false
       form.value = { name: '', establishment_id: null, service_id: null, status: 'open' }
@@ -551,13 +456,6 @@ export default defineComponent({
         status: queue.status
       }
       showDialog.value = true
-    }
-
-    const viewQueue = async (queue) => {
-      selectedQueue.value = queue
-      queueStatus.value = null
-      showViewDialog.value = true
-      await fetchQueueStatus(queue.id)
     }
 
     const confirmDelete = (queue) => {
@@ -688,7 +586,6 @@ export default defineComponent({
       searchQuery,
       filterStatus,
       showDialog,
-      showViewDialog,
       showDeleteDialog,
       showCallDialog,
       isEditing,
@@ -696,9 +593,8 @@ export default defineComponent({
       form,
       callForm,
       statusOptions,
-      queueStatus,
       isAdmin,
-      isAdminOrAttendant,
+      canManage,
       stats,
       establishmentOptions,
       serviceOptions,
@@ -706,7 +602,6 @@ export default defineComponent({
       filteredQueues,
       openCreateDialog,
       editQueue,
-      viewQueue,
       confirmDelete,
       closeDialog,
       onEstablishmentChange,
@@ -715,7 +610,8 @@ export default defineComponent({
       joinQueue,
       callNext,
       executeCallNext,
-      formatDate
+      formatDate,
+      router
     }
   }
 })
@@ -733,18 +629,32 @@ export default defineComponent({
   align-items: center;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
-  gap: 1rem;
+  column-gap: 1rem;
+  row-gap: 0.25rem;
 }
 
 .header-left {
   flex: 1;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.header-bottom {
+  flex-basis: 100%;
 }
 
 .page-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--qm-text-primary);
-  margin: 0 0 0.25rem;
+  margin: 0;
 }
 
 .page-subtitle {
@@ -902,6 +812,10 @@ export default defineComponent({
       &:hover {
         background: var(--qm-bg-secondary);
       }
+    }
+
+    tr.clickable-row {
+      cursor: pointer;
     }
 
     td {

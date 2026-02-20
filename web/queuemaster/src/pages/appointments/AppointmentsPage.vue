@@ -4,7 +4,6 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">Agendamentos</h1>
-        <p class="page-subtitle">Gerencie todos os agendamentos</p>
       </div>
       <div class="header-right">
         <q-btn
@@ -14,6 +13,9 @@
           no-caps
           @click="openCreateDialog"
         />
+      </div>
+      <div class="header-bottom">
+        <p class="page-subtitle">Gerencie todos os agendamentos</p>
       </div>
     </div>
 
@@ -100,14 +102,14 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="appointment in filteredAppointments" :key="appointment.id">
+            <tr v-for="appointment in filteredAppointments" :key="appointment.id" class="clickable-row" @click="router.push(`/app/appointments/${appointment.id}`)">
               <td>
                 <div class="patient-info">
                   <q-avatar size="32px" class="patient-avatar">
                     <q-icon name="person" size="16px" />
                   </q-avatar>
                   <div class="patient-details">
-                    <span class="patient-name">{{ appointment.user_name || 'Usué¡rio #' + appointment.user_id }}</span>
+                    <span class="patient-name">{{ appointment.user_name || 'Usuário #' + appointment.user_id }}</span>
                     <span class="patient-id">ID: {{ appointment.user_id }}</span>
                   </div>
                 </div>
@@ -134,13 +136,10 @@
               </td>
               <td>
                 <div class="row-actions">
-                  <q-btn flat round dense icon="visibility" size="sm" @click="viewAppointment(appointment)">
-                    <q-tooltip>Ver detalhes</q-tooltip>
-                  </q-btn>
-                  <q-btn 
-                    v-if="canEdit(appointment)" 
-                    flat round dense icon="edit" size="sm" 
-                    @click="editAppointment(appointment)"
+                  <q-btn
+                    v-if="canEdit(appointment)"
+                    flat round dense icon="edit" size="sm"
+                    @click.stop="editAppointment(appointment)"
                   >
                     <q-tooltip>Editar</q-tooltip>
                   </q-btn>
@@ -151,21 +150,22 @@
                     dense
                     icon="more_vert"
                     size="sm"
+                    @click.stop
                   >
                     <q-list dense>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'checked_in')" v-if="appointment.status === 'booked'">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'checked_in')" v-if="appointment.status === 'booked'">
                         <q-item-section>Check-in</q-item-section>
                       </q-item>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'in_progress')" v-if="appointment.status === 'checked_in'">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'in_progress')" v-if="appointment.status === 'checked_in'">
                         <q-item-section>Iniciar</q-item-section>
                       </q-item>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'completed')" v-if="appointment.status === 'in_progress'">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'completed')" v-if="appointment.status === 'in_progress'">
                         <q-item-section>Concluir</q-item-section>
                       </q-item>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'no_show')" v-if="appointment.status === 'booked'">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'no_show')" v-if="appointment.status === 'booked'">
                         <q-item-section>Não compareceu</q-item-section>
                       </q-item>
-                      <q-item clickable v-close-popup @click="updateStatus(appointment, 'cancelled')" v-if="['booked', 'checked_in'].includes(appointment.status)">
+                      <q-item clickable v-close-popup @click.stop="updateStatus(appointment, 'cancelled')" v-if="['booked', 'checked_in'].includes(appointment.status)">
                         <q-item-section class="text-negative">Cancelar</q-item-section>
                       </q-item>
                     </q-list>
@@ -228,8 +228,44 @@
               emit-value
               map-options
               :disable="!form.establishment_id"
+              @update:model-value="onSlotDepsChange"
             />
             <q-input
+              v-model="slotDate"
+              label="Data *"
+              outlined
+              dense
+              type="date"
+              :disable="!form.professional_id || !form.service_id"
+              @update:model-value="onSlotDepsChange"
+            />
+            <div v-if="loadingSlots" class="slots-loading">
+              <q-spinner-dots color="primary" size="24px" />
+              <span>Buscando horários disponíveis...</span>
+            </div>
+            <div v-else-if="availableSlots.length > 0" class="slots-section">
+              <label class="slots-label">Horários disponíveis</label>
+              <div class="slots-grid">
+                <q-btn
+                  v-for="slot in availableSlots"
+                  :key="slot.start"
+                  :outline="form.start_at !== slot.start"
+                  :color="form.start_at === slot.start ? 'primary' : 'grey-7'"
+                  :label="formatSlotTime(slot.start)"
+                  dense
+                  no-caps
+                  size="sm"
+                  class="slot-btn"
+                  @click="selectSlot(slot)"
+                />
+              </div>
+            </div>
+            <div v-else-if="slotDate && !loadingSlots && slotsSearched" class="slots-empty">
+              <q-icon name="event_busy" size="20px" color="grey-6" />
+              <span>Nenhum horário disponível nesta data</span>
+            </div>
+            <q-input
+              v-if="isEditing"
               v-model="form.start_at"
               label="Data e Hora *"
               outlined
@@ -252,63 +288,12 @@
       </q-card>
     </q-dialog>
 
-    <!-- View Dialog -->
-    <q-dialog v-model="showViewDialog">
-      <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>Detalhes do Agendamento</h3>
-          <q-btn flat round dense icon="close" @click="showViewDialog = false" />
-        </q-card-section>
-
-        <q-card-section class="dialog-content" v-if="selectedAppointment">
-          <div class="detail-grid">
-            <div class="detail-item">
-              <span class="detail-label">Paciente</span>
-              <span class="detail-value">{{ selectedAppointment.user_name || 'ID: ' + selectedAppointment.user_id }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Profissional</span>
-              <span class="detail-value">{{ selectedAppointment.professional_name || 'ID: ' + selectedAppointment.professional_id }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Serviço</span>
-              <span class="detail-value">{{ selectedAppointment.service_name || 'ID: ' + selectedAppointment.service_id }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Estabelecimento</span>
-              <span class="detail-value">{{ selectedAppointment.establishment_name || 'ID: ' + selectedAppointment.establishment_id }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Iné­cio</span>
-              <span class="detail-value">{{ formatDateTime(selectedAppointment.start_at) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Té©rmino</span>
-              <span class="detail-value">{{ formatDateTime(selectedAppointment.end_at) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Status</span>
-              <q-badge :color="getStatusColor(selectedAppointment.status)">
-                {{ getStatusLabel(selectedAppointment.status) }}
-              </q-badge>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Criado em</span>
-              <span class="detail-value">{{ formatDateTime(selectedAppointment.created_at) }}</span>
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Fechar" no-caps @click="showViewDialog = false" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
 <script>
 import { defineComponent, ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
 
@@ -317,6 +302,7 @@ export default defineComponent({
 
   setup() {
     const $q = useQuasar()
+    const router = useRouter()
 
     // State
     const appointments = ref([])
@@ -346,7 +332,6 @@ export default defineComponent({
 
     // Dialogs
     const showDialog = ref(false)
-    const showViewDialog = ref(false)
     const isEditing = ref(false)
     const selectedAppointment = ref(null)
 
@@ -357,6 +342,12 @@ export default defineComponent({
       service_id: null,
       start_at: ''
     })
+
+    // Available slots
+    const slotDate = ref('')
+    const availableSlots = ref([])
+    const loadingSlots = ref(false)
+    const slotsSearched = ref(false)
 
     // Options
     const statusOptions = [
@@ -369,7 +360,7 @@ export default defineComponent({
     ]
 
     // Computed
-    const isAdminOrAttendant = computed(() => ['admin', 'attendant'].includes(userRole.value))
+    const canManage = computed(() => ['admin', 'manager', 'professional'].includes(userRole.value))
 
     const establishmentOptions = computed(() => 
       establishments.value.map(e => ({ label: e.name, value: e.id }))
@@ -487,6 +478,9 @@ export default defineComponent({
         service_id: null,
         start_at: ''
       }
+      slotDate.value = ''
+      availableSlots.value = []
+      slotsSearched.value = false
       showDialog.value = true
     }
 
@@ -502,11 +496,6 @@ export default defineComponent({
       showDialog.value = true
     }
 
-    const viewAppointment = (appointment) => {
-      selectedAppointment.value = appointment
-      showViewDialog.value = true
-    }
-
     const closeDialog = () => {
       showDialog.value = false
     }
@@ -514,6 +503,49 @@ export default defineComponent({
     const onEstablishmentChange = () => {
       form.value.professional_id = null
       form.value.service_id = null
+      availableSlots.value = []
+      slotsSearched.value = false
+    }
+
+    const fetchAvailableSlots = async () => {
+      if (!form.value.professional_id || !form.value.service_id || !slotDate.value) return
+      loadingSlots.value = true
+      slotsSearched.value = false
+      try {
+        const response = await api.get('/appointments/available-slots', {
+          params: {
+            professional_id: form.value.professional_id,
+            service_id: form.value.service_id,
+            date: slotDate.value
+          }
+        })
+        if (response.data?.success) {
+          availableSlots.value = response.data.data?.slots || []
+        }
+      } catch (err) {
+        console.error('Erro ao buscar horários:', err)
+        availableSlots.value = []
+      } finally {
+        loadingSlots.value = false
+        slotsSearched.value = true
+      }
+    }
+
+    const onSlotDepsChange = () => {
+      form.value.start_at = ''
+      availableSlots.value = []
+      slotsSearched.value = false
+      fetchAvailableSlots()
+    }
+
+    const selectSlot = (slot) => {
+      form.value.start_at = slot.start
+    }
+
+    const formatSlotTime = (datetime) => {
+      if (!datetime) return ''
+      const time = datetime.includes('T') ? datetime.split('T')[1] : datetime.split(' ')[1]
+      return time ? time.slice(0, 5) : datetime
     }
 
     const saveAppointment = async () => {
@@ -549,7 +581,18 @@ export default defineComponent({
 
     const updateStatus = async (appointment, status) => {
       try {
-        await api.put(`/appointments/${appointment.id}`, { status })
+        const statusEndpoints = {
+          checked_in: { method: 'post', url: `/appointments/${appointment.id}/checkin` },
+          completed: { method: 'post', url: `/appointments/${appointment.id}/complete` },
+          no_show: { method: 'post', url: `/appointments/${appointment.id}/no-show` },
+          cancelled: { method: 'delete', url: `/appointments/${appointment.id}` },
+        }
+        const endpoint = statusEndpoints[status]
+        if (endpoint) {
+          await api[endpoint.method](endpoint.url)
+        } else {
+          await api.put(`/appointments/${appointment.id}`, { status })
+        }
         $q.notify({ type: 'positive', message: 'Status atualizado com sucesso' })
         fetchAppointments()
       } catch (err) {
@@ -559,12 +602,12 @@ export default defineComponent({
     }
 
     const canEdit = (appointment) => {
-      if (isAdminOrAttendant.value) return true
+      if (canManage.value) return true
       return appointment.user_id === userId.value && appointment.status === 'booked'
     }
 
     const canChangeStatus = (appointment) => {
-      return isAdminOrAttendant.value && !['completed', 'cancelled', 'no_show'].includes(appointment.status)
+      return canManage.value && !['completed', 'cancelled', 'no_show'].includes(appointment.status)
     }
 
     const getStatusColor = (status) => {
@@ -625,7 +668,6 @@ export default defineComponent({
       filters,
       pagination,
       showDialog,
-      showViewDialog,
       isEditing,
       selectedAppointment,
       form,
@@ -638,7 +680,6 @@ export default defineComponent({
       clearFilters,
       openCreateDialog,
       editAppointment,
-      viewAppointment,
       closeDialog,
       onEstablishmentChange,
       saveAppointment,
@@ -650,7 +691,15 @@ export default defineComponent({
       formatDate,
       formatTime,
       formatDateTime,
-      fetchAppointments
+      fetchAppointments,
+      router,
+      slotDate,
+      availableSlots,
+      loadingSlots,
+      slotsSearched,
+      onSlotDepsChange,
+      selectSlot,
+      formatSlotTime
     }
   }
 })
@@ -668,18 +717,32 @@ export default defineComponent({
   align-items: center;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
-  gap: 1rem;
+  column-gap: 1rem;
+  row-gap: 0.25rem;
 }
 
 .header-left {
   flex: 1;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.header-bottom {
+  flex-basis: 100%;
 }
 
 .page-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--qm-text-primary);
-  margin: 0 0 0.25rem;
+  margin: 0;
 }
 
 .page-subtitle {
@@ -804,6 +867,10 @@ export default defineComponent({
       &:hover {
         background: var(--qm-bg-secondary);
       }
+    }
+
+    tr.clickable-row {
+      cursor: pointer;
     }
 
     td {
@@ -983,5 +1050,51 @@ export default defineComponent({
   font-size: 0.9375rem;
   color: var(--qm-text-primary);
   font-weight: 500;
+}
+
+// Available Slots
+.slots-loading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--qm-text-muted);
+  font-size: 0.8125rem;
+  padding: 0.5rem 0;
+}
+
+.slots-section {
+  grid-column: 1 / -1;
+}
+
+.slots-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--qm-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+}
+
+.slots-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.slot-btn {
+  border-radius: 8px;
+  min-width: 64px;
+}
+
+.slots-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--qm-text-muted);
+  font-size: 0.8125rem;
+  padding: 0.25rem 0;
 }
 </style>

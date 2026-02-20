@@ -8,6 +8,7 @@ use QueueMaster\Utils\Logger;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Models\Service;
 use QueueMaster\Models\Establishment;
+use QueueMaster\Services\AuditService;
 
 /**
  * ServicesController - Service Management Endpoints
@@ -94,7 +95,7 @@ class ServicesController
     /**
      * POST /api/v1/services
      * 
-     * Create new service (admin only)
+     * Create new service (manager/admin)
      */
     public function create(Request $request): void
     {
@@ -126,19 +127,32 @@ class ServicesController
                 return;
             }
 
-            $serviceId = Service::create([
+            $serviceData = [
                 'establishment_id' => (int)$data['establishment_id'],
                 'name' => trim($data['name']),
                 'description' => isset($data['description']) ? trim($data['description']) : null,
-                'duration' => (int)$data['duration'],
-            ]);
+                'duration_minutes' => (int)$data['duration'],
+            ];
 
+            if (isset($data['price']) && $data['price'] !== null && $data['price'] !== '') {
+                $serviceData['price'] = (float)$data['price'];
+            }
+
+            if (isset($data['sort_order'])) {
+                $serviceData['sort_order'] = (int)$data['sort_order'];
+            }
+
+            $serviceId = Service::create($serviceData);
             $service = Service::find($serviceId);
 
             Logger::info('Service created', [
                 'service_id' => $serviceId,
                 'created_by' => $request->user['id'],
             ], $request->requestId);
+
+            AuditService::logFromRequest($request, 'create', 'service', (string)$serviceId, (int)$data['establishment_id'], null, [
+                'name' => $serviceData['name'] ?? null,
+            ]);
 
             Response::created([
                 'service' => $service,
@@ -160,7 +174,7 @@ class ServicesController
     /**
      * PUT /api/v1/services/{id}
      * 
-     * Update service (admin only)
+     * Update service (manager/admin)
      */
     public function update(Request $request, int $id): void
     {
@@ -188,7 +202,21 @@ class ServicesController
             }
 
             if (isset($data['duration'])) {
-                $updateData['duration'] = (int)$data['duration'];
+                $updateData['duration_minutes'] = (int)$data['duration'];
+            } elseif (isset($data['duration_minutes'])) {
+                $updateData['duration_minutes'] = (int)$data['duration_minutes'];
+            }
+
+            if (isset($data['price'])) {
+                $updateData['price'] = $data['price'] !== '' ? (float)$data['price'] : null;
+            }
+
+            if (isset($data['sort_order'])) {
+                $updateData['sort_order'] = (int)$data['sort_order'];
+            }
+
+            if (isset($data['is_active'])) {
+                $updateData['is_active'] = (bool)$data['is_active'] ? 1 : 0;
             }
 
             if (isset($data['establishment_id'])) {
@@ -202,15 +230,9 @@ class ServicesController
             }
 
             if (empty($updateData)) {
-                Logger::warning('Update attempt with no fields', [
-                    'service_id' => $id,
-                    'user_id' => $request->user['id'],
-                    'received_data' => $data,
-                ], $request->requestId);
-
                 Response::error(
                     'NO_FIELDS_TO_UPDATE',
-                    'No valid fields provided for update. Available fields: name, description, duration, establishment_id',
+                    'No valid fields provided for update. Available fields: name, description, duration, price, sort_order, is_active, establishment_id',
                     400,
                     $request->requestId
                 );
@@ -224,6 +246,10 @@ class ServicesController
                 'service_id' => $id,
                 'updated_by' => $request->user['id'],
             ], $request->requestId);
+
+            AuditService::logFromRequest($request, 'update', 'service', (string)$id, $service['establishment_id'] ?? null, null, [
+                'updated_fields' => array_keys($updateData),
+            ]);
 
             Response::success([
                 'service' => $updatedService,
@@ -245,7 +271,7 @@ class ServicesController
     /**
      * DELETE /api/v1/services/{id}
      * 
-     * Delete service (admin only)
+     * Delete service (manager/admin)
      */
     public function delete(Request $request, int $id): void
     {
@@ -267,6 +293,10 @@ class ServicesController
                 'service_id' => $id,
                 'deleted_by' => $request->user['id'],
             ], $request->requestId);
+
+            AuditService::logFromRequest($request, 'delete', 'service', (string)$id, $service['establishment_id'] ?? null, null, [
+                'name' => $service['name'] ?? null,
+            ]);
 
             Response::success(['message' => 'Service deleted successfully']);
 

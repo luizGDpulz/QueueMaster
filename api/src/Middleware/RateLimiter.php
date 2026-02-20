@@ -61,12 +61,13 @@ class RateLimiter
 
             // Test connection
             $redis->ping();
-            
+
             self::$redis = $redis;
             self::$redisAvailable = true;
-            
+
             Logger::debug('Redis rate limiter initialized');
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::warning('Redis unavailable, using memory fallback for rate limiting', [
                 'error' => $e->getMessage(),
             ]);
@@ -129,7 +130,8 @@ class RateLimiter
     {
         if (self::$redisAvailable) {
             return $this->checkLimitRedis($key);
-        } else {
+        }
+        else {
             return $this->checkLimitMemory($key);
         }
     }
@@ -149,7 +151,7 @@ class RateLimiter
         $count = self::$redis->zcard($key);
 
         $allowed = $count < $this->maxRequests;
-        
+
         if ($allowed) {
             // Add current request with score = timestamp
             self::$redis->zadd($key, $now, uniqid('', true));
@@ -175,7 +177,11 @@ class RateLimiter
     /**
      * Check rate limit using memory (dev/single-server fallback)
      * 
-     * WARNING: Not shared across processes. For production, use Redis.
+     * ⚠ WARNING: This fallback does NOT work in production!
+     * In PHP-FPM/Apache (mod_php/CGI), each request runs in a separate process.
+     * Static arrays are NOT shared between processes, so the rate counter resets
+     * on every request. This is only useful with PHP's built-in dev server
+     * (single-process). For production, REDIS_ENABLED must be true.
      */
     private function checkLimitMemory(string $key): array
     {
@@ -190,7 +196,7 @@ class RateLimiter
         // Remove old entries
         self::$memoryStore[$key] = array_filter(
             self::$memoryStore[$key],
-            fn($timestamp) => $timestamp > $windowStart
+        fn($timestamp) => $timestamp > $windowStart
         );
 
         $count = count(self::$memoryStore[$key]);

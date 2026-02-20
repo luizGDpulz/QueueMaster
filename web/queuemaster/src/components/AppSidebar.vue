@@ -41,12 +41,15 @@
       
       <!-- Card do Usuário -->
       <div class="user-card">
-        <div class="user-avatar">
-          {{ userInitials }}
-        </div>
-        <div class="user-info">
-          <span class="user-name">{{ userName }}</span>
-          <span class="user-role">{{ userRole }}</span>
+        <div class="user-card-link" @click="goToProfile">
+          <div class="user-avatar">
+            <img v-if="userAvatar" :src="userAvatar" alt="Avatar" class="user-avatar-img" referrerpolicy="no-referrer" />
+            <span v-else>{{ userInitials }}</span>
+          </div>
+          <div class="user-info">
+            <span class="user-name">{{ userName }}</span>
+            <span class="user-role">{{ userRole }}</span>
+          </div>
         </div>
         <q-btn
           flat
@@ -71,8 +74,8 @@
 </template>
 
 <script>
-import { defineComponent } from 'vue'
-import { useRoute } from 'vue-router'
+import { defineComponent, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 export default defineComponent({
   name: 'AppSidebar',
@@ -86,9 +89,17 @@ export default defineComponent({
       type: String,
       default: 'Usuário'
     },
+    userRoleRaw: {
+      type: String,
+      default: ''
+    },
     userInitials: {
       type: String,
       default: 'U'
+    },
+    userAvatar: {
+      type: String,
+      default: ''
     },
     isDark: {
       type: Boolean,
@@ -98,16 +109,26 @@ export default defineComponent({
 
   emits: ['logout', 'toggle-theme'],
 
-  setup() {
+  setup(props) {
     const route = useRoute()
+    const router = useRouter()
 
-    const menuItems = [
+    const allMenuItems = [
       { path: '/app', label: 'Dashboard', icon: 'dashboard' },
       { path: '/app/queues', label: 'Filas', icon: 'format_list_numbered' },
       { path: '/app/appointments', label: 'Agendamentos', icon: 'event' },
       { path: '/app/establishments', label: 'Estabelecimentos', icon: 'store' },
+      { path: '/app/businesses', label: 'Negócios', icon: 'business' },
+      { path: '/app/admin', label: 'Administração', icon: 'admin_panel_settings', roles: ['admin', 'manager'] },
       { path: '/app/settings', label: 'Configurações', icon: 'settings' }
     ]
+
+    const menuItems = computed(() => {
+      return allMenuItems.filter(item => {
+        if (!item.roles) return true
+        return item.roles.includes(props.userRoleRaw)
+      })
+    })
 
     const isActive = (path) => {
       if (path === '/app') {
@@ -116,9 +137,12 @@ export default defineComponent({
       return route.path.startsWith(path)
     }
 
+    const goToProfile = () => router.push('/app/settings')
+
     return {
       menuItems,
-      isActive
+      isActive,
+      goToProfile
     }
   }
 })
@@ -230,6 +254,21 @@ export default defineComponent({
   box-shadow: var(--qm-shadow);
 }
 
+.user-card-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 0.75;
+  }
+}
+
 .user-avatar {
   width: 40px;
   height: 40px;
@@ -242,6 +281,13 @@ export default defineComponent({
   font-size: 0.875rem;
   font-weight: 600;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .user-info {

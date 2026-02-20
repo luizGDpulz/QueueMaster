@@ -238,7 +238,7 @@ CREATE TABLE IF NOT EXISTS establishment_users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   establishment_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
-  role ENUM('owner','manager','attendant') NOT NULL DEFAULT 'attendant',
+  role ENUM('owner','manager','professional') NOT NULL DEFAULT 'professional',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (establishment_id) REFERENCES establishments(id) ON DELETE CASCADE ON UPDATE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,

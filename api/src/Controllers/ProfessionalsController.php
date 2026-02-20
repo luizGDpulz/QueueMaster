@@ -8,6 +8,7 @@ use QueueMaster\Utils\Logger;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Models\Professional;
 use QueueMaster\Models\Establishment;
+use QueueMaster\Services\AuditService;
 
 /**
  * ProfessionalsController - Professional Management Endpoints
@@ -47,7 +48,8 @@ class ProfessionalsController
                 'total' => count($professionals),
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list professionals', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -81,7 +83,8 @@ class ProfessionalsController
                 'professional' => $professional,
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get professional', [
                 'professional_id' => $id,
                 'error' => $e->getMessage(),
@@ -94,7 +97,7 @@ class ProfessionalsController
     /**
      * POST /api/v1/professionals
      * 
-     * Create new professional (admin only)
+     * Create new professional (manager/admin)
      */
     public function create(Request $request): void
     {
@@ -138,14 +141,22 @@ class ProfessionalsController
                 'created_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'create', 'professional', (string)$professionalId, (int)$data['establishment_id'], null, [
+                'name' => trim($data['name']),
+                'specialization' => $data['specialization'] ?? null,
+                'establishment_id' => (int)$data['establishment_id'],
+            ]);
+
             Response::created([
                 'professional' => $professional,
                 'message' => 'Professional created successfully',
             ]);
 
-        } catch (\InvalidArgumentException $e) {
+        }
+        catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to create professional', [
                 'data' => $data,
                 'error' => $e->getMessage(),
@@ -158,7 +169,7 @@ class ProfessionalsController
     /**
      * PUT /api/v1/professionals/{id}
      * 
-     * Update professional (admin only)
+     * Update professional (manager/admin)
      */
     public function update(Request $request, int $id): void
     {
@@ -219,14 +230,25 @@ class ProfessionalsController
                 'updated_by' => $request->user['id'],
             ], $request->requestId);
 
+            $changes = [];
+            foreach ($updateData as $field => $newValue) {
+                $changes[$field] = ['from' => $professional[$field] ?? null, 'to' => $newValue];
+            }
+            AuditService::logFromRequest($request, 'update', 'professional', (string)$id, $professional['establishment_id'] ?? null, null, [
+                'entity_name' => $professional['name'] ?? null,
+                'changes' => $changes,
+            ]);
+
             Response::success([
                 'professional' => $updatedProfessional,
                 'message' => 'Professional updated successfully',
             ]);
 
-        } catch (\InvalidArgumentException $e) {
+        }
+        catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to update professional', [
                 'professional_id' => $id,
                 'error' => $e->getMessage(),
@@ -239,7 +261,7 @@ class ProfessionalsController
     /**
      * DELETE /api/v1/professionals/{id}
      * 
-     * Delete professional (admin only)
+     * Delete professional (manager/admin)
      */
     public function delete(Request $request, int $id): void
     {
@@ -262,9 +284,16 @@ class ProfessionalsController
                 'deleted_by' => $request->user['id'],
             ], $request->requestId);
 
+            AuditService::logFromRequest($request, 'delete', 'professional', (string)$id, $professional['establishment_id'] ?? null, null, [
+                'name' => $professional['name'] ?? null,
+                'specialization' => $professional['specialization'] ?? null,
+                'establishment_id' => $professional['establishment_id'] ?? null,
+            ]);
+
             Response::success(['message' => 'Professional deleted successfully']);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to delete professional', [
                 'professional_id' => $id,
                 'error' => $e->getMessage(),
@@ -304,7 +333,7 @@ class ProfessionalsController
 
             // Filter by status if provided
             if (isset($conditions['status'])) {
-                $appointments = array_filter($appointments, function($apt) use ($conditions) {
+                $appointments = array_filter($appointments, function ($apt) use ($conditions) {
                     return $apt['status'] === $conditions['status'];
                 });
             }
@@ -314,7 +343,8 @@ class ProfessionalsController
                 'total' => count($appointments),
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get professional appointments', [
                 'professional_id' => $id,
                 'error' => $e->getMessage(),
