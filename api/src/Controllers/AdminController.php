@@ -9,7 +9,9 @@ use QueueMaster\Models\BusinessSubscription;
 use QueueMaster\Models\BusinessUser;
 use QueueMaster\Models\Plan;
 use QueueMaster\Models\Business;
+use QueueMaster\Services\AuditService;
 use QueueMaster\Utils\Logger;
+use QueueMaster\Utils\Validator;
 
 /**
  * AdminController - Admin/Manager endpoints
@@ -63,10 +65,12 @@ class AdminController
                         return;
                     }
                     $filters['business_id'] = $requestedBid;
-                } else {
+                }
+                else {
                     $filters['business_ids'] = $managerBusinessIds;
                 }
-            } else {
+            }
+            else {
                 // Admin: optional business_id filter
                 if (!empty($params['business_id'])) {
                     $filters['business_id'] = (int)$params['business_id'];
@@ -102,7 +106,8 @@ class AdminController
             $result = AuditLog::search($filters, $page, $perPage);
 
             Response::success($result);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list audit logs', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -147,7 +152,8 @@ class AdminController
                         $businesses[] = ['id' => (int)$b['id'], 'name' => $b['name']];
                     }
                 }
-            } else {
+            }
+            else {
                 // Admin gets all businesses
                 $allBusinesses = Business::all([], 'name', 'ASC');
                 foreach ($allBusinesses as $b) {
@@ -160,7 +166,8 @@ class AdminController
                 'entities' => $entities,
                 'businesses' => $businesses,
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to get audit log filters', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -189,7 +196,8 @@ class AdminController
                 'subscriptions' => $subscriptions,
                 'total' => count($subscriptions),
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list subscriptions', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -210,11 +218,435 @@ class AdminController
                 'plans' => $plans,
                 'total' => count($plans),
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Failed to list plans', [
                 'error' => $e->getMessage(),
             ], $request->requestId);
             Response::serverError('Failed to retrieve plans', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/admin/plans/{id}
+     * Get single plan
+     */
+    public function getPlan(Request $request, int $id): void
+    {
+        try {
+            $plan = Plan::find($id);
+            if (!$plan) {
+                Response::notFound('Plan not found', $request->requestId);
+                return;
+            }
+
+            Response::success(['plan' => $plan]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to get plan', [
+                'plan_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to retrieve plan', $request->requestId);
+        }
+    }
+
+    /**
+     * POST /api/v1/admin/plans
+     * Create plan (admin only)
+     */
+    public function createPlan(Request $request): void
+    {
+        $userRole = $request->user['role'] ?? 'client';
+        if ($userRole !== 'admin') {
+            Response::forbidden('Only administrators can create plans', $request->requestId);
+            return;
+        }
+
+        $data = $request->all();
+
+        $errors = Validator::make($data, [
+            'name' => 'required|min:2|max:100',
+        ]);
+
+        if (!empty($errors)) {
+            Response::validationError($errors, $request->requestId);
+            return;
+        }
+
+        try {
+            $planData = [
+                'name' => trim($data['name']),
+                'is_active' => isset($data['is_active']) ? (int)$data['is_active'] : 1,
+            ];
+
+            // Optional numeric limits
+            $limitFields = [
+                'max_businesses', 'max_establishments_per_business',
+                'max_professionals_per_establishment', 'max_managers',
+            ];
+            foreach ($limitFields as $field) {
+                if (array_key_exists($field, $data)) {
+                    $planData[$field] = $data[$field] === null ? null : (int)$data[$field];
+                }
+            }
+
+            $planId = Plan::create($planData);
+            $plan = Plan::find($planId);
+
+            AuditService::logFromRequest($request, 'create', 'plan', (string)$planId, null, null, $planData);
+
+            Logger::info('Plan created', ['plan_id' => $planId], $request->requestId);
+
+            Response::created([
+                'plan' => $plan,
+                'message' => 'Plan created successfully',
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to create plan', [
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to create plan', $request->requestId);
+        }
+    }
+
+    /**
+     * PUT /api/v1/admin/plans/{id}
+     * Update plan (admin only)
+     */
+    public function updatePlan(Request $request, int $id): void
+    {
+        $userRole = $request->user['role'] ?? 'client';
+        if ($userRole !== 'admin') {
+            Response::forbidden('Only administrators can update plans', $request->requestId);
+            return;
+        }
+
+        try {
+            $plan = Plan::find($id);
+            if (!$plan) {
+                Response::notFound('Plan not found', $request->requestId);
+                return;
+            }
+
+            $data = $request->all();
+            $updateData = [];
+
+            if (isset($data['name'])) {
+                $updateData['name'] = trim($data['name']);
+            }
+            if (array_key_exists('is_active', $data)) {
+                $updateData['is_active'] = (int)$data['is_active'];
+            }
+
+            $limitFields = [
+                'max_businesses', 'max_establishments_per_business',
+                'max_professionals_per_establishment', 'max_managers',
+            ];
+            foreach ($limitFields as $field) {
+                if (array_key_exists($field, $data)) {
+                    $updateData[$field] = $data[$field] === null ? null : (int)$data[$field];
+                }
+            }
+
+            if (empty($updateData)) {
+                Response::validationError(['general' => 'No fields to update'], $request->requestId);
+                return;
+            }
+
+            Plan::update($id, $updateData);
+            $updated = Plan::find($id);
+
+            AuditService::logFromRequest($request, 'update', 'plan', (string)$id, null, null, $updateData);
+
+            Response::success([
+                'plan' => $updated,
+                'message' => 'Plan updated successfully',
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to update plan', [
+                'plan_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to update plan', $request->requestId);
+        }
+    }
+
+    /**
+     * DELETE /api/v1/admin/plans/{id}
+     * Delete plan (admin only)
+     */
+    public function deletePlan(Request $request, int $id): void
+    {
+        $userRole = $request->user['role'] ?? 'client';
+        if ($userRole !== 'admin') {
+            Response::forbidden('Only administrators can delete plans', $request->requestId);
+            return;
+        }
+
+        try {
+            $plan = Plan::find($id);
+            if (!$plan) {
+                Response::notFound('Plan not found', $request->requestId);
+                return;
+            }
+
+            // Check if plan is in use by active subscriptions
+            $activeSubs = BusinessSubscription::all(['plan_id' => $id, 'status' => 'active']);
+            if (!empty($activeSubs)) {
+                Response::error('conflict', 'Cannot delete plan with active subscriptions (' . count($activeSubs) . ')', 409, $request->requestId);
+                return;
+            }
+
+            Plan::delete($id);
+
+            AuditService::logFromRequest($request, 'delete', 'plan', (string)$id, null, null, [
+                'name' => $plan['name'],
+            ]);
+
+            Logger::info('Plan deleted', ['plan_id' => $id], $request->requestId);
+
+            Response::success(['message' => 'Plan deleted successfully']);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to delete plan', [
+                'plan_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to delete plan', $request->requestId);
+        }
+    }
+
+    // =========================================================================
+    // Subscriptions CRUD
+    // =========================================================================
+
+    /**
+     * GET /api/v1/admin/subscriptions/{id}
+     * Get single subscription
+     */
+    public function getSubscription(Request $request, int $id): void
+    {
+        try {
+            $sub = BusinessSubscription::find($id);
+            if (!$sub) {
+                Response::notFound('Subscription not found', $request->requestId);
+                return;
+            }
+
+            // Enrich
+            $business = Business::find($sub['business_id']);
+            $sub['business_name'] = $business['name'] ?? null;
+            $plan = Plan::find($sub['plan_id']);
+            $sub['plan_name'] = $plan['name'] ?? null;
+
+            Response::success(['subscription' => $sub]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to get subscription', [
+                'subscription_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to retrieve subscription', $request->requestId);
+        }
+    }
+
+    /**
+     * POST /api/v1/admin/subscriptions
+     * Create subscription (admin only)
+     */
+    public function createSubscription(Request $request): void
+    {
+        $userRole = $request->user['role'] ?? 'client';
+        if ($userRole !== 'admin') {
+            Response::forbidden('Only administrators can create subscriptions', $request->requestId);
+            return;
+        }
+
+        $data = $request->all();
+
+        $errors = Validator::make($data, [
+            'business_id' => 'required',
+            'plan_id' => 'required',
+        ]);
+
+        if (!empty($errors)) {
+            Response::validationError($errors, $request->requestId);
+            return;
+        }
+
+        try {
+            $businessId = (int)$data['business_id'];
+            $planId = (int)$data['plan_id'];
+
+            // Validate business exists
+            $business = Business::find($businessId);
+            if (!$business) {
+                Response::notFound('Business not found', $request->requestId);
+                return;
+            }
+
+            // Validate plan exists
+            $plan = Plan::find($planId);
+            if (!$plan) {
+                Response::notFound('Plan not found', $request->requestId);
+                return;
+            }
+
+            // Deactivate current active subscription if exists
+            $currentSub = BusinessSubscription::getActiveForBusiness($businessId);
+            if ($currentSub) {
+                BusinessSubscription::update((int)$currentSub['id'], [
+                    'status' => 'cancelled',
+                    'ends_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+
+            $subData = [
+                'business_id' => $businessId,
+                'plan_id' => $planId,
+                'status' => $data['status'] ?? 'active',
+                'starts_at' => $data['starts_at'] ?? date('Y-m-d H:i:s'),
+            ];
+
+            if (isset($data['ends_at'])) {
+                $subData['ends_at'] = $data['ends_at'];
+            }
+
+            $subId = BusinessSubscription::create($subData);
+            $sub = BusinessSubscription::find($subId);
+
+            AuditService::logFromRequest($request, 'create', 'subscription', (string)$subId, null, $businessId, [
+                'plan_id' => $planId,
+                'plan_name' => $plan['name'],
+            ]);
+
+            Logger::info('Subscription created', [
+                'subscription_id' => $subId,
+                'business_id' => $businessId,
+            ], $request->requestId);
+
+            Response::created([
+                'subscription' => $sub,
+                'message' => 'Subscription created successfully',
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to create subscription', [
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to create subscription', $request->requestId);
+        }
+    }
+
+    /**
+     * PUT /api/v1/admin/subscriptions/{id}
+     * Update subscription (admin only)
+     */
+    public function updateSubscription(Request $request, int $id): void
+    {
+        $userRole = $request->user['role'] ?? 'client';
+        if ($userRole !== 'admin') {
+            Response::forbidden('Only administrators can update subscriptions', $request->requestId);
+            return;
+        }
+
+        try {
+            $sub = BusinessSubscription::find($id);
+            if (!$sub) {
+                Response::notFound('Subscription not found', $request->requestId);
+                return;
+            }
+
+            $data = $request->all();
+            $updateData = [];
+
+            if (isset($data['plan_id'])) {
+                $plan = Plan::find((int)$data['plan_id']);
+                if (!$plan) {
+                    Response::notFound('Plan not found', $request->requestId);
+                    return;
+                }
+                $updateData['plan_id'] = (int)$data['plan_id'];
+            }
+
+            if (isset($data['status'])) {
+                $validStatuses = ['active', 'cancelled', 'expired', 'past_due'];
+                if (!in_array($data['status'], $validStatuses)) {
+                    Response::validationError(['status' => 'Invalid status. Allowed: ' . implode(', ', $validStatuses)], $request->requestId);
+                    return;
+                }
+                $updateData['status'] = $data['status'];
+            }
+
+            if (isset($data['starts_at'])) {
+                $updateData['starts_at'] = $data['starts_at'];
+            }
+            if (array_key_exists('ends_at', $data)) {
+                $updateData['ends_at'] = $data['ends_at'];
+            }
+
+            if (empty($updateData)) {
+                Response::validationError(['general' => 'No fields to update'], $request->requestId);
+                return;
+            }
+
+            BusinessSubscription::update($id, $updateData);
+            $updated = BusinessSubscription::find($id);
+
+            AuditService::logFromRequest($request, 'update', 'subscription', (string)$id, null, (int)$sub['business_id'], $updateData);
+
+            Response::success([
+                'subscription' => $updated,
+                'message' => 'Subscription updated successfully',
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to update subscription', [
+                'subscription_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to update subscription', $request->requestId);
+        }
+    }
+
+    /**
+     * DELETE /api/v1/admin/subscriptions/{id}
+     * Delete subscription (admin only)
+     */
+    public function deleteSubscription(Request $request, int $id): void
+    {
+        $userRole = $request->user['role'] ?? 'client';
+        if ($userRole !== 'admin') {
+            Response::forbidden('Only administrators can delete subscriptions', $request->requestId);
+            return;
+        }
+
+        try {
+            $sub = BusinessSubscription::find($id);
+            if (!$sub) {
+                Response::notFound('Subscription not found', $request->requestId);
+                return;
+            }
+
+            BusinessSubscription::delete($id);
+
+            AuditService::logFromRequest($request, 'delete', 'subscription', (string)$id, null, (int)$sub['business_id'], [
+                'plan_id' => $sub['plan_id'],
+            ]);
+
+            Logger::info('Subscription deleted', ['subscription_id' => $id], $request->requestId);
+
+            Response::success(['message' => 'Subscription deleted successfully']);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to delete subscription', [
+                'subscription_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to delete subscription', $request->requestId);
         }
     }
 }

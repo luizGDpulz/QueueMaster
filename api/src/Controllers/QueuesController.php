@@ -768,4 +768,157 @@ class QueuesController
             Response::serverError('Failed to generate access code', $request->requestId);
         }
     }
+
+    /**
+     * GET /api/v1/queues/:id/access-codes
+     * 
+     * List access codes for a queue (manager/admin only)
+     */
+    public function listCodes(Request $request, int $id): void
+    {
+        try {
+            $queue = Queue::find($id);
+            if (!$queue) {
+                Response::notFound('Queue not found', $request->requestId);
+                return;
+            }
+
+            $codes = QueueAccessCode::getByQueue($id);
+
+            Response::success([
+                'access_codes' => $codes,
+                'total' => count($codes),
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to list queue access codes', [
+                'queue_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to retrieve access codes', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/queues/:id/access-codes/:codeId
+     * 
+     * Get single access code (manager/admin only)
+     */
+    public function getCode(Request $request, int $id, int $codeId): void
+    {
+        try {
+            $queue = Queue::find($id);
+            if (!$queue) {
+                Response::notFound('Queue not found', $request->requestId);
+                return;
+            }
+
+            $code = QueueAccessCode::find($codeId);
+            if (!$code || (int)$code['queue_id'] !== $id) {
+                Response::notFound('Access code not found', $request->requestId);
+                return;
+            }
+
+            Response::success(['access_code' => $code]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to get access code', [
+                'queue_id' => $id,
+                'code_id' => $codeId,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to retrieve access code', $request->requestId);
+        }
+    }
+
+    /**
+     * POST /api/v1/queues/:id/access-codes/:codeId/deactivate
+     * 
+     * Deactivate an access code (manager/admin only)
+     */
+    public function deactivateCode(Request $request, int $id, int $codeId): void
+    {
+        try {
+            $queue = Queue::find($id);
+            if (!$queue) {
+                Response::notFound('Queue not found', $request->requestId);
+                return;
+            }
+
+            $code = QueueAccessCode::find($codeId);
+            if (!$code || (int)$code['queue_id'] !== $id) {
+                Response::notFound('Access code not found', $request->requestId);
+                return;
+            }
+
+            QueueAccessCode::deactivate($codeId);
+            $updated = QueueAccessCode::find($codeId);
+
+            AuditService::logFromRequest($request, 'deactivate_code', 'queue', (string)$id, null, null, [
+                'code_id' => $codeId,
+            ]);
+
+            Logger::info('Access code deactivated', [
+                'queue_id' => $id,
+                'code_id' => $codeId,
+            ], $request->requestId);
+
+            Response::success([
+                'access_code' => $updated,
+                'message' => 'Access code deactivated successfully',
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to deactivate access code', [
+                'queue_id' => $id,
+                'code_id' => $codeId,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to deactivate access code', $request->requestId);
+        }
+    }
+
+    /**
+     * DELETE /api/v1/queues/:id/access-codes/:codeId
+     * 
+     * Delete an access code (manager/admin only)
+     */
+    public function deleteCode(Request $request, int $id, int $codeId): void
+    {
+        try {
+            $queue = Queue::find($id);
+            if (!$queue) {
+                Response::notFound('Queue not found', $request->requestId);
+                return;
+            }
+
+            $code = QueueAccessCode::find($codeId);
+            if (!$code || (int)$code['queue_id'] !== $id) {
+                Response::notFound('Access code not found', $request->requestId);
+                return;
+            }
+
+            QueueAccessCode::delete($codeId);
+
+            AuditService::logFromRequest($request, 'delete_code', 'queue', (string)$id, null, null, [
+                'code_id' => $codeId,
+                'code' => $code['code'],
+            ]);
+
+            Logger::info('Access code deleted', [
+                'queue_id' => $id,
+                'code_id' => $codeId,
+            ], $request->requestId);
+
+            Response::success(['message' => 'Access code deleted successfully']);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to delete access code', [
+                'queue_id' => $id,
+                'code_id' => $codeId,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to delete access code', $request->requestId);
+        }
+    }
 }

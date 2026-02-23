@@ -1,0 +1,41 @@
+version: '3.8'
+
+# NOTE: This configuration is for LOCAL DEVELOPMENT ONLY
+# For production, use environment variables or secrets management
+# and never commit credentials to version control
+
+services:
+  mariadb:
+    image: mariadb:10.11
+    container_name: queuemaster_mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: queue_system
+      MYSQL_USER: queuemaster
+      MYSQL_PASSWORD: queuemaster123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: queuemaster_phpmyadmin
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: rootpassword
+    ports:
+      - "8081:80"
+    depends_on:
+      - mariadb
+
+volumes:
+  mariadb_data:

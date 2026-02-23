@@ -1,41 +1,74 @@
-version: '3.8'
-
-# NOTE: This configuration is for LOCAL DEVELOPMENT ONLY
-# For production, use environment variables or secrets management
-# and never commit credentials to version control
-
 services:
+  # ===========================================================================
+  # MariaDB Database
+  # ===========================================================================
   mariadb:
     image: mariadb:10.11
     container_name: queuemaster_mariadb
+    restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: queue_system
-      MYSQL_USER: queuemaster
-      MYSQL_PASSWORD: queuemaster123
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-queue_master}
+      MYSQL_USER: ${DB_USER:-queuemaster}
+      MYSQL_PASSWORD: ${DB_PASS}
     ports:
-      - "3306:3306"
+      - "${DB_PORT_EXPOSE:-3307}:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
+      - ./docker/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+    networks:
+      - queuemaster_network
 
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: queuemaster_phpmyadmin
+  # ===========================================================================
+  # App (PHP 8.1 + Apache — serves API + Frontend SPA)
+  # ===========================================================================
+  app:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+    container_name: queuemaster_app
+    restart: unless-stopped
     environment:
-      PMA_HOST: mariadb
-      PMA_PORT: 3306
-      PMA_USER: root
-      PMA_PASSWORD: rootpassword
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-queuemaster}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME:-queue_master}
+      JWT_PRIVATE_KEY_PATH: keys/private.key
+      JWT_PUBLIC_KEY_PATH: keys/public.key
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-900}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-2592000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_TIMEZONE: ${APP_TIMEZONE:-America/Sao_Paulo}
+      CORS_ORIGINS: ${CORS_ORIGINS}
     ports:
-      - "8081:80"
+      - "${HTTP_PORT:-3000}:80"
+    volumes:
+      - app_keys:/var/www/api/keys
+      - app_logs:/var/www/api/logs
     depends_on:
-      - mariadb
+      mariadb:
+        condition: service_healthy
+    networks:
+      - queuemaster_network
 
 volumes:
   mariadb_data:
+  app_keys:
+  app_logs:
+
+networks:
+  qm_network:
+    driver: bridge

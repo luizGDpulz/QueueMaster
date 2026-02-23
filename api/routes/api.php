@@ -419,6 +419,41 @@ $router->group('/api/v1', function ($router) {
                 }
                     , [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
 
+                // GET /api/v1/queues/{id}/access-codes - List access codes (manager/admin)
+                $router->get('/{id}/access-codes', function ($request) {
+                    $controller = new QueuesController();
+                    $id = (int)$request->getParam('id');
+                    $controller->listCodes($request, $id);
+                }
+                    , [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
+
+                // GET /api/v1/queues/{id}/access-codes/{codeId} - Get single access code (manager/admin)
+                $router->get('/{id}/access-codes/{codeId}', function ($request) {
+                    $controller = new QueuesController();
+                    $id = (int)$request->getParam('id');
+                    $codeId = (int)$request->getParam('codeId');
+                    $controller->getCode($request, $id, $codeId);
+                }
+                    , [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
+
+                // POST /api/v1/queues/{id}/access-codes/{codeId}/deactivate - Deactivate code (manager/admin)
+                $router->post('/{id}/access-codes/{codeId}/deactivate', function ($request) {
+                    $controller = new QueuesController();
+                    $id = (int)$request->getParam('id');
+                    $codeId = (int)$request->getParam('codeId');
+                    $controller->deactivateCode($request, $id, $codeId);
+                }
+                    , [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
+
+                // DELETE /api/v1/queues/{id}/access-codes/{codeId} - Delete code (manager/admin)
+                $router->delete('/{id}/access-codes/{codeId}', function ($request) {
+                    $controller = new QueuesController();
+                    $id = (int)$request->getParam('id');
+                    $codeId = (int)$request->getParam('codeId');
+                    $controller->deleteCode($request, $id, $codeId);
+                }
+                    , [new AuthMiddleware(), new RoleMiddleware(['manager', 'admin'])]);
+
                 // POST /api/v1/queues - Create queue (professional/manager/admin)
                 $router->post('', function ($request) {
                     $controller = new QueuesController();
@@ -844,10 +879,72 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
+                // GET /api/v1/admin/subscriptions/{id} - Get single subscription
+                $router->get('/subscriptions/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $id = (int)$request->getParam('id');
+                    $controller->getSubscription($request, $id);
+                }
+                );
+
+                // POST /api/v1/admin/subscriptions - Create subscription (admin only)
+                $router->post('/subscriptions', function ($request) {
+                    $controller = new AdminController();
+                    $controller->createSubscription($request);
+                }
+                );
+
+                // PUT /api/v1/admin/subscriptions/{id} - Update subscription (admin only)
+                $router->put('/subscriptions/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $id = (int)$request->getParam('id');
+                    $controller->updateSubscription($request, $id);
+                }
+                );
+
+                // DELETE /api/v1/admin/subscriptions/{id} - Delete subscription (admin only)
+                $router->delete('/subscriptions/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $id = (int)$request->getParam('id');
+                    $controller->deleteSubscription($request, $id);
+                }
+                );
+
                 // GET /api/v1/admin/plans - List plans
                 $router->get('/plans', function ($request) {
                     $controller = new AdminController();
                     $controller->plans($request);
+                }
+                );
+
+                // GET /api/v1/admin/plans/{id} - Get single plan
+                $router->get('/plans/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $id = (int)$request->getParam('id');
+                    $controller->getPlan($request, $id);
+                }
+                );
+
+                // POST /api/v1/admin/plans - Create plan (admin only)
+                $router->post('/plans', function ($request) {
+                    $controller = new AdminController();
+                    $controller->createPlan($request);
+                }
+                );
+
+                // PUT /api/v1/admin/plans/{id} - Update plan (admin only)
+                $router->put('/plans/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $id = (int)$request->getParam('id');
+                    $controller->updatePlan($request, $id);
+                }
+                );
+
+                // DELETE /api/v1/admin/plans/{id} - Delete plan (admin only)
+                $router->delete('/plans/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $id = (int)$request->getParam('id');
+                    $controller->deletePlan($request, $id);
                 }
                 );
 
@@ -884,12 +981,14 @@ $router->group('/api/v1', function ($router) {
             }
             );
 
+
+
         
 }, [new RateLimiter(100, 60)]); // Global rate limit: 100 requests per minute
 
 // Health check endpoint (no rate limiting)
 $router->get('/health', function ($request) {
-    \QueueMaster\Core\Response::success([
+    Response::success([
         'status' => 'healthy',
         'timestamp' => time(),
         'version' => '1.0.0',

@@ -1,6 +1,6 @@
 -- seed_sample_data.sql
 -- Sample seed data for QueueMaster testing and development
--- Creates establishments, services, professionals, queues, and sample entries
+-- Creates businesses, establishments, services, professionals, queues, and sample entries
 -- 
 -- NOTE: Users are NOT seeded - login with Google OAuth using the email
 -- configured in SUPER_ADMIN_EMAIL to become the first admin.
@@ -10,13 +10,22 @@
 USE queue_master;
 
 -- ============================================================================
+-- BUSINESS
+-- ============================================================================
+-- Create a sample business that owns the establishments
+
+INSERT INTO businesses (owner_user_id, name, slug, description) VALUES
+(1, 'Demo Health & Beauty Group', 'demo-hb-group', 'Demo business grouping medical and beauty establishments');
+
+SET @business_id = (SELECT id FROM businesses WHERE slug = 'demo-hb-group' LIMIT 1);
+
+-- ============================================================================
 -- ESTABLISHMENTS
 -- ============================================================================
--- Create sample establishments for testing
 
-INSERT INTO establishments (name, slug, description, address, phone, timezone, opens_at, closes_at, created_at) VALUES
-('Central Medical Clinic', 'central-medical', 'Full-service medical clinic with walk-in and scheduled appointments', '123 Health Street, Downtown, City 12345', '(11) 3456-7890', 'America/Sao_Paulo', '08:00:00', '18:00:00', NOW()),
-('Quick Barber Shop', 'quick-barber', 'Modern barbershop with online queue system', '456 Style Avenue, Shopping Center', '(11) 9876-5432', 'America/Sao_Paulo', '09:00:00', '20:00:00', NOW());
+INSERT INTO establishments (business_id, name, slug, description, address, phone, timezone, opens_at, closes_at, created_at) VALUES
+(@business_id, 'Central Medical Clinic', 'central-medical', 'Full-service medical clinic with walk-in and scheduled appointments', '123 Health Street, Downtown, City 12345', '(11) 3456-7890', 'America/Sao_Paulo', '08:00:00', '18:00:00', NOW()),
+(@business_id, 'Quick Barber Shop', 'quick-barber', 'Modern barbershop with online queue system', '456 Style Avenue, Shopping Center', '(11) 9876-5432', 'America/Sao_Paulo', '09:00:00', '20:00:00', NOW());
 
 SET @clinic_id = (SELECT id FROM establishments WHERE slug = 'central-medical' LIMIT 1);
 SET @barber_id = (SELECT id FROM establishments WHERE slug = 'quick-barber' LIMIT 1);
@@ -76,7 +85,6 @@ INSERT INTO professional_services (professional_id, service_id) VALUES
 -- ============================================================================
 -- QUEUES
 -- ============================================================================
--- Create sample queues
 
 INSERT INTO queues (establishment_id, service_id, name, description, status, max_capacity, avg_wait_minutes, created_at) VALUES
 (@clinic_id, @service_consultation_id, 'Walk-in Consultation', 'Queue for patients without appointments', 'open', 20, 25, NOW()),
@@ -89,7 +97,6 @@ SET @queue_barber_id = (SELECT id FROM queues WHERE name = 'Haircut Queue' LIMIT
 -- ============================================================================
 -- QUEUE ENTRIES (anonymous walk-ins for demo)
 -- ============================================================================
--- Create some anonymous queue entries to simulate walk-in customers
 -- Note: These don't have user_id since we're not seeding users
 
 INSERT INTO queue_entries (queue_id, guest_name, guest_phone, position, ticket_number, status, priority, created_at) VALUES
@@ -108,9 +115,11 @@ SELECT '' as '';
 
 SELECT '=== DATA SUMMARY ===' as '';
 
+SELECT 'Businesses' as entity, COUNT(*) as count FROM businesses;
 SELECT 'Establishments' as entity, COUNT(*) as count FROM establishments;
 SELECT 'Services' as entity, COUNT(*) as count FROM services;
 SELECT 'Professionals' as entity, COUNT(*) as count FROM professionals;
+SELECT 'Professional Services' as entity, COUNT(*) as count FROM professional_services;
 SELECT 'Queues' as entity, COUNT(*) as count FROM queues;
 SELECT 'Queue Entries' as entity, COUNT(*) as count FROM queue_entries;
 
@@ -118,7 +127,7 @@ SELECT '' as '';
 SELECT '=== NEXT STEPS ===' as '';
 SELECT '1. Set SUPER_ADMIN_EMAIL in .env to your Google email' as step;
 SELECT '2. Login with Google OAuth to become admin' as step;
-SELECT '3. Assign yourself as owner of establishments via SQL or API' as step;
+SELECT '3. The demo business will be linked once you login and assign ownership via API' as step;
 
 -- ============================================================================
 -- HOW TO BECOME ADMIN
