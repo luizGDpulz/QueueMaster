@@ -56,8 +56,8 @@ COPY public/ /var/www/public/
 # Copy API composer files first for layer caching
 COPY api/composer.json api/composer.phar /var/www/api/
 
-# Install composer dependencies (no dev)
-RUN cd /var/www/api && php composer.phar install --no-dev --optimize-autoloader --no-interaction
+# Install composer dependencies (no dev, no lock file in repo)
+RUN cd /var/www/api && php composer.phar update --no-dev --optimize-autoloader --no-interaction
 
 # Copy API source code
 COPY api/ /var/www/api/

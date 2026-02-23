@@ -70,5 +70,5 @@ volumes:
   app_logs:
 
 networks:
-  qm_network:
+  queuemaster_network:
     driver: bridge
