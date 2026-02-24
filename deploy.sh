@@ -280,7 +280,20 @@ do_build() {
     # Run migrations automatically
     echo ""
     print_info "Rodando migrations..."
-    docker compose -f "$COMPOSE_FILE" exec -T app php /var/www/api/scripts/migrate.php up || true
+    docker compose -f "$COMPOSE_FILE" exec -T app php /var/www/api/scripts/migrate.php up || {
+        print_error "Falha ao rodar migrations."
+        print_warn "Certifique-se de que o banco está acessível."
+    }
+
+    # Verify if users table exists (basic check)
+    echo ""
+    print_info "Verificando integridade do banco..."
+    if docker compose -f "$COMPOSE_FILE" exec -T mariadb mysql -u root -p"${DB_ROOT_PASSWORD}" -e "USE ${DB_NAME:-queue_master}; SELECT COUNT(*) FROM users;" &>/dev/null; then
+        print_success "Tabelas encontradas!"
+    else
+        print_warn "MESA DE USUÁRIOS NÃO ENCONTRADA!"
+        print_info "Execute a opção 6 para rodar as migrations manualmente."
+    fi
 
     echo ""
     echo -e "${GREEN}════════════════════════════════════════${NC}"
@@ -289,6 +302,9 @@ do_build() {
     echo ""
     echo "Acesse: ${CORS_ORIGINS:-http://localhost}"
     echo "API:    ${VITE_API_URL:-http://localhost/api/v1}"
+    echo ""
+    print_warn "DICA: Se os ícones não aparecerem ou o login falhar,"
+    print_warn "limpe o cache do Cloudflare e use ABA ANÔNIMA."
     echo ""
 }
 
