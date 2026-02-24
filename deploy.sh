@@ -420,15 +420,19 @@ do_generate_keys_internal() {
         docker compose -f "$COMPOSE_FILE" exec app bash -c \
             "openssl genrsa -out /var/www/api/keys/private.key 2048 2>/dev/null && \
              openssl rsa -in /var/www/api/keys/private.key -pubout -out /var/www/api/keys/public.key 2>/dev/null && \
-             chmod 600 /var/www/api/keys/private.key && chmod 644 /var/www/api/keys/public.key"
+             chmod 600 /var/www/api/keys/private.key && chmod 644 /var/www/api/keys/public.key && \
+             chown www-data:www-data /var/www/api/keys/*.key"
     else
         # Generate locally (for initial setup before containers are running)
         local keys_dir="$SCRIPT_DIR/api/keys"
         mkdir -p "$keys_dir"
         openssl genrsa -out "$keys_dir/private.key" 2048 2>/dev/null
         openssl rsa -in "$keys_dir/private.key" -pubout -out "$keys_dir/public.key" 2>/dev/null
+        
+        # Security permissions (On Linux/Server)
         chmod 600 "$keys_dir/private.key" 2>/dev/null || true
         chmod 644 "$keys_dir/public.key" 2>/dev/null || true
+        chown www-data:www-data "$keys_dir"/*.key 2>/dev/null || true
     fi
 }
 
