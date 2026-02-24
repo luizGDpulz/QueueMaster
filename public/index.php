@@ -16,8 +16,10 @@ $path = parse_url($requestUri, PHP_URL_PATH);
 // API Routes (/api/*, /health, /docs, /swagger/*)
 // ============================================================================
 
-// Serve static files from api/public/ for swagger and docs
-if (str_starts_with($path, '/swagger/') || str_starts_with($path, '/docs/')) {
+// Serve static files from api/public/ for swagger and docs (dev only)
+$isProduction = ($_ENV['APP_ENV'] ?? 'production') === 'production';
+
+if (!$isProduction && (str_starts_with($path, '/swagger/') || str_starts_with($path, '/docs/'))) {
     $staticFile = __DIR__ . '/../api/public' . $path;
     if (file_exists($staticFile) && is_file($staticFile)) {
         $mimeTypes = [
@@ -41,8 +43,7 @@ if (str_starts_with($path, '/swagger/') || str_starts_with($path, '/docs/')) {
 if (
 str_starts_with($path, '/api/') ||
 str_starts_with($path, '/health') ||
-str_starts_with($path, '/docs') ||
-str_starts_with($path, '/swagger')
+(!$isProduction && (str_starts_with($path, '/docs') || str_starts_with($path, '/swagger')))
 ) {
     // Forward to API entry point
     require __DIR__ . '/../api/public/index.php';

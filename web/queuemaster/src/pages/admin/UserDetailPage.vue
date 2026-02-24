@@ -119,7 +119,7 @@ export default defineComponent({
     const isAdmin = computed(() => currentUserRole.value === 'admin')
     const userAvatarUrl = computed(() => {
       if (!user.value?.id) return ''
-      return `http://localhost/api/v1/users/${user.value.id}/avatar`
+      return `${import.meta.env.VITE_API_URL || 'http://localhost/api/v1'}/users/${user.value.id}/avatar`
     })
 
     const goBack = () => router.push('/app/admin')

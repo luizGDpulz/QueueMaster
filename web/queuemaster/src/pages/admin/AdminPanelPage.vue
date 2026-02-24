@@ -891,7 +891,7 @@ export default defineComponent({
     }
 
     const openSwagger = () => {
-      window.open('http://localhost/swagger', '_blank')
+      window.open('/swagger', '_blank')
     }
 
     // =====================================================

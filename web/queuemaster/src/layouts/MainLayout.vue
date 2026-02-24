@@ -158,7 +158,7 @@ export default defineComponent({
     const userAvatar = computed(() => {
       if (!user.value?.id) return ''
       // Use API route for avatar (cached base64 in DB, no Google dependency)
-      return `http://localhost/api/v1/users/${user.value.id}/avatar`
+      return `${import.meta.env.VITE_API_URL || 'http://localhost/api/v1'}/users/${user.value.id}/avatar`
     })
 
     const handleLogout = async () => {
