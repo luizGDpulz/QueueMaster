@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * QueueMaster API - Front Controller
  * 
@@ -11,9 +11,7 @@
  * Dev Server: php -S 127.0.0.1:8080 -t public
  */
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+// Error reporting is set below based on APP_ENV
 
 // Start output buffering to prevent premature output
 ob_start();
@@ -36,9 +34,12 @@ use QueueMaster\Core\Response;
 use QueueMaster\Core\Router;
 use QueueMaster\Utils\Logger;
 
-// Load environment variables
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
-$dotenv->load();
+// Load environment variables (from .env file if present, Docker provides them via compose)
+$envDir = __DIR__ . '/..';
+if (file_exists($envDir . '/.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable($envDir);
+    $dotenv->load();
+}
 
 // Set timezone (default: America/Sao_Paulo for GMT-3)
 $timezone = $_ENV['APP_TIMEZONE'] ?? 'America/Sao_Paulo';
