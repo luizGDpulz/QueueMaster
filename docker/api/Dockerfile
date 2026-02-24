@@ -37,7 +37,8 @@ RUN apt-get update && apt-get install -y \
     openssl \
     && docker-php-ext-install pdo_mysql zip \
     && a2enmod rewrite headers \
-    && sed -i 's/Alias \/icons\// # Alias \/icons\//g' /etc/apache2/mods-enabled/alias.conf || true \
+    && sed -i 's/^Alias \/icons\// # Alias \/icons\//g' /etc/apache2/mods-enabled/alias.conf || true \
+    && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy Apache virtual host config

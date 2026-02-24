@@ -99,8 +99,9 @@ class Logger
         file_put_contents($logFile, $jsonLog, FILE_APPEND | LOCK_EX);
 
         // Also write to error_log for errors
-        if ($level === 'ERROR') {
-            error_log("[$level] $message | Request: $requestId");
+        if ($level === 'ERROR' || $level === 'WARNING') {
+            $contextStr = !empty($sanitizedContext) ? ' | Context: ' . json_encode($sanitizedContext) : '';
+            error_log("[$level] $message | Request: $requestId$contextStr");
         }
     }
 

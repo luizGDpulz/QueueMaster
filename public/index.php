@@ -12,6 +12,11 @@
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $path = parse_url($requestUri, PHP_URL_PATH);
 
+// Debug logging for request tracing in production
+if (str_contains($path, '/icons/') || str_contains($path, '/auth/')) {
+    error_log("[DEBUG] Request received: $path (Method: " . ($_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN') . ")");
+}
+
 // ============================================================================
 // API Routes (/api/*, /health, /docs, /swagger/*)
 // ============================================================================

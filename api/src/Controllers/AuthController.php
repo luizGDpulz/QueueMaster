@@ -107,8 +107,7 @@ class AuthController
 
         }
         catch (\Exception $e) {
-            Logger::error('Google authentication failed', [
-                'error' => $e->getMessage(),
+            Logger::error('Google authentication failed: ' . $e->getMessage(), [
                 'ip' => $request->getIp(),
             ], $request->requestId);
 
