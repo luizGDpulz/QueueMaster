@@ -431,24 +431,27 @@ do_seeds() {
 # 8) Regenerar JWT Keys
 # ---------------------------------------------------------------------------
 do_generate_keys_internal() {
-    # Generate keys inside the App container if running, otherwise locally
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "$APP_CONTAINER"; then
-        docker compose -f "$COMPOSE_FILE" exec app bash -c \
-            "openssl genrsa -out /var/www/api/keys/private.key 2048 2>/dev/null && \
-             openssl rsa -in /var/www/api/keys/private.key -pubout -out /var/www/api/keys/public.key 2>/dev/null && \
-             chmod 600 /var/www/api/keys/private.key && chmod 644 /var/www/api/keys/public.key && \
-             chown www-data:www-data /var/www/api/keys/*.key"
+    # Generate keys locally (bind mount handles the container)
+    local keys_dir="$SCRIPT_DIR/api/keys"
+    mkdir -p "$keys_dir"
+    
+    print_info "Gerando novas chaves RSA..."
+    openssl genrsa -out "$keys_dir/private.key" 2048
+    openssl rsa -in "$keys_dir/private.key" -pubout -out "$keys_dir/public.key"
+    
+    # Security permissions (On Linux/Server)
+    chmod 600 "$keys_dir/private.key" 2>/dev/null || true
+    chmod 644 "$keys_dir/public.key" 2>/dev/null || true
+    
+    # Try to set owner to www-data for Apache readability
+    chown www-data:www-data "$keys_dir"/*.key 2>/dev/null || true
+
+    # Verify generation
+    if [ ! -f "$keys_dir/private.key" ] || [ ! -s "$keys_dir/private.key" ]; then
+        print_error "ERRO: Chave privada não gerada ou está vazia!"
+        print_warn "Verifique se o OpenSSL está instalado no host."
     else
-        # Generate locally (for initial setup before containers are running)
-        local keys_dir="$SCRIPT_DIR/api/keys"
-        mkdir -p "$keys_dir"
-        openssl genrsa -out "$keys_dir/private.key" 2048 2>/dev/null
-        openssl rsa -in "$keys_dir/private.key" -pubout -out "$keys_dir/public.key" 2>/dev/null
-        
-        # Security permissions (On Linux/Server)
-        chmod 600 "$keys_dir/private.key" 2>/dev/null || true
-        chmod 644 "$keys_dir/public.key" 2>/dev/null || true
-        chown www-data:www-data "$keys_dir"/*.key 2>/dev/null || true
+        print_success "Chaves JWT geradas e protegidas em $keys_dir"
     fi
 }
 
