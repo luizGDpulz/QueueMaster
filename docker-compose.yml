@@ -26,6 +26,19 @@ services:
       - queuemaster_network
 
   # ===========================================================================
+  # Redis Cache & Rate Limiting
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: queuemaster_redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - queuemaster_network
+
+  # ===========================================================================
   # App (PHP 8.1 + Apache — serves API + Frontend SPA)
   # ===========================================================================
   app:
@@ -43,6 +56,10 @@ services:
       DB_USER: ${DB_USER:-queuemaster}
       DB_PASS: ${DB_PASS}
       DB_NAME: ${DB_NAME:-queue_master}
+      REDIS_ENABLED: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RATE_LIMIT_ENABLED: "true"
       JWT_PRIVATE_KEY_PATH: keys/private.key
       JWT_PUBLIC_KEY_PATH: keys/public.key
       ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-900}
@@ -61,11 +78,14 @@ services:
     depends_on:
       mariadb:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - queuemaster_network
 
 volumes:
   mariadb_data:
+  redis_data:
   app_logs:
 
 networks:
