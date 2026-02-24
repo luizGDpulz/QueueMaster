@@ -53,11 +53,15 @@ WORKDIR /var/www
 # Copy root public/ entry point (unified router: API + SPA)
 COPY public/ /var/www/public/
 
-# Copy API composer files first for layer caching
-COPY api/composer.json api/composer.phar /var/www/api/
+# Copy API composer config
+COPY api/composer.json /var/www/api/
 
-# Install composer dependencies (no dev, no lock file in repo)
-RUN cd /var/www/api && php composer.phar update --no-dev --no-audit --optimize-autoloader --no-interaction
+# Download fresh Composer and install dependencies
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Install composer dependencies (no dev, skip security audit)
+ENV COMPOSER_NO_AUDIT=1
+RUN cd /var/www/api && composer update --no-dev --optimize-autoloader --no-interaction
 
 # Copy API source code
 COPY api/ /var/www/api/
