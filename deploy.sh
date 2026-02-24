@@ -176,14 +176,9 @@ do_setup() {
     read -r timezone
     timezone="${timezone:-America/Sao_Paulo}"
 
-    # Build CORS and API URL
-    if [[ "$http_port" == "80" || "$http_port" == "443" ]]; then
-        cors_origins="${protocol}://${server_domain}"
-        vite_api_url="${protocol}://${server_domain}/api/v1"
-    else
-        cors_origins="${protocol}://${server_domain}:${http_port}"
-        vite_api_url="${protocol}://${server_domain}:${http_port}/api/v1"
-    fi
+    # Build CORS and API URL (public URLs through NPM — never include internal port)
+    cors_origins="${protocol}://${server_domain}"
+    vite_api_url="${protocol}://${server_domain}/api/v1"
 
     # Write .env
     echo ""
