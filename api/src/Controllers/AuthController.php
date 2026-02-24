@@ -57,7 +57,7 @@ class AuthController
                 Logger::logSecurity('Invalid Google token', [
                     'ip' => $request->getIp(),
                 ], $request->requestId);
-                
+
                 Response::unauthorized('Invalid Google token', $request->requestId);
                 return;
             }
@@ -68,7 +68,7 @@ class AuthController
                     'email' => $googleUser['email'] ?? 'unknown',
                     'ip' => $request->getIp(),
                 ], $request->requestId);
-                
+
                 Response::forbidden('Email not verified by Google', $request->requestId);
                 return;
             }
@@ -105,7 +105,8 @@ class AuthController
                 'is_new_user' => $isNewUser,
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Logger::error('Google authentication failed', [
                 'error' => $e->getMessage(),
                 'ip' => $request->getIp(),
@@ -135,7 +136,7 @@ class AuthController
 
         // Validate token with Google
         $url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($idToken);
-        
+
         $context = stream_context_create([
             'http' => [
                 'method' => 'GET',
@@ -160,6 +161,8 @@ class AuthController
         if (!$payload || isset($payload['error'])) {
             Logger::warning('Invalid Google token response', [
                 'error' => $payload['error'] ?? 'Unknown error',
+                'description' => $payload['error_description'] ?? 'No description',
+                'response_snippet' => substr($response, 0, 100),
             ]);
             return null;
         }
@@ -169,6 +172,7 @@ class AuthController
             Logger::logSecurity('Google token audience mismatch', [
                 'expected' => $clientId,
                 'received' => $payload['aud'] ?? 'none',
+                'azp' => $payload['azp'] ?? 'none',
             ]);
             return null;
         }
