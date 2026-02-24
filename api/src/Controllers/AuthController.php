@@ -354,7 +354,7 @@ class AuthController
 
         setcookie('access_token', $token, [
             'expires' => time() + $ttl,
-            'path' => '/api/v1',
+            'path' => '/',
             'domain' => '',
             'secure' => $isProduction,
             'httponly' => true,
@@ -371,7 +371,7 @@ class AuthController
 
         setcookie('access_token', '', [
             'expires' => time() - 3600,
-            'path' => '/api/v1',
+            'path' => '/',
             'domain' => '',
             'secure' => $isProduction,
             'httponly' => true,
@@ -391,7 +391,7 @@ class AuthController
 
         setcookie('refresh_token', $token, [
             'expires' => time() + $ttl,
-            'path' => '/api/v1/auth',
+            'path' => '/',
             'domain' => '',
             'secure' => $isProduction,
             'httponly' => true,
@@ -408,7 +408,7 @@ class AuthController
 
         setcookie('refresh_token', '', [
             'expires' => time() - 3600,
-            'path' => '/api/v1/auth',
+            'path' => '/',
             'domain' => '',
             'secure' => $isProduction,
             'httponly' => true,
