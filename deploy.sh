@@ -440,7 +440,9 @@ do_generate_keys_internal() {
     openssl rsa -in "$keys_dir/private.key" -pubout -out "$keys_dir/public.key"
     
     # Security permissions (On Linux/Server)
-    chmod 600 "$keys_dir/private.key" 2>/dev/null || true
+    # Using 644 because the container user (www-data) needs read access 
+    # and bind-mount owner is usually the host user.
+    chmod 644 "$keys_dir/private.key" 2>/dev/null || true
     chmod 644 "$keys_dir/public.key" 2>/dev/null || true
     
     # Try to set owner to www-data for Apache readability
