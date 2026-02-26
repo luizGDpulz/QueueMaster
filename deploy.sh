@@ -645,6 +645,98 @@ do_cleanup_tokens() {
     echo ""
 }
 
+# ---------------------------------------------------------------------------
+# 14) Nuclear Rebuild — apaga tudo e recomeça do zero
+# ---------------------------------------------------------------------------
+do_nuclear_rebuild() {
+    print_header
+    echo -e "${RED}${BOLD}☢  Nuclear Rebuild${NC}"
+    echo "────────────────────────────────────────"
+    echo ""
+    echo -e "${RED}ATENÇÃO: Esta opção irá:${NC}"
+    echo "  • Parar todos os containers"
+    echo "  • Remover TODOS os volumes Docker (banco de dados incluído)"
+    echo "  • Rebuildar as imagens do zero (--no-cache)"
+    echo "  • Subir os containers novamente"
+    echo "  • Executar as migrations automaticamente"
+    echo ""
+    print_warn "TODOS OS DADOS DO BANCO SERÃO PERDIDOS PERMANENTEMENTE."
+    echo ""
+
+    if ! confirm "Você tem certeza que quer apagar tudo?"; then
+        print_info "Operação cancelada."
+        return
+    fi
+
+    # Segunda confirmação — proteção extra contra acidente
+    echo ""
+    echo -en "${RED}${BOLD}Digite \"CONFIRMAR\" para prosseguir: ${NC}"
+    read -r confirm_text
+    if [[ "$confirm_text" != "CONFIRMAR" ]]; then
+        print_info "Operação cancelada."
+        return
+    fi
+
+    check_env || return 1
+    load_env
+
+    echo ""
+    print_info "Parando containers e removendo volumes..."
+    docker compose -f "$COMPOSE_FILE" down --volumes --remove-orphans 2>/dev/null || true
+
+    echo ""
+    print_info "Removendo volumes Docker restantes com prefixo 'queuemaster'..."
+    docker volume ls --filter name=queuemaster --quiet | xargs -r docker volume rm 2>/dev/null || true
+
+    echo ""
+    print_info "Rebuilding imagens do zero (sem cache)..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache \
+        --build-arg VITE_API_URL="${VITE_API_URL}" \
+        --build-arg VITE_GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
+
+    echo ""
+    print_info "Subindo containers..."
+    docker compose -f "$COMPOSE_FILE" up -d
+
+    echo ""
+    print_info "Aguardando banco de dados ficar saudável..."
+    local retries=40
+    while [[ $retries -gt 0 ]]; do
+        if docker inspect "$DB_CONTAINER" --format='{{.State.Health.Status}}' 2>/dev/null | grep -q "healthy"; then
+            break
+        fi
+        echo -n "."
+        sleep 3
+        ((retries--))
+    done
+    echo ""
+
+    if [[ $retries -eq 0 ]]; then
+        print_warn "Banco pode não estar 100% pronto, tentando migrations mesmo assim..."
+    else
+        print_success "Banco de dados pronto!"
+    fi
+
+    echo ""
+    print_info "Rodando migrations..."
+    docker compose -f "$COMPOSE_FILE" exec -T app php /var/www/api/scripts/migrate.php up || {
+        print_error "Falha ao rodar migrations."
+        print_warn "Verifique os logs com a opção 5."
+        return 1
+    }
+
+    echo ""
+    echo -e "${GREEN}════════════════════════════════════════${NC}"
+    echo -e "${GREEN}  ☢  Nuclear Rebuild concluído!${NC}"
+    echo -e "${GREEN}════════════════════════════════════════${NC}"
+    echo ""
+    echo "Acesse: ${CORS_ORIGINS:-http://localhost}"
+    echo "API:    ${VITE_API_URL:-http://localhost/api/v1}"
+    echo ""
+    print_warn "Banco recriado do zero — faça login novamente para recriar seu usuário admin."
+    echo ""
+}
+
 # ===========================================================================
 # Main Menu
 # ===========================================================================
@@ -667,6 +759,7 @@ main_menu() {
         echo -e "  ${CYAN}11)${NC} 📥 Restaurar backup"
         echo -e "  ${CYAN}12)${NC} 🔨 Rebuild (API/Frontend)"
         echo -e "  ${CYAN}13)${NC} 🧹 Cleanup tokens expirados"
+        echo -e "  ${RED}14)${NC} ☢  Nuclear Rebuild (apaga banco e recomeça)${NC}"
         echo ""
         echo -e "  ${CYAN} 0)${NC} 🚪 Sair"
         echo ""
@@ -688,6 +781,7 @@ main_menu() {
             11) do_restore ;;
             12) do_rebuild ;;
             13) do_cleanup_tokens ;;
+            14) do_nuclear_rebuild ;;
             0)  echo -e "\n${GREEN}Até logo! 👋${NC}\n"; exit 0 ;;
             *)  print_error "Opção inválida." ;;
         esac
