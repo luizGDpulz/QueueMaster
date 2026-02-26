@@ -247,7 +247,9 @@ do_build() {
     print_info "Building containers..."
     echo ""
 
-    docker compose -f "$COMPOSE_FILE" build --no-cache
+    docker compose -f "$COMPOSE_FILE" build --no-cache \
+        --build-arg VITE_API_URL="${VITE_API_URL}" \
+        --build-arg VITE_GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
 
     echo ""
     print_info "Starting containers..."

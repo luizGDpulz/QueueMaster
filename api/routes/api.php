@@ -801,7 +801,6 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
-                // POST /api/v1/businesses/{id}/join-request - Professional requests to join
                 $router->post('/{id}/join-request', function ($request) {
                     $controller = new InvitationsController();
                     $id = (int)$request->getParam('id');
@@ -980,6 +979,7 @@ $router->group('/api/v1', function ($router) {
 
             }
             );
+
 
 
 

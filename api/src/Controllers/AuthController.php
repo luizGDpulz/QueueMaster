@@ -339,24 +339,40 @@ class AuthController
     // =========================================================================
 
     /**
+     * Detect if the current connection is HTTPS.
+     * Works correctly behind a reverse proxy (Nginx Proxy Manager).
+     */
+    private static function isSecureConnection(): bool
+    {
+        // 1. PHP detected HTTPS natively
+        if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            return true;
+        }
+        // 2. Reverse proxy forwarded the original scheme (Apache sets this via X-Forwarded-Proto)
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+            return true;
+        }
+        // 3. Fallback: treat as secure in production unless explicitly set to development
+        return ($_ENV['APP_ENV'] ?? 'production') !== 'development';
+    }
+
+    /**
      * Set access token as httpOnly cookie
-     * 
+     *
      * Security:
      * - httpOnly: JS cannot access (XSS-proof)
-     * - Secure: only HTTPS in production
+     * - Secure: only HTTPS (detected from reverse proxy headers)
      * - SameSite=Lax: CSRF protection
-     * - Path: /api/v1 (sent with all API requests)
      */
     private static function setAccessTokenCookie(string $token): void
     {
         $ttl = (int)($_ENV['ACCESS_TOKEN_TTL'] ?? 900);
-        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
 
         setcookie('access_token', $token, [
             'expires' => time() + $ttl,
             'path' => '/',
             'domain' => '',
-            'secure' => $isProduction,
+            'secure' => self::isSecureConnection(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -367,13 +383,11 @@ class AuthController
      */
     private static function clearAccessTokenCookie(): void
     {
-        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
-
         setcookie('access_token', '', [
             'expires' => time() - 3600,
             'path' => '/',
             'domain' => '',
-            'secure' => $isProduction,
+            'secure' => self::isSecureConnection(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -381,19 +395,16 @@ class AuthController
 
     /**
      * Set refresh token as httpOnly cookie
-     * 
-     * Path restricted to /api/v1/auth (only sent on auth endpoints)
      */
     private static function setRefreshTokenCookie(string $token): void
     {
         $ttl = (int)($_ENV['REFRESH_TOKEN_TTL'] ?? 2592000);
-        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
 
         setcookie('refresh_token', $token, [
             'expires' => time() + $ttl,
             'path' => '/',
             'domain' => '',
-            'secure' => $isProduction,
+            'secure' => self::isSecureConnection(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -404,13 +415,11 @@ class AuthController
      */
     private static function clearRefreshTokenCookie(): void
     {
-        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
-
         setcookie('refresh_token', '', [
             'expires' => time() - 3600,
             'path' => '/',
             'domain' => '',
-            'secure' => $isProduction,
+            'secure' => self::isSecureConnection(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
