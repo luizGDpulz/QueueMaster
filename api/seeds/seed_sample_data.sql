@@ -10,12 +10,20 @@
 USE queue_master;
 
 -- ============================================================================
+-- Disable FK checks for sample data insertion.
+-- owner_user_id will be linked to the real admin after first Google login.
+-- ============================================================================
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ============================================================================
 -- BUSINESS
 -- ============================================================================
--- Create a sample business that owns the establishments
 
 INSERT INTO businesses (owner_user_id, name, slug, description) VALUES
 (1, 'Demo Health & Beauty Group', 'demo-hb-group', 'Demo business grouping medical and beauty establishments');
+
+SET FOREIGN_KEY_CHECKS = 1;
+
 
 SET @business_id = (SELECT id FROM businesses WHERE slug = 'demo-hb-group' LIMIT 1);
 

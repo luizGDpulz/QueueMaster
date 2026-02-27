@@ -21,11 +21,6 @@ class DashboardController
      */
     public function queueOverview(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userRole = $request->user['role'];
         if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
             Response::forbidden('Only professionals, managers, and admins can view dashboard', $request->requestId);
@@ -107,11 +102,6 @@ class DashboardController
      */
     public function appointmentsList(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userRole = $request->user['role'];
         if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
             Response::forbidden('Only professionals, managers, and admins can view dashboard', $request->requestId);
@@ -182,11 +172,6 @@ class DashboardController
      */
     public function markServed(Request $request, int $entryId): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userRole = $request->user['role'];
         if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
             Response::forbidden('Only professionals, managers, and admins can mark as served', $request->requestId);
@@ -248,11 +233,6 @@ class DashboardController
      */
     public function markNoShow(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userRole = $request->user['role'];
         if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
             Response::forbidden('Only professionals, managers, and admins can mark as no-show', $request->requestId);

@@ -99,11 +99,6 @@ class ServicesController
      */
     public function create(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
 
         // Validate input
@@ -178,11 +173,6 @@ class ServicesController
      */
     public function update(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $service = Service::find($id);
             if (!$service) {
@@ -275,11 +265,6 @@ class ServicesController
      */
     public function delete(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $service = Service::find($id);
             if (!$service) {

@@ -101,11 +101,6 @@ class ProfessionalsController
      */
     public function create(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
 
         // Validate input
@@ -173,11 +168,6 @@ class ProfessionalsController
      */
     public function update(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $professional = Professional::find($id);
             if (!$professional) {
@@ -265,11 +255,6 @@ class ProfessionalsController
      */
     public function delete(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $professional = Professional::find($id);
             if (!$professional) {

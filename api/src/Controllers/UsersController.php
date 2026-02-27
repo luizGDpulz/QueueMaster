@@ -28,11 +28,6 @@ class UsersController
      */
     public function list(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $params = $request->getQuery();
             $currentUserRole = $request->user['role'] ?? 'client';
@@ -150,11 +145,6 @@ class UsersController
      */
     public function show(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $currentUserId = (int)$request->user['id'];
         $currentUserRole = $request->user['role'];
 
@@ -207,11 +197,6 @@ class UsersController
      */
     public function create(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
 
         // Validate input
@@ -293,11 +278,6 @@ class UsersController
      */
     public function update(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $currentUserId = (int)$request->user['id'];
         $currentUserRole = $request->user['role'];
 
@@ -527,11 +507,6 @@ class UsersController
      */
     public function delete(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $currentUserId = (int)$request->user['id'];
 
         // Prevent self-deletion
@@ -648,11 +623,6 @@ class UsersController
      */
     public function getQueueEntries(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $currentUserId = (int)$request->user['id'];
         $currentUserRole = $request->user['role'];
 
@@ -697,11 +667,6 @@ class UsersController
      */
     public function getAppointments(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $currentUserId = (int)$request->user['id'];
         $currentUserRole = $request->user['role'];
 

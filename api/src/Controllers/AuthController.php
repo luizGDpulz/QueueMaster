@@ -249,11 +249,6 @@ class AuthController
     public function me(Request $request): void
     {
         // User is already attached by AuthMiddleware
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         // Fetch full user record from DB (middleware only carries basic fields)
         $fullUser = User::find((int)$request->user['id']);
 
@@ -275,11 +270,6 @@ class AuthController
      */
     public function logout(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         // Revoke all refresh tokens
@@ -309,11 +299,6 @@ class AuthController
      */
     public function devToken(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         if ($request->user['role'] !== 'admin') {
             Response::forbidden('Admin access required', $request->requestId);
             return;

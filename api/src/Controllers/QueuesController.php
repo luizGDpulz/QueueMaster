@@ -173,11 +173,6 @@ class QueuesController
      */
     public function join(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
         $userId = (int)$request->user['id'];
 
@@ -418,11 +413,6 @@ class QueuesController
      */
     public function leave(Request $request, int $entryId): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         try {
@@ -472,11 +462,6 @@ class QueuesController
      */
     public function callNext(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userRole = $request->user['role'];
         if (!in_array($userRole, ['professional', 'manager', 'admin'])) {
             Response::forbidden('Only staff members can call next', $request->requestId);
@@ -545,11 +530,6 @@ class QueuesController
      */
     public function create(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
 
         // Validate input
