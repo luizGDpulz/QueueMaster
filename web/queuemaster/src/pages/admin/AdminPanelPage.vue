@@ -717,11 +717,12 @@ export default defineComponent({
         }
       } catch (err) {
         console.error('Erro ao buscar usuários:', err)
+        const msg = err.response?.data?.error?.message || err.message || 'Erro de conexão com a API'
         if (err.response?.status === 403) {
-          $q.notify({ type: 'warning', message: 'Você não tem permissão para visualizar usuários' })
+          $q.notify({ type: 'warning', message: 'Visualização de usuários: ' + msg, timeout: 5000 })
           router.push('/app')
         } else {
-          $q.notify({ type: 'negative', message: 'Erro ao carregar usuários' })
+          $q.notify({ type: 'negative', message: 'Erro ao carregar usuários: ' + msg, timeout: 5000 })
         }
       } finally {
         loading.value = false
