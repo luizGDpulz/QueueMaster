@@ -63,6 +63,68 @@
           </div>
         </div>
       </div>
+
+      <!-- Plan & Subscription Card (only for managers) -->
+      <div v-if="user.role === 'manager' || user.role === 'admin'" class="soft-card q-mb-lg">
+        <h2 class="section-title">Plano & Assinatura</h2>
+        <div v-if="subscriptionLoading" class="loading-state" style="padding: 1rem 0;">
+          <q-spinner-dots color="primary" size="28px" />
+        </div>
+        <template v-else-if="userBusinesses.length > 0">
+          <div v-for="biz in userBusinesses" :key="biz.id" class="biz-plan-item">
+            <div class="biz-plan-header">
+              <q-icon name="business" size="20px" color="primary" />
+              <span class="biz-plan-name">{{ biz.name }}</span>
+            </div>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">Plano Atual</span>
+                <q-badge :color="biz._plan ? 'primary' : 'grey'" :label="biz._plan?.name || 'Sem plano'" />
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Negócios</span>
+                <span class="detail-value">{{ biz._plan?.max_businesses ?? '∞' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Estabelecimentos</span>
+                <span class="detail-value">{{ biz._plan?.max_establishments_per_business ?? '∞' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Gerentes</span>
+                <span class="detail-value">{{ biz._plan?.max_managers ?? '∞' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Profissionais</span>
+                <span class="detail-value">{{ biz._plan?.max_professionals_per_establishment ?? '∞' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Status</span>
+                <q-badge :color="biz._subscription?.status === 'active' ? 'positive' : 'grey'" :label="biz._subscription?.status === 'active' ? 'Ativa' : (biz._subscription?.status || 'N/A')" />
+              </div>
+            </div>
+            <!-- Admin: change plan -->
+            <div v-if="isAdmin" class="change-plan-row q-mt-sm">
+              <q-select
+                v-model="biz._selectedPlanId"
+                :options="planOptions"
+                label="Alterar plano"
+                outlined dense
+                emit-value map-options
+                style="flex: 1; max-width: 300px;"
+              />
+              <q-btn
+                color="primary" label="Salvar Plano" no-caps size="sm"
+                :loading="biz._savingPlan"
+                :disable="!biz._selectedPlanId || biz._selectedPlanId === biz._subscription?.plan_id"
+                @click="changeUserPlan(biz)"
+              />
+            </div>
+          </div>
+        </template>
+        <div v-else class="empty-state" style="padding: 1rem 0;">
+          <p>Este usuário não possui negócios vinculados.</p>
+        </div>
+      </div>
     </template>
 
     <!-- Edit Dialog -->
@@ -109,6 +171,12 @@ export default defineComponent({
     const showEditDialog = ref(false)
     const editForm = ref({ name: '', email: '', phone: '', role: 'client', is_active: true })
 
+    // Plan / Subscription state
+    const subscriptionLoading = ref(false)
+    const userBusinesses = ref([])
+    const allPlans = ref([])
+    const planOptions = computed(() => allPlans.value.filter(p => p.is_active).map(p => ({ label: p.name, value: p.id })))
+
     const roleOptions = [
       { label: 'Cliente', value: 'client' },
       { label: 'Profissional', value: 'professional' },
@@ -127,10 +195,10 @@ export default defineComponent({
     const fetchUser = async () => {
       loading.value = true
       try {
-        // Try to get from users list
-        const response = await api.get('/users')
-        const users = response.data?.data?.users || []
-        user.value = users.find(u => u.id == route.params.id) || null
+        const response = await api.get(`/users/${route.params.id}`)
+        if (response.data?.success) {
+          user.value = response.data.data?.user || null
+        }
         if (!user.value) {
           $q.notify({ type: 'negative', message: 'Usuário não encontrado' })
           goBack()
@@ -151,6 +219,61 @@ export default defineComponent({
           currentUserRole.value = response.data.data.user.role
         }
       } catch { /* ignore */ }
+    }
+
+    // Fetch businesses/subscriptions/plans for plan card
+    const fetchUserSubscription = async () => {
+      if (!user.value || !['manager', 'admin'].includes(user.value.role)) return
+      if (currentUserRole.value !== 'admin') return
+      subscriptionLoading.value = true
+      try {
+        // Fetch all businesses to find ones owned by this user
+        const bizResp = await api.get('/businesses')
+        const allBiz = bizResp.data?.data?.businesses || []
+        const owned = allBiz.filter(b => String(b.owner_user_id) === String(route.params.id))
+
+        // Fetch subscriptions and plans
+        const [subsResp, plansResp] = await Promise.all([
+          api.get('/admin/subscriptions'),
+          api.get('/admin/plans')
+        ])
+        const subs = subsResp.data?.data?.subscriptions || []
+        allPlans.value = plansResp.data?.data?.plans || []
+
+        // Match each business to its subscription and plan
+        userBusinesses.value = owned.map(b => {
+          const sub = subs.find(s => String(s.business_id) === String(b.id) && s.status === 'active')
+          const plan = sub ? allPlans.value.find(p => String(p.id) === String(sub.plan_id)) : null
+          return {
+            ...b,
+            _subscription: sub || null,
+            _plan: plan || null,
+            _selectedPlanId: sub?.plan_id || null,
+            _savingPlan: false
+          }
+        })
+      } catch (err) {
+        console.error('Erro ao buscar subscriptions:', err)
+      } finally {
+        subscriptionLoading.value = false
+      }
+    }
+
+    const changeUserPlan = async (biz) => {
+      biz._savingPlan = true
+      try {
+        if (biz._subscription) {
+          await api.put(`/admin/subscriptions/${biz._subscription.id}`, { plan_id: biz._selectedPlanId })
+        } else {
+          await api.post('/admin/subscriptions', { business_id: biz.id, plan_id: biz._selectedPlanId, status: 'active' })
+        }
+        $q.notify({ type: 'positive', message: 'Plano alterado com sucesso' })
+        fetchUserSubscription()
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao alterar plano' })
+      } finally {
+        biz._savingPlan = false
+      }
     }
 
     const openEdit = () => {
@@ -191,13 +314,15 @@ export default defineComponent({
 
     onMounted(async () => {
       await fetchCurrentUser()
-      fetchUser()
+      await fetchUser()
+      fetchUserSubscription()
     })
 
     return {
       user, loading, saving, isAdmin, userAvatarUrl,
       showEditDialog, editForm, roleOptions,
-      goBack, openEdit, saveUser,
+      subscriptionLoading, userBusinesses, planOptions,
+      goBack, openEdit, saveUser, changeUserPlan,
       getRoleLabel, getRoleColor, getInitials, formatDate
     }
   }
@@ -244,5 +369,30 @@ export default defineComponent({
   font-weight: 700;
   color: var(--qm-text-primary);
   margin: 0;
+}
+
+// Plan / Subscription Card
+.biz-plan-item {
+  padding: 1rem 0;
+  &:not(:last-child) { border-bottom: 1px solid var(--qm-border-color, #e0e0e0); }
+}
+
+.biz-plan-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.biz-plan-name {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--qm-text-primary);
+}
+
+.change-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 </style>

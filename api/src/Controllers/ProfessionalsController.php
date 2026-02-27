@@ -123,6 +123,13 @@ class ProfessionalsController
                 return;
             }
 
+            // Check SaaS quota
+            $quotaCheck = \QueueMaster\Services\QuotaService::canAddProfessional((int)$data['establishment_id']);
+            if (!$quotaCheck['allowed']) {
+                Response::error($quotaCheck['error'], $quotaCheck['message'], 403, $request->requestId);
+                return;
+            }
+
             $professionalId = Professional::create([
                 'establishment_id' => (int)$data['establishment_id'],
                 'name' => trim($data['name']),

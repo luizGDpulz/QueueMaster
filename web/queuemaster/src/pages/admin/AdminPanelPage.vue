@@ -23,6 +23,7 @@
       >
         <q-tab name="users" icon="group" label="Usuários" no-caps />
         <q-tab name="logs" icon="history" label="Logs" no-caps />
+        <q-tab name="plans" icon="workspace_premium" label="Planos" no-caps />
         <q-tab v-if="isAdmin" name="developer" icon="code" label="Developer" no-caps />
       </q-tabs>
 
@@ -477,6 +478,78 @@
         </q-tab-panel>
 
         <!-- ================================================================ -->
+        <!-- Tab: Planos -->
+        <!-- ================================================================ -->
+        <q-tab-panel name="plans" class="tab-panel">
+          <div class="panel-header">
+            <div class="panel-header-left">
+              <h3>Gerenciamento de Planos</h3>
+              <p>{{ isAdmin ? 'Gerencie os planos do sistema SaaS' : 'Visualize os planos disponíveis' }}</p>
+            </div>
+            <div v-if="isAdmin" class="panel-header-right">
+              <q-btn color="primary" icon="add" label="Novo Plano" no-caps size="sm" @click="openCreatePlan" />
+            </div>
+          </div>
+
+          <!-- Loading -->
+          <div v-if="plansLoading" class="loading-state">
+            <q-spinner-dots color="primary" size="40px" />
+            <p>Carregando planos...</p>
+          </div>
+
+          <!-- Empty -->
+          <div v-else-if="plans.length === 0" class="empty-state">
+            <q-icon name="workspace_premium" size="64px" />
+            <h3>Nenhum plano encontrado</h3>
+            <p>Comece criando um novo plano</p>
+          </div>
+
+          <!-- Plans Table -->
+          <div v-else class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="th-plan">Plano</th>
+                  <th>Negócios</th>
+                  <th>Estabelecimentos</th>
+                  <th>Gerentes</th>
+                  <th>Profissionais</th>
+                  <th>Status</th>
+                  <th v-if="isAdmin" class="th-actions">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="plan in plans" :key="plan.id">
+                  <td>
+                    <div class="plan-info">
+                      <span class="plan-name">{{ plan.name }}</span>
+                      <span class="plan-id">ID: {{ plan.id }}</span>
+                    </div>
+                  </td>
+                  <td>{{ plan.max_businesses ?? '∞' }}</td>
+                  <td>{{ plan.max_establishments_per_business ?? '∞' }}</td>
+                  <td>{{ plan.max_managers ?? '∞' }}</td>
+                  <td>{{ plan.max_professionals_per_establishment ?? '∞' }}</td>
+                  <td>
+                    <q-badge :color="plan.is_active ? 'positive' : 'grey'" :label="plan.is_active ? 'Ativo' : 'Inativo'" />
+                  </td>
+                  <td v-if="isAdmin">
+                    <div class="row-actions">
+                      <q-btn flat round dense icon="edit" size="sm" @click="editPlan(plan)">
+                        <q-tooltip>Editar</q-tooltip>
+                      </q-btn>
+                      <q-btn flat round dense icon="delete" size="sm" color="negative" @click="confirmDeletePlan(plan)">
+                        <q-tooltip>Excluir</q-tooltip>
+                      </q-btn>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </q-tab-panel>
+
+        <!-- ================================================================ -->
         <!-- Tab: Developer (Admin) -->
         <!-- ================================================================ -->
         <q-tab-panel v-if="isAdmin" name="developer" class="tab-panel">
@@ -597,6 +670,46 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+    <!-- Plan Create/Edit Dialog -->
+    <q-dialog v-model="showPlanDialog" persistent>
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-header">
+          <h3>{{ isEditingPlan ? 'Editar Plano' : 'Novo Plano' }}</h3>
+          <q-btn flat round dense icon="close" @click="showPlanDialog = false" />
+        </q-card-section>
+
+        <q-card-section class="dialog-content">
+          <q-input v-model="planForm.name" label="Nome do Plano *" outlined dense :rules="[val => !!val || 'Nome é obrigatório']" />
+          <q-input v-model.number="planForm.max_businesses" label="Máx. Negócios" outlined dense type="number" class="q-mt-md" hint="Deixe vazio para ilimitado" clearable />
+          <q-input v-model.number="planForm.max_establishments_per_business" label="Máx. Estabelecimentos / Negócio" outlined dense type="number" class="q-mt-md" hint="Deixe vazio para ilimitado" clearable />
+          <q-input v-model.number="planForm.max_managers" label="Máx. Gerentes" outlined dense type="number" class="q-mt-md" hint="Deixe vazio para ilimitado" clearable />
+          <q-input v-model.number="planForm.max_professionals_per_establishment" label="Máx. Profissionais / Estabelecimento" outlined dense type="number" class="q-mt-md" hint="Deixe vazio para ilimitado" clearable />
+          <q-toggle v-model="planForm.is_active" label="Ativo" class="q-mt-md" />
+        </q-card-section>
+
+        <q-card-actions align="right" class="dialog-actions">
+          <q-btn flat label="Cancelar" no-caps @click="showPlanDialog = false" />
+          <q-btn color="primary" :label="isEditingPlan ? 'Salvar' : 'Criar'" no-caps :loading="savingPlan" @click="savePlan" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Plan Delete Confirmation -->
+    <q-dialog v-model="showDeletePlanDialog">
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-header">
+          <h3>Confirmar Exclusão</h3>
+        </q-card-section>
+        <q-card-section class="dialog-content">
+          <p>Tem certeza que deseja excluir o plano <strong>{{ selectedPlan?.name }}</strong>?</p>
+          <p class="delete-warning">Negócios vinculados a este plano perderão suas restrições.</p>
+        </q-card-section>
+        <q-card-actions align="right" class="dialog-actions">
+          <q-btn flat label="Cancelar" no-caps @click="showDeletePlanDialog = false" />
+          <q-btn color="negative" label="Excluir" no-caps :loading="deletingPlan" @click="deletePlan" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -651,6 +764,26 @@ export default defineComponent({
     const devToken = ref('')
     const copiedAccess = ref(false)
     const generatingToken = ref(false)
+
+    // =====================================================
+    // Plans tab state
+    // =====================================================
+    const plans = ref([])
+    const plansLoading = ref(false)
+    const showPlanDialog = ref(false)
+    const showDeletePlanDialog = ref(false)
+    const isEditingPlan = ref(false)
+    const selectedPlan = ref(null)
+    const savingPlan = ref(false)
+    const deletingPlan = ref(false)
+    const planForm = ref({
+      name: '',
+      max_businesses: null,
+      max_establishments_per_business: null,
+      max_managers: null,
+      max_professionals_per_establishment: null,
+      is_active: true
+    })
 
     // =====================================================
     // Logs tab state
@@ -896,6 +1029,92 @@ export default defineComponent({
     }
 
     // =====================================================
+    // Plans methods
+    // =====================================================
+    const fetchPlans = async () => {
+      plansLoading.value = true
+      try {
+        const response = await api.get('/admin/plans')
+        if (response.data?.success) {
+          plans.value = response.data.data?.plans || []
+        }
+      } catch (err) {
+        console.error('Erro ao buscar planos:', err)
+        $q.notify({ type: 'negative', message: 'Erro ao carregar planos' })
+      } finally {
+        plansLoading.value = false
+      }
+    }
+
+    const openCreatePlan = () => {
+      isEditingPlan.value = false
+      planForm.value = { name: '', max_businesses: null, max_establishments_per_business: null, max_managers: null, max_professionals_per_establishment: null, is_active: true }
+      showPlanDialog.value = true
+    }
+
+    const editPlan = (plan) => {
+      isEditingPlan.value = true
+      selectedPlan.value = plan
+      planForm.value = {
+        name: plan.name || '',
+        max_businesses: plan.max_businesses,
+        max_establishments_per_business: plan.max_establishments_per_business,
+        max_managers: plan.max_managers,
+        max_professionals_per_establishment: plan.max_professionals_per_establishment,
+        is_active: plan.is_active !== false && plan.is_active !== 0
+      }
+      showPlanDialog.value = true
+    }
+
+    const confirmDeletePlan = (plan) => {
+      selectedPlan.value = plan
+      showDeletePlanDialog.value = true
+    }
+
+    const savePlan = async () => {
+      if (!planForm.value.name) {
+        $q.notify({ type: 'warning', message: 'Nome é obrigatório' })
+        return
+      }
+      savingPlan.value = true
+      try {
+        const payload = { ...planForm.value }
+        // Convert empty strings/0 to null for unlimited
+        ;['max_businesses', 'max_establishments_per_business', 'max_managers', 'max_professionals_per_establishment'].forEach(k => {
+          if (payload[k] === '' || payload[k] === 0) payload[k] = null
+        })
+
+        if (isEditingPlan.value) {
+          await api.put(`/admin/plans/${selectedPlan.value.id}`, payload)
+          $q.notify({ type: 'positive', message: 'Plano atualizado com sucesso' })
+        } else {
+          await api.post('/admin/plans', payload)
+          $q.notify({ type: 'positive', message: 'Plano criado com sucesso' })
+        }
+        showPlanDialog.value = false
+        fetchPlans()
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar plano' })
+      } finally {
+        savingPlan.value = false
+      }
+    }
+
+    const deletePlan = async () => {
+      deletingPlan.value = true
+      try {
+        await api.delete(`/admin/plans/${selectedPlan.value.id}`)
+        $q.notify({ type: 'positive', message: 'Plano excluído com sucesso' })
+        showDeletePlanDialog.value = false
+        fetchPlans()
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao excluir' })
+      } finally {
+        deletingPlan.value = false
+      }
+    }
+
+    // =====================================================
     // Formatters & Helpers
     // =====================================================
     const getRoleLabel = (role) => {
@@ -1022,6 +1241,9 @@ export default defineComponent({
       if (newTab === 'logs' && actionOptions.value.length === 0) {
         fetchLogFilters()
       }
+      if (newTab === 'plans' && plans.value.length === 0) {
+        fetchPlans()
+      }
     })
 
     onMounted(async () => {
@@ -1045,6 +1267,10 @@ export default defineComponent({
       editUser, confirmDeleteUser, saveUser, deleteUser,
       // Dev methods
       generateDevToken, copyToken, openSwagger,
+      // Plans tab
+      plans, plansLoading, showPlanDialog, showDeletePlanDialog, isEditingPlan,
+      selectedPlan, savingPlan, deletingPlan, planForm,
+      fetchPlans, openCreatePlan, editPlan, confirmDeletePlan, savePlan, deletePlan,
       // Logs tab
       logs, logsLoading, logsPage, logsPerPage, logsTotal, logsTotalPages, expandedLogId,
       logsSearch, logsActionFilter, logsEntityFilter, logsBusinessFilter,
@@ -1498,6 +1724,11 @@ tr.clickable-row { cursor: pointer; }
 
 // User Info Cell
 .user-info { display: flex; align-items: center; gap: 0.75rem; }
+
+// Plan Info Cell
+.plan-info { display: flex; flex-direction: column; gap: 0.125rem; }
+.plan-name { font-weight: 600; color: var(--qm-text-primary); }
+.plan-id { font-size: 0.75rem; color: var(--qm-text-muted); }
 
 .user-avatar-cell {
   width: 36px; height: 36px;

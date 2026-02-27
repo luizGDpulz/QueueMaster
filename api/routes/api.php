@@ -873,21 +873,21 @@ $router->group('/api/v1', function ($router) {
                 }
                     , [new RoleMiddleware(['admin'])]);
 
-                // ---- Plans (admin only) ---------------------------------------------
+                // ---- Plans (admin CRUD, manager read-only) ----------------------
         
                 // GET /api/v1/admin/plans — List plans
                 $router->get('/plans', function ($request) {
                     $controller = new AdminController();
                     $controller->plans($request);
                 }
-                    , [new RoleMiddleware(['admin'])]);
+                    , [new RoleMiddleware(['admin', 'manager'])]);
 
                 // GET /api/v1/admin/plans/{id} — Get single plan
                 $router->get('/plans/{id}', function ($request) {
                     $controller = new AdminController();
                     $controller->getPlan($request, (int)$request->getParam('id'));
                 }
-                    , [new RoleMiddleware(['admin'])]);
+                    , [new RoleMiddleware(['admin', 'manager'])]);
 
                 // POST /api/v1/admin/plans — Create plan
                 $router->post('/plans', function ($request) {
