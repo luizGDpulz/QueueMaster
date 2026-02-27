@@ -34,7 +34,7 @@
           <div class="profile-section">
             <div class="profile-card">
               <q-avatar size="100px" class="profile-avatar">
-                <img v-if="user?.avatar_url" :src="user.avatar_url" alt="Avatar" />
+                <img v-if="user?.avatar_url" :src="user.avatar_url" alt="Avatar" referrerpolicy="no-referrer" />
                 <q-icon v-else name="person" size="50px" />
               </q-avatar>
               <div class="profile-info">

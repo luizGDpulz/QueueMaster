@@ -97,7 +97,7 @@
                   <td>
                     <div class="user-info">
                       <div class="user-avatar-cell">
-                        <img v-if="user.avatar_url" :src="user.avatar_url" class="user-avatar-img" />
+                        <img v-if="user.avatar_url" :src="user.avatar_url" class="user-avatar-img" referrerpolicy="no-referrer" />
                         <div v-else class="user-avatar-initials">{{ getInitials(user.name) }}</div>
                       </div>
                       <div class="user-details">
@@ -373,7 +373,7 @@
                     <td>
                       <div v-if="log.user_name" class="user-info">
                         <div class="user-avatar-cell user-avatar-cell--sm">
-                          <img v-if="log.user_avatar" :src="log.user_avatar" class="user-avatar-img" />
+                          <img v-if="log.user_avatar" :src="log.user_avatar" class="user-avatar-img" referrerpolicy="no-referrer" />
                           <div v-else class="user-avatar-initials user-avatar-initials--sm">{{ getInitials(log.user_name) }}</div>
                         </div>
                         <div class="user-details">
