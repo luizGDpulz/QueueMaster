@@ -17,8 +17,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 ENV_EXAMPLE="$SCRIPT_DIR/.env.deploy.example"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
-APP_CONTAINER="qm_app"
-DB_CONTAINER="qm_mariadb"
+APP_CONTAINER="queuemaster_app"
+DB_CONTAINER="queuemaster_mariadb"
 BACKUP_DIR="$SCRIPT_DIR/backups"
 
 # ---------------------------------------------------------------------------

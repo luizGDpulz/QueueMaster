@@ -257,12 +257,6 @@ class AdminController
      */
     public function createPlan(Request $request): void
     {
-        $userRole = $request->user['role'] ?? 'client';
-        if ($userRole !== 'admin') {
-            Response::forbidden('Only administrators can create plans', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
 
         $errors = Validator::make($data, [
@@ -317,12 +311,6 @@ class AdminController
      */
     public function updatePlan(Request $request, int $id): void
     {
-        $userRole = $request->user['role'] ?? 'client';
-        if ($userRole !== 'admin') {
-            Response::forbidden('Only administrators can update plans', $request->requestId);
-            return;
-        }
-
         try {
             $plan = Plan::find($id);
             if (!$plan) {
@@ -380,12 +368,6 @@ class AdminController
      */
     public function deletePlan(Request $request, int $id): void
     {
-        $userRole = $request->user['role'] ?? 'client';
-        if ($userRole !== 'admin') {
-            Response::forbidden('Only administrators can delete plans', $request->requestId);
-            return;
-        }
-
         try {
             $plan = Plan::find($id);
             if (!$plan) {
@@ -459,12 +441,6 @@ class AdminController
      */
     public function createSubscription(Request $request): void
     {
-        $userRole = $request->user['role'] ?? 'client';
-        if ($userRole !== 'admin') {
-            Response::forbidden('Only administrators can create subscriptions', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
 
         $errors = Validator::make($data, [
@@ -547,12 +523,6 @@ class AdminController
      */
     public function updateSubscription(Request $request, int $id): void
     {
-        $userRole = $request->user['role'] ?? 'client';
-        if ($userRole !== 'admin') {
-            Response::forbidden('Only administrators can update subscriptions', $request->requestId);
-            return;
-        }
-
         try {
             $sub = BusinessSubscription::find($id);
             if (!$sub) {
@@ -618,12 +588,6 @@ class AdminController
      */
     public function deleteSubscription(Request $request, int $id): void
     {
-        $userRole = $request->user['role'] ?? 'client';
-        if ($userRole !== 'admin') {
-            Response::forbidden('Only administrators can delete subscriptions', $request->requestId);
-            return;
-        }
-
         try {
             $sub = BusinessSubscription::find($id);
             if (!$sub) {

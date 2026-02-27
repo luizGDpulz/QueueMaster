@@ -31,7 +31,6 @@ class AuthMiddleware
         $token = $_COOKIE['access_token'] ?? $request->getBearerToken();
 
         if (!$token) {
-            error_log("[DEBUG] AuthMiddleware: Token not found in cookies or headers (Path: " . $request->getPath() . ")");
             Logger::logSecurity('Missing authentication token', [
                 'ip' => $request->getIp(),
                 'path' => $request->getPath(),
@@ -52,7 +51,6 @@ class AuthMiddleware
 
         }
         catch (\Exception $e) {
-            error_log("[ERROR] AuthMiddleware Validation Failed: " . $e->getMessage() . " (Path: " . $request->getPath() . ")");
             Logger::logSecurity('Invalid authentication token', [
                 'ip' => $request->getIp(),
                 'path' => $request->getPath(),
