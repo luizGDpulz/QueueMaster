@@ -15,7 +15,7 @@
       <q-tabs
         v-model="activeTab"
         dense
-        class="admin-tabs"
+        class="admin-tabs rounded-lg"
         active-color="primary"
         indicator-color="primary"
         align="left"
@@ -1336,11 +1336,6 @@ export default defineComponent({
 .admin-tabs {
   margin-top: 10px;
   padding: 0 1rem;
-
-  :deep(.q-tab) {
-    padding: 0 1rem;
-    .q-focus-helper { border-radius: 15px; }
-  }
 
   :deep(.q-tab__label) {
     font-weight: 500;

@@ -267,6 +267,11 @@ body {
   background: var(--qm-bg-secondary) !important;
 }
 
+// Fix: Tabs — border-radius arredondado (helpers herdam via inherit)
+.q-tab {
+  border-radius: 1rem !important;
+}
+
 // ===== DARK MODE QUASAR OVERRIDES =====
 // Garante que inputs e selects dentro de dialogs tenham texto visível no dark mode
 [data-theme="dark"] {
@@ -327,6 +332,20 @@ body {
 
   .q-item__section--side {
     color: var(--qm-text-muted) !important;
+  }
+
+  // Rounded Corners 
+  .rounded-sm {
+    border-radius: 0.5rem !important;
+  }
+  .rounded-md {
+    border-radius: 0.75rem !important;
+  }
+  .rounded-lg {
+    border-radius: 1rem !important;
+  }
+  .rounded-pill {
+    border-radius: 9999px !important;
   }
 
   // Tabs

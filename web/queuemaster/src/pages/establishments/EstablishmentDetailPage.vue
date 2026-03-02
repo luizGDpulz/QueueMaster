@@ -427,11 +427,6 @@ export default defineComponent({
   margin-top: 10px;
   padding: 0 1rem;
 
-  :deep(.q-tab) {
-    padding: 0 1rem;
-    .q-focus-helper { border-radius: 15px; }
-  }
-
   :deep(.q-tab__label) {
     font-weight: 500;
   }
