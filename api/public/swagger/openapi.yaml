@@ -83,6 +83,8 @@ tags:
     description: Server-Sent Events (SSE) para atualizações em tempo real
   - name: Health
     description: Status da API
+  - name: Admin
+    description: Endpoints administrativos (plans, subscriptions, audit-logs)
 
 paths:
   # ============================================================================
@@ -1815,6 +1817,329 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  # ============================================================================
+  # Admin - Plans
+  # ============================================================================
+  /admin/plans:
+    get:
+      tags:
+        - Admin
+      summary: Listar planos
+      description: Retorna todos os planos SaaS disponíveis
+      operationId: listPlans
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de planos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      plans:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Plan'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+        - Admin
+      summary: Criar plano (admin only)
+      operationId: createPlan
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanRequest'
+      responses:
+        '201':
+          description: Plano criado
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/plans/{id}:
+    get:
+      tags:
+        - Admin
+      summary: Obter plano por ID
+      operationId: getPlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Plano encontrado
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Admin
+      summary: Atualizar plano (admin only)
+      operationId: updatePlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlanRequest'
+      responses:
+        '200':
+          description: Plano atualizado
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Admin
+      summary: Deletar plano (admin only)
+      operationId: deletePlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Plano deletado
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Plano possui subscriptions ativas
+
+  # ============================================================================
+  # Admin - Subscriptions
+  # ============================================================================
+  /admin/subscriptions:
+    get:
+      tags:
+        - Admin
+      summary: Listar subscriptions
+      operationId: listSubscriptions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de subscriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      subscriptions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BusinessSubscription'
+                      total:
+                        type: integer
+    post:
+      tags:
+        - Admin
+      summary: Criar subscription (admin only)
+      operationId: createSubscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Subscription criada
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/subscriptions/{id}:
+    get:
+      tags:
+        - Admin
+      summary: Obter subscription por ID
+      operationId: getSubscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Subscription encontrada
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Admin
+      summary: Atualizar subscription (admin only)
+      operationId: updateSubscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription atualizada
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Admin
+      summary: Deletar subscription (admin only)
+      operationId: deleteSubscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Subscription deletada
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # Queue Access Codes
+  # ============================================================================
+  /queues/{id}/access-codes:
+    get:
+      tags:
+        - Queues
+      summary: Listar access codes de uma fila
+      operationId: listQueueAccessCodes
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Lista de access codes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      access_codes:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/QueueAccessCode'
+                      total:
+                        type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /queues/{queueId}/access-codes/{codeId}:
+    get:
+      tags:
+        - Queues
+      summary: Obter access code por ID
+      operationId: getQueueAccessCode
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: queueId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: codeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Access code encontrado
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Queues
+      summary: Deletar access code
+      operationId: deleteQueueAccessCode
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: queueId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: codeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Access code deletado
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /queues/{queueId}/access-codes/{codeId}/deactivate:
+    post:
+      tags:
+        - Queues
+      summary: Desativar access code
+      operationId: deactivateQueueAccessCode
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: queueId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: codeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Access code desativado
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 # ============================================================================
 # Components
 # ============================================================================
@@ -2798,3 +3123,172 @@ components:
         role:
           type: string
           enum: [owner, manager, attendant]
+
+    # ============================================================================
+    # Plan Schemas
+    # ============================================================================
+    Plan:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        max_businesses:
+          type: integer
+          nullable: true
+        max_establishments_per_business:
+          type: integer
+          nullable: true
+        max_professionals_per_establishment:
+          type: integer
+          nullable: true
+        max_managers:
+          type: integer
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreatePlanRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        is_active:
+          type: boolean
+          default: true
+        max_businesses:
+          type: integer
+          nullable: true
+        max_establishments_per_business:
+          type: integer
+          nullable: true
+        max_professionals_per_establishment:
+          type: integer
+          nullable: true
+        max_managers:
+          type: integer
+          nullable: true
+
+    UpdatePlanRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        is_active:
+          type: boolean
+        max_businesses:
+          type: integer
+          nullable: true
+        max_establishments_per_business:
+          type: integer
+          nullable: true
+        max_professionals_per_establishment:
+          type: integer
+          nullable: true
+        max_managers:
+          type: integer
+          nullable: true
+
+    # ============================================================================
+    # Business Subscription Schemas
+    # ============================================================================
+    BusinessSubscription:
+      type: object
+      properties:
+        id:
+          type: integer
+        business_id:
+          type: integer
+        plan_id:
+          type: integer
+        status:
+          type: string
+          enum: [active, cancelled, expired, past_due]
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateSubscriptionRequest:
+      type: object
+      required:
+        - business_id
+        - plan_id
+      properties:
+        business_id:
+          type: integer
+        plan_id:
+          type: integer
+        status:
+          type: string
+          enum: [active, cancelled, expired, past_due]
+          default: active
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        plan_id:
+          type: integer
+        status:
+          type: string
+          enum: [active, cancelled, expired, past_due]
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ============================================================================
+    # Queue Access Code Schemas
+    # ============================================================================
+    QueueAccessCode:
+      type: object
+      properties:
+        id:
+          type: integer
+        queue_id:
+          type: integer
+        code:
+          type: string
+        is_active:
+          type: boolean
+        uses:
+          type: integer
+        max_uses:
+          type: integer
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time

@@ -23,6 +23,7 @@ class QuotaService
      */
     public static function canCreateEstablishment(int $businessId): array
     {
+
         $plan = self::getActivePlan($businessId);
         if (!$plan) {
             return ['allowed' => true]; // No plan = no limits
@@ -50,6 +51,7 @@ class QuotaService
      */
     public static function canCreateBusiness(int $ownerUserId): array
     {
+
         // Count existing businesses owned by user
         $links = BusinessUser::getBusinessesForUser($ownerUserId);
         $ownedCount = 0;
@@ -62,11 +64,13 @@ class QuotaService
         // Check the most permissive plan among owned businesses
         $maxAllowed = 1; // Default free tier
         foreach ($links as $link) {
-            if ($link['role'] !== 'owner') continue;
+            if ($link['role'] !== 'owner')
+                continue;
             $plan = self::getActivePlan($link['business_id']);
             if ($plan && $plan['max_businesses'] !== null) {
                 $maxAllowed = max($maxAllowed, $plan['max_businesses']);
-            } elseif ($plan && $plan['max_businesses'] === null) {
+            }
+            elseif ($plan && $plan['max_businesses'] === null) {
                 return ['allowed' => true]; // Unlimited plan
             }
         }
@@ -92,6 +96,7 @@ class QuotaService
      */
     public static function canAddManager(int $businessId): array
     {
+
         $plan = self::getActivePlan($businessId);
         if (!$plan) {
             return ['allowed' => true];
@@ -119,6 +124,7 @@ class QuotaService
      */
     public static function canAddProfessional(int $establishmentId): array
     {
+
         $establishment = Establishment::find($establishmentId);
         if (!$establishment || !$establishment['business_id']) {
             return ['allowed' => true]; // No business linked = no plan limits

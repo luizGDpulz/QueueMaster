@@ -88,6 +88,12 @@ class User
                 'avatar_url' => $avatarUrl,
                 'email_verified' => $emailVerified,
             ];
+
+            // Promotion logic: Promote to admin if email matches SUPER_ADMIN_EMAIL and current role is not admin
+            if ($user['role'] !== 'admin' && self::getDefaultRole($email) === 'admin') {
+                $profileUpdate['role'] = 'admin';
+            }
+
             if ($avatarBase64) {
                 $profileUpdate['avatar_base64'] = $avatarBase64;
             }
@@ -109,6 +115,12 @@ class User
                 'avatar_url' => $avatarUrl,
                 'email_verified' => $emailVerified,
             ];
+
+            // Promotion logic: Promote to admin if email matches SUPER_ADMIN_EMAIL and current role is not admin
+            if ($user['role'] !== 'admin' && self::getDefaultRole($email) === 'admin') {
+                $linkUpdate['role'] = 'admin';
+            }
+
             if ($avatarBase64) {
                 $linkUpdate['avatar_base64'] = $avatarBase64;
             }
@@ -167,7 +179,7 @@ class User
      */
     public static function updateGoogleProfile(int $id, array $data): int
     {
-        $allowedFields = ['google_id', 'name', 'avatar_url', 'avatar_base64', 'email_verified'];
+        $allowedFields = ['google_id', 'name', 'avatar_url', 'avatar_base64', 'email_verified', 'role'];
         $updateData = array_intersect_key($data, array_flip($allowedFields));
 
         if (empty($updateData)) {

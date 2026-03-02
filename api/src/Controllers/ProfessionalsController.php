@@ -101,11 +101,6 @@ class ProfessionalsController
      */
     public function create(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
 
         // Validate input
@@ -125,6 +120,13 @@ class ProfessionalsController
             $establishment = Establishment::find((int)$data['establishment_id']);
             if (!$establishment) {
                 Response::notFound('Establishment not found', $request->requestId);
+                return;
+            }
+
+            // Check SaaS quota
+            $quotaCheck = \QueueMaster\Services\QuotaService::canAddProfessional((int)$data['establishment_id']);
+            if (!$quotaCheck['allowed']) {
+                Response::error($quotaCheck['error'], $quotaCheck['message'], 403, $request->requestId);
                 return;
             }
 
@@ -173,11 +175,6 @@ class ProfessionalsController
      */
     public function update(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $professional = Professional::find($id);
             if (!$professional) {
@@ -265,11 +262,6 @@ class ProfessionalsController
      */
     public function delete(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $professional = Professional::find($id);
             if (!$professional) {

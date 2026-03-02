@@ -57,7 +57,7 @@ class AuthController
                 Logger::logSecurity('Invalid Google token', [
                     'ip' => $request->getIp(),
                 ], $request->requestId);
-                
+
                 Response::unauthorized('Invalid Google token', $request->requestId);
                 return;
             }
@@ -68,7 +68,7 @@ class AuthController
                     'email' => $googleUser['email'] ?? 'unknown',
                     'ip' => $request->getIp(),
                 ], $request->requestId);
-                
+
                 Response::forbidden('Email not verified by Google', $request->requestId);
                 return;
             }
@@ -105,9 +105,9 @@ class AuthController
                 'is_new_user' => $isNewUser,
             ]);
 
-        } catch (\Exception $e) {
-            Logger::error('Google authentication failed', [
-                'error' => $e->getMessage(),
+        }
+        catch (\Exception $e) {
+            Logger::error('Google authentication failed: ' . $e->getMessage(), [
                 'ip' => $request->getIp(),
             ], $request->requestId);
 
@@ -135,7 +135,7 @@ class AuthController
 
         // Validate token with Google
         $url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($idToken);
-        
+
         $context = stream_context_create([
             'http' => [
                 'method' => 'GET',
@@ -160,6 +160,8 @@ class AuthController
         if (!$payload || isset($payload['error'])) {
             Logger::warning('Invalid Google token response', [
                 'error' => $payload['error'] ?? 'Unknown error',
+                'description' => $payload['error_description'] ?? 'No description',
+                'response_snippet' => substr($response, 0, 100),
             ]);
             return null;
         }
@@ -169,6 +171,7 @@ class AuthController
             Logger::logSecurity('Google token audience mismatch', [
                 'expected' => $clientId,
                 'received' => $payload['aud'] ?? 'none',
+                'azp' => $payload['azp'] ?? 'none',
             ]);
             return null;
         }
@@ -246,11 +249,6 @@ class AuthController
     public function me(Request $request): void
     {
         // User is already attached by AuthMiddleware
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         // Fetch full user record from DB (middleware only carries basic fields)
         $fullUser = User::find((int)$request->user['id']);
 
@@ -272,11 +270,6 @@ class AuthController
      */
     public function logout(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         // Revoke all refresh tokens
@@ -306,11 +299,6 @@ class AuthController
      */
     public function devToken(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         if ($request->user['role'] !== 'admin') {
             Response::forbidden('Admin access required', $request->requestId);
             return;
@@ -336,24 +324,40 @@ class AuthController
     // =========================================================================
 
     /**
+     * Detect if the current connection is HTTPS.
+     * Works correctly behind a reverse proxy (Nginx Proxy Manager).
+     */
+    private static function isSecureConnection(): bool
+    {
+        // 1. PHP detected HTTPS natively
+        if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            return true;
+        }
+        // 2. Reverse proxy forwarded the original scheme (Apache sets this via X-Forwarded-Proto)
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+            return true;
+        }
+        // 3. Fallback: treat as secure in production unless explicitly set to development
+        return ($_ENV['APP_ENV'] ?? 'production') !== 'development';
+    }
+
+    /**
      * Set access token as httpOnly cookie
-     * 
+     *
      * Security:
      * - httpOnly: JS cannot access (XSS-proof)
-     * - Secure: only HTTPS in production
+     * - Secure: only HTTPS (detected from reverse proxy headers)
      * - SameSite=Lax: CSRF protection
-     * - Path: /api/v1 (sent with all API requests)
      */
     private static function setAccessTokenCookie(string $token): void
     {
         $ttl = (int)($_ENV['ACCESS_TOKEN_TTL'] ?? 900);
-        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
 
         setcookie('access_token', $token, [
             'expires' => time() + $ttl,
-            'path' => '/api/v1',
+            'path' => '/',
             'domain' => '',
-            'secure' => $isProduction,
+            'secure' => self::isSecureConnection(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -364,13 +368,11 @@ class AuthController
      */
     private static function clearAccessTokenCookie(): void
     {
-        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
-
         setcookie('access_token', '', [
             'expires' => time() - 3600,
-            'path' => '/api/v1',
+            'path' => '/',
             'domain' => '',
-            'secure' => $isProduction,
+            'secure' => self::isSecureConnection(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -378,19 +380,16 @@ class AuthController
 
     /**
      * Set refresh token as httpOnly cookie
-     * 
-     * Path restricted to /api/v1/auth (only sent on auth endpoints)
      */
     private static function setRefreshTokenCookie(string $token): void
     {
         $ttl = (int)($_ENV['REFRESH_TOKEN_TTL'] ?? 2592000);
-        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
 
         setcookie('refresh_token', $token, [
             'expires' => time() + $ttl,
-            'path' => '/api/v1/auth',
+            'path' => '/',
             'domain' => '',
-            'secure' => $isProduction,
+            'secure' => self::isSecureConnection(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -401,13 +400,11 @@ class AuthController
      */
     private static function clearRefreshTokenCookie(): void
     {
-        $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
-
         setcookie('refresh_token', '', [
             'expires' => time() - 3600,
-            'path' => '/api/v1/auth',
+            'path' => '/',
             'domain' => '',
-            'secure' => $isProduction,
+            'secure' => self::isSecureConnection(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);

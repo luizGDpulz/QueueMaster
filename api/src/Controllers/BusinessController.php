@@ -33,6 +33,10 @@ class BusinessController
 
             if ($userRole === 'admin') {
                 $businesses = Business::all([], 'name', 'ASC');
+                // Inject admin role for all businesses if global admin
+                foreach ($businesses as &$business) {
+                    $business['user_role'] = 'admin';
+                }
             }
             else {
                 $businesses = Business::getByUser($userId);

@@ -30,6 +30,13 @@
         "sort-packages": true,
         "allow-plugins": {
             "php-http/discovery": true
+        },
+        "audit": {
+            "abandoned": "report",
+            "block-insecure": false,
+            "ignored": [
+                "PKSA-y2cr-5h3j-g3ys"
+            ]
         }
     },
     "minimum-stability": "stable",

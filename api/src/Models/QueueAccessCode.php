@@ -130,4 +130,34 @@ class QueueAccessCode
 
         return $errors;
     }
+
+    /**
+     * Update access code
+     */
+    public static function update(int $id, array $data): int
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where(self::$primaryKey, '=', $id)
+            ->update($data);
+    }
+
+    /**
+     * Deactivate access code
+     */
+    public static function deactivate(int $id): int
+    {
+        return self::update($id, ['is_active' => 0]);
+    }
+
+    /**
+     * Delete access code
+     */
+    public static function delete(int $id): int
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where(self::$primaryKey, '=', $id)
+            ->delete();
+    }
 }

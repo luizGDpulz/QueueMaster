@@ -12,14 +12,43 @@
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $path = parse_url($requestUri, PHP_URL_PATH);
 
+// Debug logging for request tracing in production
+if (str_contains($path, '/icons/') || str_contains($path, '/auth/')) {
+    error_log("[DEBUG] Request received: $path (Method: " . ($_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN') . ")");
+}
+
 // ============================================================================
 // API Routes (/api/*, /health, /docs, /swagger/*)
 // ============================================================================
+
+// Serve static files from api/public/ for swagger and docs (dev only)
+$isProduction = ($_ENV['APP_ENV'] ?? 'production') === 'production';
+
+if (!$isProduction && (str_starts_with($path, '/swagger/') || str_starts_with($path, '/docs/'))) {
+    $staticFile = __DIR__ . '/../api/public' . $path;
+    if (file_exists($staticFile) && is_file($staticFile)) {
+        $mimeTypes = [
+            'html' => 'text/html',
+            'css' => 'text/css',
+            'js' => 'application/javascript',
+            'json' => 'application/json',
+            'yaml' => 'text/yaml',
+            'yml' => 'text/yaml',
+            'png' => 'image/png',
+            'svg' => 'image/svg+xml',
+        ];
+        $ext = pathinfo($staticFile, PATHINFO_EXTENSION);
+        $mime = $mimeTypes[$ext] ?? 'application/octet-stream';
+        header('Content-Type: ' . $mime);
+        readfile($staticFile);
+        exit;
+    }
+}
+
 if (
-    str_starts_with($path, '/api/') ||
-    str_starts_with($path, '/health') ||
-    str_starts_with($path, '/docs') ||
-    str_starts_with($path, '/swagger')
+str_starts_with($path, '/api/') ||
+str_starts_with($path, '/health') ||
+(!$isProduction && (str_starts_with($path, '/docs') || str_starts_with($path, '/swagger')))
 ) {
     // Forward to API entry point
     require __DIR__ . '/../api/public/index.php';
@@ -37,7 +66,7 @@ $webIndexPath = $webDistPath . '/index.html';
 if (is_dir($webDistPath) && file_exists($webIndexPath)) {
     // Try to serve static file from web/dist
     $staticFile = $webDistPath . $path;
-    
+
     if (file_exists($staticFile) && is_file($staticFile)) {
         // Serve static asset (js, css, images, etc.)
         $mimeTypes = [
@@ -61,7 +90,7 @@ if (is_dir($webDistPath) && file_exists($webIndexPath)) {
         readfile($staticFile);
         exit;
     }
-    
+
     // SPA fallback - serve index.html for all other routes
     // This allows Vue Router to handle /home, /users, etc.
     header('Content-Type: text/html');

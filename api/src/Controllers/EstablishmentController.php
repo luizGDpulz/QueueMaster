@@ -155,11 +155,6 @@ class EstablishmentController
      */
     public function create(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
 
         // Validate input
@@ -254,11 +249,6 @@ class EstablishmentController
      */
     public function update(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $establishment = Establishment::find($id);
             if (!$establishment) {
@@ -360,11 +350,6 @@ class EstablishmentController
      */
     public function delete(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $establishment = Establishment::find($id);
             if (!$establishment) {

@@ -250,6 +250,10 @@ export default defineComponent({
 
         console.log('Login sucesso:', response.data)
 
+        if (!response.data.success) {
+          throw new Error(response.data.error?.message || 'Erro desconhecido')
+        }
+
         const { user, is_new_user } = response.data.data
 
         // Salvar user (tokens são httpOnly cookies gerenciados pelo browser)

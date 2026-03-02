@@ -221,20 +221,17 @@ class Response
                 header('Vary: Origin');
                 header('Access-Control-Allow-Credentials: true');
             }
-        // If origin not in whitelist, do NOT set Access-Control-Allow-Origin
+        // If same-origin request, we might still need the credentials header
         }
         elseif ($allowedOrigins === '*') {
-            // Wildcard mode: only safe without credentials
-            // In dev mode, echo origin for convenience; in production, use wildcard without credentials
-            $isDev = ($_ENV['APP_ENV'] ?? 'production') === 'development';
-            if ($isDev && $origin) {
+            // Echo origin if it exists (very common for same-domain or trusted proxies)
+            if ($origin) {
                 header("Access-Control-Allow-Origin: $origin");
                 header('Vary: Origin');
                 header('Access-Control-Allow-Credentials: true');
             }
             else {
                 header("Access-Control-Allow-Origin: *");
-            // Note: credentials NOT allowed with wildcard origin (per CORS spec)
             }
         }
         else {
@@ -269,9 +266,10 @@ class Response
         // Referrer policy - don't leak internal URLs
         header('Referrer-Policy: strict-origin-when-cross-origin');
 
-        // Content Security Policy - only for API endpoints, not for Swagger/HTML pages
+        // Content Security Policy
         if ($isApi) {
-            header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
+            // Base CSP for API: allow images (avatars), fonts, and connections to self
+            header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://*.googleusercontent.com; frame-ancestors 'none'; connect-src 'self'");
         }
 
         // Permissions Policy - disable unnecessary features

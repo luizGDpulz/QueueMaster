@@ -23,11 +23,6 @@ class AppointmentsController
      */
     public function create(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
         $userId = (int)$request->user['id'];
 
@@ -98,11 +93,6 @@ class AppointmentsController
      */
     public function list(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $params = $request->getQuery();
         $userId = (int)$request->user['id'];
         $userRole = $request->user['role'];
@@ -170,11 +160,6 @@ class AppointmentsController
      */
     public function get(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
         $userRole = $request->user['role'];
 
@@ -216,11 +201,6 @@ class AppointmentsController
      */
     public function checkIn(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         try {
@@ -269,11 +249,6 @@ class AppointmentsController
      */
     public function update(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
         $userRole = $request->user['role'];
 
@@ -371,11 +346,6 @@ class AppointmentsController
      */
     public function cancel(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         try {
@@ -423,11 +393,6 @@ class AppointmentsController
      */
     public function complete(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $appointmentService = new AppointmentService();
             $appointment = $appointmentService->complete($id);
@@ -470,11 +435,6 @@ class AppointmentsController
      */
     public function noShow(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         try {
             $appointmentService = new AppointmentService();
             $appointment = $appointmentService->noShow($id);

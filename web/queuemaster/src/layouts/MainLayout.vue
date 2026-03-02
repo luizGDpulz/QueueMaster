@@ -158,7 +158,7 @@ export default defineComponent({
     const userAvatar = computed(() => {
       if (!user.value?.id) return ''
       // Use API route for avatar (cached base64 in DB, no Google dependency)
-      return `http://localhost/api/v1/users/${user.value.id}/avatar`
+      return `${import.meta.env.VITE_API_URL || 'http://localhost/api/v1'}/users/${user.value.id}/avatar`
     })
 
     const handleLogout = async () => {
@@ -280,13 +280,31 @@ export default defineComponent({
       }
     }
 
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await api.get('/auth/me')
+        if (response.data?.success && response.data?.data?.user) {
+          user.value = response.data.data.user
+          localStorage.setItem('user', JSON.stringify(response.data.data.user))
+        }
+      } catch {
+        // Token inválido/expirado — o interceptor em axios.js vai tentar o refresh.
+        // Se falhar, o interceptor redireciona para /login automaticamente.
+      }
+    }
+
     onMounted(() => {
-      // Load user
+      // Carrega do localStorage imediatamente para evitar flicker na UI
       const savedUser = localStorage.getItem('user')
       if (savedUser) {
-        user.value = JSON.parse(savedUser)
+        try {
+          user.value = JSON.parse(savedUser)
+        } catch { /* ignore parse errors */ }
       }
-      
+
+      // Busca o user real da API para garantir role e dados atualizados
+      fetchCurrentUser()
+
       // Load theme
       const savedTheme = localStorage.getItem('theme')
       if (savedTheme) {

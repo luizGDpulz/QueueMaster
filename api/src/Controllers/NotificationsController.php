@@ -23,11 +23,6 @@ class NotificationsController
      */
     public function list(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
         $params = $request->getQuery();
 
@@ -79,11 +74,6 @@ class NotificationsController
      */
     public function get(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         try {
@@ -126,11 +116,6 @@ class NotificationsController
      */
     public function saveFcmToken(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $data = $request->all();
         $userId = (int)$request->user['id'];
 
@@ -198,11 +183,6 @@ class NotificationsController
      */
     public function markRead(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         try {
@@ -249,11 +229,6 @@ class NotificationsController
      */
     public function markAllRead(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         try {
@@ -284,11 +259,6 @@ class NotificationsController
      */
     public function delete(Request $request, int $id): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         try {
@@ -330,11 +300,6 @@ class NotificationsController
      */
     public function unreadCount(Request $request): void
     {
-        if (!$request->user) {
-            Response::unauthorized('Authentication required', $request->requestId);
-            return;
-        }
-
         $userId = (int)$request->user['id'];
 
         try {

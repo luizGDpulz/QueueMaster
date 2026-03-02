@@ -34,7 +34,7 @@
           <div class="profile-section">
             <div class="profile-card">
               <q-avatar size="100px" class="profile-avatar">
-                <img v-if="user?.avatar_url" :src="user.avatar_url" alt="Avatar" />
+                <img v-if="user?.avatar_url" :src="user.avatar_url" alt="Avatar" referrerpolicy="no-referrer" />
                 <q-icon v-else name="person" size="50px" />
               </q-avatar>
               <div class="profile-info">
@@ -476,14 +476,6 @@ export default defineComponent({
 .settings-tabs {
   margin-top: 10px;
   padding: 0 1rem;
-
-  :deep(.q-tab) {
-    padding: 0 1rem;
-    
-    .q-focus-helper {
-      border-radius: 15px;
-    }
-  }
 
   :deep(.q-tab__label) {
     font-weight: 500;

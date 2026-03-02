@@ -3,7 +3,7 @@ import axios from 'axios'
 
 // ===== CONFIGURAÇÃO DA API =====
 const api = axios.create({
-  baseURL: 'http://localhost/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost/api/v1',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -64,7 +64,7 @@ api.interceptors.response.use(
       try {
         // Refresh: cookies httpOnly são enviados automaticamente pelo browser
         const response = await axios.post(
-          'http://localhost/api/v1/auth/refresh',
+          `${import.meta.env.VITE_API_URL || 'http://localhost/api/v1'}/auth/refresh`,
           {},
           { withCredentials: true }
         )

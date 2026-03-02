@@ -33,7 +33,8 @@ class Plan
         string $orderBy = '',
         string $direction = 'ASC',
         ?int $limit = null
-    ): array {
+        ): array
+    {
         $qb = new QueryBuilder();
         $qb->select(self::$table);
 
@@ -58,5 +59,37 @@ class Plan
     public static function getActive(): array
     {
         return self::all(['is_active' => 1], 'name', 'ASC');
+    }
+
+    /**
+     * Create new plan
+     */
+    public static function create(array $data): int
+    {
+        $qb = new QueryBuilder();
+        $qb->select(self::$table);
+        return $qb->insert($data);
+    }
+
+    /**
+     * Update plan
+     */
+    public static function update(int $id, array $data): int
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where(self::$primaryKey, '=', $id)
+            ->update($data);
+    }
+
+    /**
+     * Delete plan
+     */
+    public static function delete(int $id): int
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where(self::$primaryKey, '=', $id)
+            ->delete();
     }
 }

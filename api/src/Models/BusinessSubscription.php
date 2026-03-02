@@ -55,7 +55,8 @@ class BusinessSubscription
         string $orderBy = '',
         string $direction = 'ASC',
         ?int $limit = null
-    ): array {
+        ): array
+    {
         $qb = new QueryBuilder();
         $qb->select(self::$table);
 
@@ -72,5 +73,27 @@ class BusinessSubscription
         }
 
         return $qb->get();
+    }
+
+    /**
+     * Update subscription
+     */
+    public static function update(int $id, array $data): int
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where(self::$primaryKey, '=', $id)
+            ->update($data);
+    }
+
+    /**
+     * Delete subscription
+     */
+    public static function delete(int $id): int
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where(self::$primaryKey, '=', $id)
+            ->delete();
     }
 }

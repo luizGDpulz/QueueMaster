@@ -35,27 +35,28 @@ class AuthMiddleware
                 'ip' => $request->getIp(),
                 'path' => $request->getPath(),
             ], $request->requestId);
-            
+
             Response::unauthorized('Authentication required', $request->requestId);
             return;
         }
 
         try {
             $user = $this->validateToken($token);
-            
+
             // Attach user to request
             $request->user = $user;
-            
+
             // Continue to next middleware/handler
             $next($request);
-            
-        } catch (\Exception $e) {
+
+        }
+        catch (\Exception $e) {
             Logger::logSecurity('Invalid authentication token', [
                 'ip' => $request->getIp(),
                 'path' => $request->getPath(),
                 'error' => $e->getMessage(),
             ], $request->requestId);
-            
+
             Response::unauthorized('Invalid or expired token', $request->requestId);
             return;
         }
@@ -82,7 +83,7 @@ class AuthMiddleware
         $decoded = JWT::decode($token, new Key($publicKey, 'RS256'));
 
         // Convert to array
-        $payload = (array) $decoded;
+        $payload = (array)$decoded;
 
         // Validate required fields
         if (!isset($payload['user_id']) || !isset($payload['email'])) {
@@ -120,11 +121,29 @@ class AuthMiddleware
         $fullPath = __DIR__ . '/../../' . $privateKeyPath;
 
         if (!file_exists($fullPath)) {
+            // Log as error for visibility in Apache logs even if exception is caught
+            error_log("[ERROR] Private key file not found at: $fullPath");
             throw new \Exception('Private key not found. Generate with: openssl genrsa -out keys/private.key 2048');
         }
 
         $privateKey = file_get_contents($fullPath);
-        $ttl = $customTtl ?? (int) ($_ENV['ACCESS_TOKEN_TTL'] ?? 900); // 15 minutes default
+
+        if ($privateKey === false) {
+            error_log("[ERROR] Failed to read private key file: $fullPath (Check permissions)");
+            throw new \Exception('Failed to read private key file');
+        }
+
+        if (strlen(trim($privateKey)) < 100) {
+            error_log("[ERROR] Private key file is suspiciously empty or small (" . strlen($privateKey) . " bytes)");
+            throw new \Exception('Private key file is invalid or empty');
+        }
+
+        if (!str_contains($privateKey, 'BEGIN RSA PRIVATE KEY') && !str_contains($privateKey, 'BEGIN PRIVATE KEY')) {
+            error_log("[ERROR] Private key file does not contain a valid PEM header: " . substr($privateKey, 0, 30) . "...");
+            throw new \Exception('Private key file is not in PEM format');
+        }
+
+        $ttl = $customTtl ?? (int)($_ENV['ACCESS_TOKEN_TTL'] ?? 900); // 15 minutes default
 
         $payload = [
             'iss' => $_ENV['API_BASE_URL'] ?? 'http://localhost:8080',
@@ -136,6 +155,12 @@ class AuthMiddleware
             'role' => $user['role'],
         ];
 
-        return JWT::encode($payload, $privateKey, 'RS256');
+        try {
+            return JWT::encode($payload, $privateKey, 'RS256');
+        }
+        catch (\Exception $e) {
+            error_log("[ERROR] JWT::encode failed: " . $e->getMessage());
+            throw $e;
+        }
     }
 }
