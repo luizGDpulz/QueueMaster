@@ -2,7 +2,7 @@
   <q-page class="detail-page">
     <!-- Back + Header -->
     <div class="page-header">
-    <div class="header-left">
+      <div class="header-left">
         <q-btn flat round dense icon="arrow_back" class="back-btn" @click="goBack" />
         <h1 class="page-title">{{ business?.name || '\u00A0' }}</h1>
       </div>
@@ -21,138 +21,192 @@
     </div>
 
     <template v-else-if="business">
-      <!-- Info Card -->
-      <div class="soft-card q-mb-lg">
-        <h2 class="section-title">Informações</h2>
-        <div class="detail-grid">
-          <div class="detail-item">
-            <span class="detail-label">Nome</span>
-            <span class="detail-value">{{ business.name }}</span>
-          </div>
-          <div class="detail-item" v-if="business.slug">
-            <span class="detail-label">Slug</span>
-            <span class="detail-value">{{ business.slug }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Seu Papel</span>
-            <q-badge :color="getRoleColor(business.user_role)" :label="getRoleLabel(business.user_role)" />
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Status</span>
-            <q-badge :color="business.is_active ? 'positive' : 'negative'" :label="business.is_active ? 'Ativo' : 'Inativo'" />
-          </div>
-          <div class="detail-item" v-if="business.description">
-            <span class="detail-label">Descrição</span>
-            <span class="detail-value">{{ business.description }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Criado em</span>
-            <span class="detail-value">{{ formatDate(business.created_at) }}</span>
-          </div>
-        </div>
-      </div>
+      <!-- Main Tabbed Card -->
+      <div class="soft-card main-card">
+        <q-tabs v-model="mainTab" dense class="main-tabs" active-color="primary" indicator-color="primary" align="left" narrow-indicator>
+          <q-tab name="info" icon="info" label="Informações" no-caps />
+          <q-tab name="establishments" icon="store" label="Estabelecimentos" no-caps />
+          <q-tab name="professionals" icon="badge" label="Profissionais" no-caps />
+          <q-tab name="invitations" icon="mail" label="Convites" no-caps />
+        </q-tabs>
 
-      <!-- Establishments Card -->
-      <div class="soft-card">
-        <div class="section-header">
-          <h2 class="section-title">Estabelecimentos</h2>
-        </div>
+        <q-separator />
 
-        <div v-if="loadingEstablishments" class="loading-state-sm">
-          <q-spinner-dots color="primary" size="30px" />
-        </div>
-        <div v-else-if="establishments.length === 0" class="empty-state-sm">
-          <q-icon name="store" size="40px" />
-          <p>Nenhum estabelecimento vinculado</p>
-        </div>
-        <div v-else class="list-items">
-          <div
-            v-for="est in establishments"
-            :key="est.id"
-            class="list-item clickable"
-            @click="$router.push(`/app/establishments/${est.id}`)"
-          >
-            <div class="list-item-info">
-              <div class="list-item-avatar">
-                <q-icon name="store" size="20px" />
-              </div>
-              <div class="list-item-details">
-                <span class="list-item-name">{{ est.name }}</span>
-                <span class="list-item-meta">{{ est.address || 'Sem endereço' }}</span>
+        <q-tab-panels v-model="mainTab" animated class="tab-panels">
+          <!-- ================================================================ -->
+          <!-- TAB: INFORMAÇÕES -->
+          <!-- ================================================================ -->
+          <q-tab-panel name="info" class="tab-panel-padded">
+            <div class="panel-header">
+              <div class="panel-header-text">
+                <h3>Informações</h3>
+                <p>Dados gerais do negócio</p>
               </div>
             </div>
-            <div class="list-item-side">
-              <q-badge :color="est.is_active ? 'positive' : 'grey'" :label="est.is_active ? 'Ativo' : 'Inativo'" />
-              <q-icon name="chevron_right" size="20px" class="chevron" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Users Card -->
-      <div class="soft-card q-mb-lg">
-        <div class="section-header">
-          <h2 class="section-title">Usuários</h2>
-          <q-btn flat dense icon="person_add" label="Adicionar" no-caps size="sm" @click="showAddUserDialog = true" />
-        </div>
-
-        <div v-if="loadingUsers" class="loading-state-sm">
-          <q-spinner-dots color="primary" size="30px" />
-        </div>
-        <div v-else-if="businessUsers.length === 0" class="empty-state-sm">
-          <q-icon name="people" size="40px" />
-          <p>Nenhum usuário vinculado</p>
-        </div>
-        <div v-else class="list-items">
-          <div v-for="u in businessUsers" :key="u.id" class="list-item">
-            <div class="list-item-info">
-              <div class="list-item-avatar">
-                <q-icon name="person" size="20px" />
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">Nome</span>
+                <span class="detail-value">{{ business.name }}</span>
               </div>
-              <div class="list-item-details">
-                <span class="list-item-name">{{ u.name || u.email }}</span>
-                <span class="list-item-meta">{{ u.email }} · {{ getRoleLabel(u.role || u.business_role) }}</span>
+              <div class="detail-item" v-if="business.slug">
+                <span class="detail-label">Slug</span>
+                <span class="detail-value">{{ business.slug }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Seu Papel</span>
+                <q-badge :color="getRoleColor(business.user_role)" :label="getRoleLabel(business.user_role)" />
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Status</span>
+                <q-badge :color="business.is_active ? 'positive' : 'negative'" :label="business.is_active ? 'Ativo' : 'Inativo'" />
+              </div>
+              <div class="detail-item" v-if="business.description">
+                <span class="detail-label">Descrição</span>
+                <span class="detail-value">{{ business.description }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Criado em</span>
+                <span class="detail-value">{{ formatDate(business.created_at) }}</span>
               </div>
             </div>
-            <div class="list-item-side">
-              <q-btn flat round dense icon="remove_circle" size="sm" color="negative" @click.stop="confirmRemoveUser(u)" />
-            </div>
-          </div>
-        </div>
-      </div>
+          </q-tab-panel>
 
-      <!-- Invitations Card -->
-      <div class="soft-card">
-        <div class="section-header">
-          <h2 class="section-title">Convites</h2>
-          <q-btn flat dense icon="send" label="Convidar" no-caps size="sm" @click="showInviteDialog = true" />
-        </div>
-
-        <div v-if="loadingInvitations" class="loading-state-sm">
-          <q-spinner-dots color="primary" size="30px" />
-        </div>
-        <div v-else-if="invitations.length === 0" class="empty-state-sm">
-          <q-icon name="mail" size="40px" />
-          <p>Nenhum convite pendente</p>
-        </div>
-        <div v-else class="list-items">
-          <div v-for="inv in invitations" :key="inv.id" class="list-item">
-            <div class="list-item-info">
-              <div class="list-item-avatar">
-                <q-icon name="mail_outline" size="20px" />
-              </div>
-              <div class="list-item-details">
-                <span class="list-item-name">{{ inv.email || inv.user_name || 'Convite #' + inv.id }}</span>
-                <span class="list-item-meta">
-                  <q-badge :color="getInviteStatusColor(inv.status)" :label="getInviteStatusLabel(inv.status)" />
-                </span>
+          <!-- ================================================================ -->
+          <!-- TAB: ESTABELECIMENTOS -->
+          <!-- ================================================================ -->
+          <q-tab-panel name="establishments" class="tab-panel-padded">
+            <div class="panel-header">
+              <div class="panel-header-text">
+                <h3>Estabelecimentos</h3>
+                <p>Locais vinculados a este negócio</p>
               </div>
             </div>
-            <div class="list-item-side">
-              <q-btn v-if="inv.status === 'pending'" flat round dense icon="cancel" size="sm" color="negative" @click.stop="cancelInvitation(inv)" />
+
+            <div v-if="loadingEstablishments" class="loading-state-sm">
+              <q-spinner-dots color="primary" size="30px" />
             </div>
-          </div>
-        </div>
+            <div v-else-if="establishments.length === 0" class="empty-state-sm">
+              <q-icon name="store" size="40px" />
+              <p>Nenhum estabelecimento vinculado</p>
+            </div>
+            <div v-else class="list-items">
+              <div
+                v-for="est in establishments"
+                :key="est.id"
+                class="list-item clickable"
+                @click="$router.push(`/app/establishments/${est.id}`)"
+              >
+                <div class="list-item-info">
+                  <div class="list-item-avatar">
+                    <q-icon name="store" size="20px" />
+                  </div>
+                  <div class="list-item-details">
+                    <span class="list-item-name">{{ est.name }}</span>
+                    <span class="list-item-meta">{{ est.address || 'Sem endereço' }}</span>
+                  </div>
+                </div>
+                <div class="list-item-side">
+                  <q-badge :color="est.is_active ? 'positive' : 'grey'" :label="est.is_active ? 'Ativo' : 'Inativo'" />
+                  <q-icon name="chevron_right" size="20px" class="chevron" />
+                </div>
+              </div>
+            </div>
+          </q-tab-panel>
+
+          <!-- ================================================================ -->
+          <!-- TAB: PROFISSIONAIS -->
+          <!-- ================================================================ -->
+          <q-tab-panel name="professionals" class="tab-panel-padded">
+            <div class="panel-header">
+              <div class="panel-header-text">
+                <h3>Profissionais</h3>
+                <p>Profissionais vinculados a este negócio</p>
+              </div>
+              <div class="panel-header-actions">
+                <q-btn color="primary" icon="person_add" label="Adicionar" no-caps size="sm" @click="showAddUserDialog = true" />
+              </div>
+            </div>
+
+            <div v-if="loadingUsers" class="loading-state-sm">
+              <q-spinner-dots color="primary" size="30px" />
+            </div>
+            <div v-else-if="businessUsers.length === 0" class="empty-state-sm">
+              <q-icon name="people" size="40px" />
+              <p>Nenhum profissional ou usuário vinculado</p>
+            </div>
+            <div v-else class="list-items">
+              <div v-for="u in businessUsers" :key="u.id" class="list-item">
+                <div class="list-item-info">
+                  <div class="list-item-avatar">
+                    <q-icon name="person" size="20px" />
+                  </div>
+                  <div class="list-item-details">
+                    <span class="list-item-name">{{ u.name || u.email }}</span>
+                    <span class="list-item-meta">{{ u.email }} · {{ getRoleLabel(u.role || u.business_role) }}</span>
+                  </div>
+                </div>
+                <div class="list-item-side">
+                  <q-badge :color="getRoleColor(u.role || u.business_role)" :label="getRoleLabel(u.role || u.business_role)" />
+                  <q-btn flat round dense icon="remove_circle" size="sm" color="negative" @click.stop="confirmRemoveUser(u)" />
+                </div>
+              </div>
+            </div>
+          </q-tab-panel>
+
+          <!-- ================================================================ -->
+          <!-- TAB: CONVITES -->
+          <!-- ================================================================ -->
+          <q-tab-panel name="invitations" class="tab-panel-padded">
+            <div class="panel-header">
+              <div class="panel-header-text">
+                <h3>Convites</h3>
+                <p>Convites enviados e solicitações de ingresso</p>
+              </div>
+              <div class="panel-header-actions">
+                <q-btn color="primary" icon="send" label="Convidar" no-caps size="sm" @click="showInviteDialog = true" />
+              </div>
+            </div>
+
+            <div v-if="loadingInvitations" class="loading-state-sm">
+              <q-spinner-dots color="primary" size="30px" />
+            </div>
+            <div v-else-if="invitations.length === 0" class="empty-state-sm">
+              <q-icon name="mail" size="40px" />
+              <p>Nenhum convite pendente</p>
+            </div>
+            <div v-else class="list-items">
+              <div v-for="inv in invitations" :key="inv.id" class="list-item">
+                <div class="list-item-info">
+                  <div class="list-item-avatar" :class="inv.direction === 'join_request' ? 'avatar-incoming' : ''">
+                    <q-icon :name="inv.direction === 'join_request' ? 'person_add' : 'mail_outline'" size="20px" />
+                  </div>
+                  <div class="list-item-details">
+                    <span class="list-item-name">{{ inv.invitee_name || inv.email || 'Convite #' + inv.id }}</span>
+                    <span class="list-item-meta">
+                      <q-badge :color="getInviteStatusColor(inv.status)" :label="getInviteStatusLabel(inv.status)" />
+                      <template v-if="inv.direction === 'join_request'"> · Solicitação de ingresso</template>
+                      <template v-else> · Convite enviado</template>
+                      <template v-if="inv.role"> · {{ getRoleLabel(inv.role) }}</template>
+                    </span>
+                  </div>
+                </div>
+                <div class="list-item-side">
+                  <template v-if="inv.status === 'pending' && inv.direction === 'join_request'">
+                    <q-btn flat round dense icon="check_circle" size="sm" color="positive" @click.stop="acceptInvitation(inv)">
+                      <q-tooltip>Aceitar</q-tooltip>
+                    </q-btn>
+                    <q-btn flat round dense icon="cancel" size="sm" color="negative" @click.stop="rejectInvitation(inv)">
+                      <q-tooltip>Rejeitar</q-tooltip>
+                    </q-btn>
+                  </template>
+                  <q-btn v-else-if="inv.status === 'pending'" flat round dense icon="cancel" size="sm" color="negative" @click.stop="cancelInvitation(inv)">
+                    <q-tooltip>Cancelar convite</q-tooltip>
+                  </q-btn>
+                </div>
+              </div>
+            </div>
+          </q-tab-panel>
+        </q-tab-panels>
       </div>
     </template>
 
@@ -230,7 +284,7 @@
 </template>
 
 <script>
-import { defineComponent, ref, onMounted } from 'vue'
+import { defineComponent, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
@@ -243,6 +297,7 @@ export default defineComponent({
     const router = useRouter()
     const $q = useQuasar()
 
+    const mainTab = ref('info')
     const business = ref(null)
     const establishments = ref([])
     const loading = ref(true)
@@ -274,6 +329,13 @@ export default defineComponent({
     ]
 
     const goBack = () => router.push('/app/businesses')
+
+    // Lazy-load tab data
+    watch(mainTab, (tab) => {
+      if (tab === 'establishments' && establishments.value.length === 0 && !loadingEstablishments.value) fetchEstablishments()
+      if (tab === 'professionals' && businessUsers.value.length === 0 && !loadingUsers.value) fetchBusinessUsers()
+      if (tab === 'invitations' && invitations.value.length === 0 && !loadingInvitations.value) fetchInvitations()
+    })
 
     const fetchBusiness = async () => {
       loading.value = true
@@ -433,6 +495,27 @@ export default defineComponent({
       }
     }
 
+    const acceptInvitation = async (inv) => {
+      try {
+        await api.post(`/invitations/${inv.id}/accept`)
+        $q.notify({ type: 'positive', message: 'Solicitação aceita' })
+        fetchInvitations()
+        fetchBusinessUsers()
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao aceitar' })
+      }
+    }
+
+    const rejectInvitation = async (inv) => {
+      try {
+        await api.post(`/invitations/${inv.id}/reject`)
+        $q.notify({ type: 'positive', message: 'Solicitação rejeitada' })
+        fetchInvitations()
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao rejeitar' })
+      }
+    }
+
     const cancelInvitation = async (inv) => {
       try {
         await api.post(`/invitations/${inv.id}/cancel`)
@@ -448,12 +531,10 @@ export default defineComponent({
 
     onMounted(() => {
       fetchBusiness()
-      fetchEstablishments()
-      fetchBusinessUsers()
-      fetchInvitations()
     })
 
     return {
+      mainTab,
       business, establishments, loading, loadingEstablishments,
       saving, showEditDialog, editForm,
       businessUsers, loadingUsers, showAddUserDialog, showRemoveUserConfirm,
@@ -461,7 +542,8 @@ export default defineComponent({
       invitations, loadingInvitations, showInviteDialog, sendingInvite, inviteForm,
       goBack, openEdit, saveBusiness, formatDate, getRoleLabel, getRoleColor,
       addUser, confirmRemoveUser, removeUser,
-      sendInvitation, cancelInvitation, getInviteStatusColor, getInviteStatusLabel
+      sendInvitation, acceptInvitation, rejectInvitation, cancelInvitation,
+      getInviteStatusColor, getInviteStatusLabel
     }
   }
 })
@@ -469,4 +551,23 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 @import 'src/css/detail-page.scss';
+
+// ── Main card & tabs ──
+.main-card { padding: 0; overflow: hidden; }
+.main-tabs { padding: 0.5rem 1rem 0; }
+.tab-panels { background: transparent; min-height: 200px; }
+.tab-panel-padded { padding: 1.5rem; }
+
+.panel-header {
+  display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem;
+  h3 { font-size: 1.125rem; font-weight: 600; margin: 0; color: var(--qm-text-primary); }
+  p { font-size: 0.8125rem; color: var(--qm-text-muted); margin: 0.125rem 0 0; }
+}
+.panel-header-text { flex: 1; }
+.panel-header-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+.avatar-incoming {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
 </style>

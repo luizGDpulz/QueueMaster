@@ -43,7 +43,11 @@
           <nav class="breadcrumbs">
             <span class="breadcrumb-item">Páginas</span>
             <q-icon name="chevron_right" size="18px" class="breadcrumb-separator" />
-            <span class="breadcrumb-current">{{ currentPageTitle }}</span>
+            <span :class="breadcrumbDetail ? 'breadcrumb-item breadcrumb-link' : 'breadcrumb-current'" @click="breadcrumbDetail ? $router.push(breadcrumbParentPath) : null">{{ currentPageTitle }}</span>
+            <template v-if="breadcrumbDetail">
+              <q-icon name="chevron_right" size="18px" class="breadcrumb-separator" />
+              <span class="breadcrumb-current">{{ breadcrumbDetail }}</span>
+            </template>
           </nav>
         </div>
 
@@ -86,7 +90,7 @@
                     <span class="notif-title">{{ notif.title }}</span>
                     <span class="notif-body">{{ notif.body }}</span>
                     <span class="notif-time">{{ formatNotifTime(notif.created_at) }}</span>
-                    <div v-if="notif.type === 'business_invitation' && !notif.read_at && notif.data?.invitation_id" class="notif-actions" @click.stop>
+                    <div v-if="(notif.type === 'business_invitation' || notif.type === 'join_request') && !notif.read_at && notif.data?.invitation_id" class="notif-actions" @click.stop>
                       <q-btn dense flat no-caps size="sm" color="positive" icon="check" label="Aceitar" @click="acceptInvitation(notif)" />
                       <q-btn dense flat no-caps size="sm" color="negative" icon="close" label="Rejeitar" @click="rejectInvitation(notif)" />
                     </div>
@@ -97,6 +101,9 @@
           </div>
         </div>
       </header>
+
+      <!-- Divisor entre header e conteúdo da página -->
+      <div class="page-spacer"></div>
 
       <!-- Página -->
       <router-view v-slot="{ Component }">
@@ -116,6 +123,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { api } from 'boot/axios'
 import { loadBrandColor } from 'src/utils/brand'
 import AppSidebar from 'src/components/AppSidebar.vue'
+import { useBreadcrumb } from 'src/composables/useBreadcrumb'
 
 export default defineComponent({
   name: 'MainLayout',
@@ -326,6 +334,17 @@ export default defineComponent({
       if (notifInterval) clearInterval(notifInterval)
     })
 
+    const { state: breadcrumbState } = useBreadcrumb()
+    const breadcrumbDetail = computed(() => breadcrumbState.detail)
+
+    const breadcrumbParentPath = computed(() => {
+      const currentItem = menuItems.find(item => {
+        if (item.path === '/app') return route.path === '/app' || route.path === '/app/'
+        return route.path.startsWith(item.path)
+      })
+      return currentItem?.path || '/app'
+    })
+
     const currentPageTitle = computed(() => {
       const currentItem = menuItems.find(item => {
         if (item.path === '/app') {
@@ -369,6 +388,8 @@ export default defineComponent({
       acceptInvitation,
       rejectInvitation,
       currentPageTitle,
+      breadcrumbDetail,
+      breadcrumbParentPath,
       isDark,
       toggleTheme
     }
@@ -427,6 +448,11 @@ export default defineComponent({
   color: var(--qm-text-muted);
 }
 
+.breadcrumb-link {
+  cursor: pointer;
+  &:hover { text-decoration: underline; }
+}
+
 .breadcrumb-separator {
   color: var(--qm-text-muted);
 }
@@ -441,6 +467,12 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+// ===== PAGE SPACER =====
+// Divisor consistente entre o header de breadcrumbs e o conteúdo da página
+.page-spacer {
+  height: 0.5rem;
 }
 
 // ===== NOTIFICATIONS =====
@@ -584,7 +616,7 @@ export default defineComponent({
 <style lang="scss">
 // ===== PAGE TRANSITIONS (must be non-scoped) =====
 .page-fade-enter-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.25s ease;
 }
 
 .page-fade-leave-active {
@@ -593,7 +625,6 @@ export default defineComponent({
 
 .page-fade-enter-from {
   opacity: 0;
-  transform: translateY(6px);
 }
 
 .page-fade-leave-to {

@@ -95,6 +95,78 @@
       </div>
     </div>
 
+    <!-- Discover Businesses (professionals only) -->
+    <div v-if="isProfessional" class="table-card soft-card q-mt-lg">
+      <div class="table-header">
+        <h2 class="table-title">Buscar Negócios</h2>
+        <div class="table-actions">
+          <q-input
+            v-model="discoverQuery"
+            outlined
+            dense
+            placeholder="Nome do negócio..."
+            class="search-input"
+            @keyup.enter="searchBusinesses"
+          >
+            <template v-slot:prepend>
+              <q-icon name="search" />
+            </template>
+            <template v-slot:append>
+              <q-btn flat dense round icon="send" size="sm" @click="searchBusinesses" />
+            </template>
+          </q-input>
+        </div>
+      </div>
+
+      <div v-if="searchingDiscover" class="loading-state" style="padding: 2rem;">
+        <q-spinner-dots color="primary" size="32px" />
+      </div>
+
+      <div v-else-if="discoverResults.length === 0 && discoverSearched" class="empty-state" style="padding: 2rem;">
+        <q-icon name="search_off" size="48px" />
+        <h3>Nenhum negócio encontrado</h3>
+        <p>Tente outro termo de busca</p>
+      </div>
+
+      <div v-else-if="discoverResults.length > 0" class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="th-name">Negócio</th>
+              <th class="th-actions" style="width: 180px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="biz in discoverResults" :key="biz.id">
+              <td>
+                <div class="business-info">
+                  <q-icon name="business" size="24px" class="business-icon" />
+                  <div>
+                    <span class="business-name">{{ biz.name }}</span>
+                    <span v-if="biz.description" class="business-slug">{{ biz.description }}</span>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <q-btn
+                  v-if="!isMyBusiness(biz.id)"
+                  color="primary"
+                  flat
+                  dense
+                  no-caps
+                  icon="person_add"
+                  label="Solicitar vínculo"
+                  :loading="joiningId === biz.id"
+                  @click="requestJoin(biz)"
+                />
+                <q-badge v-else color="positive" label="Já vinculado" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Create/Edit Dialog -->
     <q-dialog v-model="showDialog" persistent>
       <q-card class="dialog-card">
@@ -172,6 +244,15 @@ export default defineComponent({
       slug: '',
       description: ''
     })
+
+    // Discover businesses (professionals)
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
+    const isProfessional = computed(() => ['professional', 'attendant'].includes(currentUser.role))
+    const discoverQuery = ref('')
+    const discoverResults = ref([])
+    const discoverSearched = ref(false)
+    const searchingDiscover = ref(false)
+    const joiningId = ref(null)
 
     // Computed
     const filteredBusinesses = computed(() => {
@@ -254,6 +335,40 @@ export default defineComponent({
       return new Date(dateStr).toLocaleDateString('pt-BR')
     }
 
+    const searchBusinesses = async () => {
+      searchingDiscover.value = true
+      discoverSearched.value = true
+      try {
+        const response = await api.get('/businesses/search', { params: { q: discoverQuery.value, limit: 20 } })
+        if (response.data?.success) {
+          discoverResults.value = response.data.data?.businesses || []
+        }
+      } catch (err) {
+        console.error('Failed to search businesses:', err)
+      } finally {
+        searchingDiscover.value = false
+      }
+    }
+
+    const isMyBusiness = (bizId) => {
+      return businesses.value.some(b => b.id === bizId)
+    }
+
+    const requestJoin = async (biz) => {
+      joiningId.value = biz.id
+      try {
+        await api.post(`/businesses/${biz.id}/join-request`, { message: 'Gostaria de me vincular ao seu negócio.' })
+        $q.notify({ type: 'positive', message: 'Solicitação enviada com sucesso!' })
+        // Remove from results to avoid re-sending
+        discoverResults.value = discoverResults.value.filter(b => b.id !== biz.id)
+      } catch (err) {
+        const msg = err.response?.data?.error?.message || 'Erro ao enviar solicitação'
+        $q.notify({ type: 'negative', message: msg })
+      } finally {
+        joiningId.value = null
+      }
+    }
+
     const roleLabels = { owner: 'Proprietário', manager: 'Gerente' }
     const roleColors = { owner: 'positive', manager: 'info' }
 
@@ -280,7 +395,16 @@ export default defineComponent({
       formatDate,
       getRoleLabel,
       getRoleColor,
-      router
+      router,
+      isProfessional,
+      discoverQuery,
+      discoverResults,
+      discoverSearched,
+      searchingDiscover,
+      joiningId,
+      searchBusinesses,
+      isMyBusiness,
+      requestJoin
     }
   }
 })
