@@ -392,7 +392,10 @@
                       />
                     </td>
                     <td>
-                      <span class="entity-text">{{ getEntityLabel(log.entity) }}</span>
+                      <div class="log-entity-block">
+                        <span class="entity-text">{{ getEntityLabel(log.entity) }}</span>
+                        <span class="log-summary-text">{{ getLogSummary(log) }}</span>
+                      </div>
                     </td>
                     <td>
                       <span class="entity-id-text">{{ log.entity_id || '-' }}</span>
@@ -414,34 +417,34 @@
                     <td colspan="6">
                       <div class="log-detail-content">
                         <!-- Structured payload display -->
-                        <template v-if="parsedPayload(log.payload)?.changes">
+                        <template v-if="getLogChanges(log).length">
                           <div class="detail-label">
                             <q-icon name="compare_arrows" size="16px" />
                             <span>Alterações</span>
                           </div>
                           <div class="changes-list">
-                            <div v-for="(change, field) in parsedPayload(log.payload).changes" :key="field" class="change-item">
-                              <span class="change-field">{{ getFieldLabel(field) }}</span>
-                              <span class="change-from">{{ change.from ?? '(vazio)' }}</span>
+                            <div v-for="change in getLogChanges(log)" :key="change.field" class="change-item">
+                              <span class="change-field">{{ change.label }}</span>
+                              <span class="change-from">{{ formatFieldValue(change.from) }}</span>
                               <q-icon name="arrow_forward" size="14px" color="grey-6" class="change-arrow" />
-                              <span class="change-to">{{ change.to ?? '(vazio)' }}</span>
+                              <span class="change-to">{{ formatFieldValue(change.to) }}</span>
                             </div>
                           </div>
-                          <div v-if="parsedPayload(log.payload).entity_name" class="detail-entity-name">
+                          <div v-if="parsedPayload(log.payload)?.entity_name" class="detail-entity-name">
                             <q-icon name="label" size="14px" />
-                            <span>{{ parsedPayload(log.payload).entity_name }}</span>
+                            <span>{{ parsedPayload(log.payload)?.entity_name }}</span>
                           </div>
                         </template>
                         <!-- Simple key-value payload -->
-                        <template v-else>
+                        <template v-if="getLogDetails(log).length">
                           <div class="detail-label">
                             <q-icon name="data_object" size="16px" />
                             <span>Detalhes</span>
                           </div>
                           <div class="payload-fields">
-                            <div v-for="(value, key) in parsedPayload(log.payload)" :key="key" class="payload-field">
-                              <span class="payload-field-label">{{ getFieldLabel(key) }}</span>
-                              <span class="payload-field-value">{{ value ?? '(vazio)' }}</span>
+                            <div v-for="detail in getLogDetails(log)" :key="detail.key" class="payload-field">
+                              <span class="payload-field-label">{{ detail.label }}</span>
+                              <span class="payload-field-value">{{ formatFieldValue(detail.value) }}</span>
                             </div>
                           </div>
                         </template>
@@ -1220,8 +1223,113 @@ export default defineComponent({
         target_user_id: 'Usuário alvo', removed_user_id: 'Usuário removido',
         user_id: 'Usuário', queue_id: 'Fila', position: 'Posição',
         access_code: 'Código de acesso', ip: 'IP',
+        removed_count: 'Quantidade removida',
+        code: 'Código',
+        code_id: 'Código',
+        entry_id: 'Entrada da fila',
+        professional_user_id: 'Profissional',
+        linked_queue_count: 'Filas impactadas',
+        max_uses: 'Máximo de usos',
+        expires_at: 'Expira em',
+        updated_fields: 'Campos atualizados',
       }
       return labels[field] || field
+    }
+
+    const formatFieldValue = (value) => {
+      if (value === null || value === undefined || value === '') return '(vazio)'
+      if (typeof value === 'boolean') return value ? 'Sim' : 'Não'
+      if (Array.isArray(value)) return value.length ? value.join(', ') : '(vazio)'
+      if (typeof value === 'object') return JSON.stringify(value)
+      return String(value)
+    }
+
+    const getLogChanges = (log) => {
+      const payload = parsedPayload(log.payload) || {}
+
+      if (payload.changes && typeof payload.changes === 'object') {
+        return Object.entries(payload.changes).map(([field, change]) => ({
+          field,
+          label: getFieldLabel(field),
+          from: change?.from ?? null,
+          to: change?.to ?? null,
+        }))
+      }
+
+      if (!['create', 'delete'].includes(log.action)) {
+        return []
+      }
+
+      const ignoredKeys = new Set(['entity_name', 'summary', 'changes'])
+      return Object.entries(payload)
+        .filter(([key, value]) => !ignoredKeys.has(key) && value !== undefined)
+        .map(([field, value]) => ({
+          field,
+          label: getFieldLabel(field),
+          from: log.action === 'delete' ? value : null,
+          to: log.action === 'create' ? value : null,
+        }))
+    }
+
+    const getLogDetails = (log) => {
+      const payload = parsedPayload(log.payload) || {}
+      const detailEntries = []
+
+      Object.entries(payload).forEach(([key, value]) => {
+        if (['changes', 'entity_name', 'summary'].includes(key)) return
+        if (getLogChanges(log).some(change => change.field === key)) return
+
+        detailEntries.push({
+          key,
+          label: getFieldLabel(key),
+          value,
+        })
+      })
+
+      return detailEntries
+    }
+
+    const getLogSummary = (log) => {
+      const payload = parsedPayload(log.payload) || {}
+      if (payload.summary) return payload.summary
+
+      const entityLabel = getEntityLabel(log.entity)
+      const actionLabel = getActionLabel(log.action)
+      const entityName = payload.entity_name || payload.name || null
+
+      if (log.action === 'queue_batch_remove' && payload.removed_count) {
+        return `${payload.removed_count} pessoa(s) removida(s) da fila`
+      }
+
+      if (log.action === 'queue_remove') {
+        return 'Pessoa removida da fila'
+      }
+
+      if (log.action === 'delete_code' && payload.code) {
+        return `Código ${payload.code} removido`
+      }
+
+      if (log.action === 'generate_code' && payload.code) {
+        return `Código ${payload.code} gerado`
+      }
+
+      if (log.action === 'queue_call_next') {
+        return 'Próxima pessoa chamada para atendimento'
+      }
+
+      if (log.action === 'queue_join') {
+        return 'Pessoa entrou na fila'
+      }
+
+      if (log.action === 'queue_leave') {
+        return 'Pessoa saiu da fila'
+      }
+
+      if (entityName) {
+        return `${actionLabel} ${entityLabel.toLowerCase()} ${entityName}`
+      }
+
+      return `${actionLabel} ${entityLabel.toLowerCase()}`
     }
 
     const formatPayload = (payload) => {
@@ -1280,7 +1388,7 @@ export default defineComponent({
       // Formatters
       getRoleLabel, getRoleColor, getInitials, formatDate, formatDateTime,
       getActionLabel, getActionColor, getEntityLabel, formatPayload,
-      parsedPayload, getFieldLabel,
+      parsedPayload, getFieldLabel, formatFieldValue, getLogChanges, getLogDetails, getLogSummary,
       router
     }
   }
@@ -1627,6 +1735,18 @@ export default defineComponent({
   color: var(--qm-text-primary);
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 0.75rem;
+}
+
+.log-entity-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.log-summary-text {
+  color: var(--qm-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
 }
 
 // Expanded parent highlight

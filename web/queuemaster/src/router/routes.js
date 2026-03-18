@@ -36,11 +36,13 @@ const routes = [
       {
         path: 'businesses',
         name: 'businesses',
+        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/businesses/BusinessesPage.vue')
       },
       {
         path: 'businesses/:id',
         name: 'business-detail',
+        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/businesses/BusinessDetailPage.vue')
       },
       {
@@ -52,6 +54,12 @@ const routes = [
         path: 'queues/:id',
         name: 'queue-detail',
         component: () => import('pages/queues/QueueDetailPage.vue')
+      },
+      {
+        path: 'reports',
+        name: 'queue-reports',
+        meta: { roles: ['professional', 'manager', 'admin'] },
+        component: () => import('pages/reports/QueueReportsPage.vue')
       },
       {
         path: 'appointments',
@@ -66,31 +74,37 @@ const routes = [
       {
         path: 'establishments',
         name: 'establishments',
+        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/establishments/EstablishmentsPage.vue')
       },
       {
         path: 'establishments/:id',
         name: 'establishment-detail',
+        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/establishments/EstablishmentDetailPage.vue')
       },
       {
         path: 'establishments/:id/services/:serviceId',
         name: 'service-detail',
+        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/establishments/ServiceDetailPage.vue')
       },
       {
         path: 'establishments/:id/professionals/:professionalId',
         name: 'professional-detail',
+        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/establishments/ProfessionalDetailPage.vue')
       },
       {
         path: 'admin',
         name: 'admin-panel',
+        meta: { roles: ['manager', 'admin'] },
         component: () => import('pages/admin/AdminPanelPage.vue')
       },
       {
         path: 'admin/users/:id',
         name: 'user-detail',
+        meta: { roles: ['manager', 'admin'] },
         component: () => import('pages/admin/UserDetailPage.vue')
       },
       {

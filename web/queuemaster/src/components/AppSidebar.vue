@@ -116,9 +116,10 @@ export default defineComponent({
     const allMenuItems = [
       { path: '/app', label: 'Dashboard', icon: 'dashboard' },
       { path: '/app/queues', label: 'Filas', icon: 'format_list_numbered' },
+      { path: '/app/reports', label: 'Relatórios', icon: 'analytics', roles: ['professional', 'manager', 'admin'] },
       { path: '/app/appointments', label: 'Agendamentos', icon: 'event' },
-      { path: '/app/establishments', label: 'Estabelecimentos', icon: 'store' },
-      { path: '/app/businesses', label: 'Negócios', icon: 'business' },
+      { path: '/app/establishments', label: 'Estabelecimentos', icon: 'store', roles: ['professional', 'manager', 'admin'] },
+      { path: '/app/businesses', label: 'Negócios', icon: 'business', roles: ['professional', 'manager', 'admin'] },
       { path: '/app/admin', label: 'Administração', icon: 'admin_panel_settings', roles: ['admin', 'manager'] },
       { path: '/app/settings', label: 'Configurações', icon: 'settings' }
     ]
@@ -181,7 +182,7 @@ export default defineComponent({
   color: var(--qm-text-primary);
 }
 
-// ===== NAVEGAÇÃO =====
+// ===== NAVEGACAO =====
 .nav-list {
   padding: 0;
 }

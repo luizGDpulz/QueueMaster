@@ -1,11 +1,10 @@
-<template>
+﻿<template>
   <q-page class="settings-page">
     <div class="page-header">
       <h1 class="page-title">Configurações</h1>
       <p class="page-subtitle">Gerencie suas preferências e configurações da conta</p>
     </div>
 
-    <!-- Tabbed Navigation -->
     <div class="settings-tabs-container soft-card">
       <q-tabs
         v-model="activeTab"
@@ -21,13 +20,12 @@
         <q-tab name="notifications" icon="notifications" label="Notificações" no-caps />
       </q-tabs>
 
-      <q-separator style="margin-top: 10px;"/>
+      <q-separator style="margin-top: 10px;" />
 
       <q-tab-panels v-model="activeTab" animated class="tab-panels">
-        <!-- Tab: Perfil -->
         <q-tab-panel name="profile" class="tab-panel">
           <div class="panel-header">
-            <h3>Informações do Perfil</h3>
+            <h3>Informações do perfil</h3>
             <p>Seus dados de conta</p>
           </div>
 
@@ -100,6 +98,127 @@
               </div>
             </div>
 
+            <div class="professional-request-card soft-card">
+              <div class="professional-request-card__header">
+                <div>
+                  <h4>Atuar como profissional</h4>
+                  <p>Solicite vínculo com um estabelecimento. A aprovação do gerente cria o vínculo profissional e libera o acesso adequado.</p>
+                </div>
+                <q-badge v-if="verifiedRole === 'professional'" color="info" label="Perfil profissional ativo" />
+              </div>
+
+              <div class="professional-request-grid">
+                <q-select
+                  v-model="selectedBusinessId"
+                  outlined
+                  dense
+                  emit-value
+                  map-options
+                  use-input
+                  fill-input
+                  hide-selected
+                  input-debounce="250"
+                  :options="businessOptions"
+                  label="Negócio *"
+                  :loading="searchingBusinesses"
+                  @filter="filterBusinesses"
+                  @update:model-value="onBusinessSelected"
+                />
+
+                <q-select
+                  v-model="selectedEstablishmentId"
+                  outlined
+                  dense
+                  emit-value
+                  map-options
+                  use-input
+                  fill-input
+                  hide-selected
+                  input-debounce="250"
+                  :options="establishmentRequestOptions"
+                  label="Estabelecimento *"
+                  :disable="!selectedBusinessId"
+                  :loading="searchingEstablishments"
+                  @filter="filterEstablishments"
+                />
+              </div>
+
+              <q-input
+                v-model="professionalRequestMessage"
+                outlined
+                dense
+                type="textarea"
+                autogrow
+                label="Mensagem para o gerente (opcional)"
+                class="q-mt-md"
+              />
+
+              <div class="professional-request-actions">
+                <q-btn
+                  color="primary"
+                  icon="send"
+                  label="Solicitar vínculo profissional"
+                  no-caps
+                  :loading="sendingProfessionalRequest"
+                  @click="submitProfessionalRequest"
+                />
+              </div>
+
+              <div v-if="pendingProfessionalRequests.length > 0" class="request-history q-mt-lg">
+                <div class="request-history__title">Solicitações em andamento</div>
+                <div class="list-items">
+                  <div v-for="request in pendingProfessionalRequests" :key="request.id" class="list-item">
+                    <div class="list-item-info">
+                      <div class="list-item-avatar"><q-icon name="schedule" size="18px" /></div>
+                      <div class="list-item-details">
+                        <span class="list-item-name">{{ request.business_name }}</span>
+                        <span class="list-item-meta">
+                          {{ request.establishment_name || 'Negócio sem estabelecimento informado' }} · {{ getInviteStatusLabel(request.status) }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="receivedProfessionalInvitations.length > 0" class="request-history q-mt-lg">
+                <div class="request-history__title">Convites recebidos</div>
+                <div class="list-items">
+                  <div v-for="invitation in receivedProfessionalInvitations" :key="invitation.id" class="list-item">
+                    <div class="list-item-info">
+                      <div class="list-item-avatar"><q-icon name="mail_outline" size="18px" /></div>
+                      <div class="list-item-details">
+                        <span class="list-item-name">{{ invitation.business_name }}</span>
+                        <span class="list-item-meta">
+                          {{ invitation.establishment_name || 'Negócio sem estabelecimento informado' }} · {{ getInviteStatusLabel(invitation.status) }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="list-item-side">
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        icon="check_circle"
+                        color="positive"
+                        :loading="invitationActionId === invitation.id && invitationAction === 'accept'"
+                        @click="respondToInvitation(invitation, 'accept')"
+                      />
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        icon="cancel"
+                        color="negative"
+                        :loading="invitationActionId === invitation.id && invitationAction === 'reject'"
+                        @click="respondToInvitation(invitation, 'reject')"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="logout-section">
               <q-btn
                 outline
@@ -113,7 +232,6 @@
           </div>
         </q-tab-panel>
 
-        <!-- Tab: Aparência -->
         <q-tab-panel name="appearance" class="tab-panel">
           <div class="panel-header">
             <h3>Aparência</h3>
@@ -168,10 +286,10 @@
                 hint="Ex: #3b82f6"
                 @keyup.enter="applyCustomHex"
               >
-                <template v-slot:prepend>
+                <template #prepend>
                   <div class="hex-preview" :style="{ background: hexPreviewColor }"></div>
                 </template>
-                <template v-slot:append>
+                <template #append>
                   <q-btn flat dense no-caps label="Aplicar" color="primary" @click="applyCustomHex" :disable="!customHex" />
                 </template>
               </q-input>
@@ -180,7 +298,6 @@
           </div>
         </q-tab-panel>
 
-        <!-- Tab: Notificações -->
         <q-tab-panel name="notifications" class="tab-panel">
           <div class="panel-header">
             <h3>Notificações</h3>
@@ -220,17 +337,15 @@
             </div>
           </div>
         </q-tab-panel>
-
-
       </q-tab-panels>
     </div>
-
   </q-page>
 </template>
 
 <script>
 import { defineComponent, ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { BRAND_PRESETS, loadBrandColor, saveBrandColor, resetBrandColor, isValidHex, normalizeHex } from 'src/utils/brand'
 
@@ -238,17 +353,15 @@ export default defineComponent({
   name: 'SettingsPage',
 
   setup() {
+    const route = useRoute()
     const router = useRouter()
+    const $q = useQuasar()
 
-    // Tab state
-    const activeTab = ref('profile')
-
-    // User data
+    const activeTab = ref(route.query.tab === 'notifications' ? 'notifications' : route.query.tab === 'appearance' ? 'appearance' : 'profile')
     const user = ref(null)
     const verifiedRole = ref(null)
     const loadingUser = ref(true)
 
-    // Settings states
     const isDark = ref(false)
     const brandColor = ref('')
     const brandPresets = BRAND_PRESETS
@@ -259,35 +372,47 @@ export default defineComponent({
     const pushNotifications = ref(false)
     const smsNotifications = ref(false)
 
-    // Computed
-    const isAdmin = computed(() => verifiedRole.value === 'admin')
+    const businessSearchOptions = ref([])
+    const establishmentSearchOptions = ref([])
+    const selectedBusinessId = ref(null)
+    const selectedEstablishmentId = ref(null)
+    const professionalRequestMessage = ref('')
+    const sendingProfessionalRequest = ref(false)
+    const searchingBusinesses = ref(false)
+    const searchingEstablishments = ref(false)
+    const invitationSummary = ref({ sent: [] })
+    const invitationActionId = ref(null)
+    const invitationAction = ref('')
 
-    const roleLabel = computed(() => {
-      return getRoleLabel(verifiedRole.value)
+    const roleLabel = computed(() => getRoleLabel(verifiedRole.value))
+    const roleColor = computed(() => getRoleColor(verifiedRole.value))
+    const businessOptions = computed(() => businessSearchOptions.value)
+    const establishmentRequestOptions = computed(() => establishmentSearchOptions.value)
+    const pendingProfessionalRequests = computed(() => {
+      return (invitationSummary.value.sent || []).filter((item) => item.direction === 'professional_to_business' && item.status === 'pending')
+    })
+    const receivedProfessionalInvitations = computed(() => {
+      return (invitationSummary.value.received || []).filter((item) => item.direction === 'business_to_professional' && item.status === 'pending')
     })
 
-    const roleColor = computed(() => {
-      return getRoleColor(verifiedRole.value)
-    })
-
-    // Lifecycle
     onMounted(() => {
       fetchUserFromBackend()
       loadTheme()
+      fetchInvitationSummary()
     })
 
-    // Auto-save notification preferences on change
     watch([emailNotifications, pushNotifications, smsNotifications], () => {
       saveNotificationPrefs()
     })
 
-    // Methods
+    watch(activeTab, (value) => {
+      router.replace({ query: value === 'profile' ? {} : { tab: value } })
+    })
+
     const fetchUserFromBackend = async () => {
       loadingUser.value = true
-      
       try {
         const response = await api.get('/auth/me')
-        
         if (response.data?.success && response.data?.data?.user) {
           user.value = response.data.data.user
           verifiedRole.value = response.data.data.user.role
@@ -301,6 +426,17 @@ export default defineComponent({
       }
     }
 
+    const fetchInvitationSummary = async () => {
+      try {
+        const response = await api.get('/invitations')
+        if (response.data?.success) {
+          invitationSummary.value = response.data.data || { sent: [], received: [] }
+        }
+      } catch (err) {
+        console.error('Erro ao buscar convites:', err)
+      }
+    }
+
     const loadTheme = () => {
       const savedTheme = localStorage.getItem('theme')
       if (savedTheme) {
@@ -308,9 +444,9 @@ export default defineComponent({
       } else {
         isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
       }
-      // Load brand color
+
       brandColor.value = loadBrandColor()
-      // Load notification preferences
+
       const savedNotifs = localStorage.getItem('notification_preferences')
       if (savedNotifs) {
         try {
@@ -318,7 +454,9 @@ export default defineComponent({
           emailNotifications.value = prefs.email ?? true
           pushNotifications.value = prefs.push ?? false
           smsNotifications.value = prefs.sms ?? false
-        } catch { /* ignore parse errors */ }
+        } catch {
+          // ignore parse errors
+        }
       }
     }
 
@@ -326,8 +464,107 @@ export default defineComponent({
       localStorage.setItem('notification_preferences', JSON.stringify({
         email: emailNotifications.value,
         push: pushNotifications.value,
-        sms: smsNotifications.value
+        sms: smsNotifications.value,
       }))
+    }
+
+    const filterBusinesses = async (value, update) => {
+      update(async () => {
+        searchingBusinesses.value = true
+        try {
+          const response = await api.get('/businesses/search', { params: { q: value || '', limit: 20 } })
+          businessSearchOptions.value = (response.data?.data?.businesses || []).map((business) => ({
+            label: business.name,
+            value: business.id,
+            description: business.description || '',
+          }))
+        } catch {
+          businessSearchOptions.value = []
+        } finally {
+          searchingBusinesses.value = false
+        }
+      })
+    }
+
+    const onBusinessSelected = async (businessId) => {
+      selectedEstablishmentId.value = null
+      establishmentSearchOptions.value = []
+      if (businessId) {
+        await fetchEstablishmentsForRequest('', businessId)
+      }
+    }
+
+    const fetchEstablishmentsForRequest = async (query = '', businessId = selectedBusinessId.value) => {
+      if (!businessId) {
+        establishmentSearchOptions.value = []
+        return
+      }
+
+      searchingEstablishments.value = true
+      try {
+        const response = await api.get(`/businesses/${businessId}/discover-establishments`, {
+          params: { q: query || '', limit: 20 }
+        })
+        establishmentSearchOptions.value = (response.data?.data?.establishments || []).map((establishment) => ({
+          label: establishment.name,
+          value: establishment.id,
+        }))
+      } catch {
+        establishmentSearchOptions.value = []
+      } finally {
+        searchingEstablishments.value = false
+      }
+    }
+
+    const filterEstablishments = async (value, update) => {
+      update(async () => {
+        await fetchEstablishmentsForRequest(value)
+      })
+    }
+
+    const submitProfessionalRequest = async () => {
+      if (!selectedBusinessId.value) {
+        $q.notify({ type: 'warning', message: 'Selecione um negócio' })
+        return
+      }
+      if (!selectedEstablishmentId.value) {
+        $q.notify({ type: 'warning', message: 'Selecione um estabelecimento' })
+        return
+      }
+
+      sendingProfessionalRequest.value = true
+      try {
+        await api.post(`/businesses/${selectedBusinessId.value}/join-request`, {
+          establishment_id: selectedEstablishmentId.value,
+          message: professionalRequestMessage.value?.trim() || undefined,
+        })
+        $q.notify({ type: 'positive', message: 'Solicitação enviada para análise do gerente' })
+        selectedBusinessId.value = null
+        selectedEstablishmentId.value = null
+        professionalRequestMessage.value = ''
+        businessSearchOptions.value = []
+        establishmentSearchOptions.value = []
+        await fetchInvitationSummary()
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao enviar solicitação' })
+      } finally {
+        sendingProfessionalRequest.value = false
+      }
+    }
+
+    const respondToInvitation = async (invitation, action) => {
+      invitationActionId.value = invitation.id
+      invitationAction.value = action
+      try {
+        await api.post(`/invitations/${invitation.id}/${action}`)
+        $q.notify({ type: 'positive', message: action === 'accept' ? 'Convite aceito com sucesso' : 'Convite recusado' })
+        await Promise.all([fetchInvitationSummary(), fetchUserFromBackend()])
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao responder convite' })
+      } finally {
+        invitationActionId.value = null
+        invitationAction.value = ''
+      }
     }
 
     const setBrandColor = (color) => {
@@ -368,17 +605,16 @@ export default defineComponent({
     const toggleTheme = (value) => {
       localStorage.setItem('theme', value ? 'dark' : 'light')
       document.documentElement.setAttribute('data-theme', value ? 'dark' : 'light')
-      // Recarregar cor da marca adequada ao tema
       brandColor.value = loadBrandColor()
     }
 
     const formatDate = (dateString) => {
       if (!dateString) return 'Não informado'
       const date = new Date(dateString)
-      return date.toLocaleDateString('pt-BR', { 
-        day: '2-digit', 
-        month: 'short', 
-        year: 'numeric' 
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
       })
     }
 
@@ -388,7 +624,7 @@ export default defineComponent({
         manager: 'Gerente',
         professional: 'Profissional',
         user: 'Usuário',
-        client: 'Cliente'
+        client: 'Cliente',
       }
       return roles[role] || 'Usuário'
     }
@@ -399,16 +635,18 @@ export default defineComponent({
         manager: 'warning',
         professional: 'info',
         user: 'grey',
-        client: 'grey'
+        client: 'grey',
       }
       return colors[role] || 'grey'
     }
+
+    const getInviteStatusLabel = (status) => ({ pending: 'Pendente', accepted: 'Aceito', rejected: 'Rejeitado', cancelled: 'Cancelado' }[status] || status)
 
     const handleLogout = async () => {
       try {
         await api.post('/auth/logout')
       } catch {
-        // Ignora erro
+        // ignore
       }
 
       localStorage.removeItem('user')
@@ -429,9 +667,20 @@ export default defineComponent({
       emailNotifications,
       pushNotifications,
       smsNotifications,
-      isAdmin,
       roleLabel,
       roleColor,
+      selectedBusinessId,
+      selectedEstablishmentId,
+      professionalRequestMessage,
+      sendingProfessionalRequest,
+      searchingBusinesses,
+      searchingEstablishments,
+      businessOptions,
+      establishmentRequestOptions,
+      pendingProfessionalRequests,
+      receivedProfessionalInvitations,
+      invitationActionId,
+      invitationAction,
       toggleTheme,
       setBrandColor,
       applyCustomHex,
@@ -439,9 +688,16 @@ export default defineComponent({
       formatDate,
       getRoleLabel,
       getRoleColor,
-      handleLogout
+      getInviteStatusLabel,
+      filterBusinesses,
+      filterEstablishments,
+      onBusinessSelected,
+      submitProfessionalRequest,
+      respondToInvitation,
+      handleLogout,
+      verifiedRole,
     }
-  }
+  },
 })
 </script>
 
@@ -467,7 +723,6 @@ export default defineComponent({
   margin: 0;
 }
 
-// Tabs Container
 .settings-tabs-container {
   padding: 0;
   overflow: hidden;
@@ -490,7 +745,6 @@ export default defineComponent({
   padding: 1.5rem;
 }
 
-// Panel Header
 .panel-header {
   display: flex;
   justify-content: space-between;
@@ -511,11 +765,6 @@ export default defineComponent({
   }
 }
 
-.panel-header-left {
-  flex: 1;
-}
-
-// Profile Section
 .profile-section {
   display: flex;
   flex-direction: column;
@@ -596,12 +845,57 @@ export default defineComponent({
   font-weight: 500;
 }
 
+.professional-request-card {
+  padding: 1.25rem;
+  border-radius: 16px;
+}
+
+.professional-request-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  h4 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+    color: var(--qm-text-primary);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--qm-text-muted);
+  }
+}
+
+.professional-request-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.professional-request-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.request-history__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--qm-text-muted);
+  margin-bottom: 0.75rem;
+}
+
 .logout-section {
   padding-top: 1rem;
   border-top: 1px solid var(--qm-border);
 }
 
-// Settings List
 .settings-list {
   display: flex;
   flex-direction: column;
@@ -649,7 +943,6 @@ export default defineComponent({
   color: var(--qm-text-muted);
 }
 
-// Brand Color Picker
 .brand-color-row {
   border-bottom: none !important;
   padding-bottom: 0.5rem !important;
@@ -714,68 +1007,17 @@ export default defineComponent({
   }
 }
 
-// Loading & Empty States
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 2rem;
-  color: var(--qm-text-muted);
-  text-align: center;
-
-  p {
-    margin: 1rem 0 0;
-    font-size: 0.875rem;
-  }
-}
-
-// Dialog Styles
-.dialog-card {
-  width: 100%;
-  max-width: 450px;
-  border-radius: 16px;
-  background: var(--qm-bg-primary);
-
-  :deep(.q-btn) {
-    min-height: 36px;
+@media (max-width: 768px) {
+  .professional-request-card__header {
+    flex-direction: column;
   }
 
-  :deep(.q-btn__content) {
-    color: inherit;
+  .professional-request-actions {
+    justify-content: stretch;
+
+    :deep(.q-btn) {
+      width: 100%;
+    }
   }
-}
-
-.dialog-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--qm-border);
-
-  h3 {
-    margin: 0;
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--qm-text-primary);
-  }
-}
-
-.dialog-content {
-  padding: 1.5rem;
-}
-
-.dialog-actions {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--qm-border);
-  gap: 0.5rem;
-}
-
-.delete-warning {
-  color: var(--qm-error);
-  font-size: 0.8125rem;
-  margin-top: 0.5rem;
 }
 </style>
-

@@ -12,6 +12,7 @@ use QueueMaster\Models\EstablishmentUser;
 use QueueMaster\Models\Service;
 use QueueMaster\Models\Professional;
 use QueueMaster\Services\AuditService;
+use QueueMaster\Services\ContextAccessService;
 
 /**
  * EstablishmentController - Establishment Management Endpoints
@@ -20,6 +21,13 @@ use QueueMaster\Services\AuditService;
  */
 class EstablishmentController
 {
+    private ContextAccessService $accessService;
+
+    public function __construct()
+    {
+        $this->accessService = new ContextAccessService();
+    }
+
     /**
      * GET /api/v1/establishments
      * 
@@ -28,8 +36,7 @@ class EstablishmentController
     public function list(Request $request): void
     {
         try {
-            // Get all establishments using Model
-            $establishments = Establishment::all([], 'name', 'ASC');
+            $establishments = $this->accessService->getAccessibleEstablishments($request->user);
 
             Response::success([
                 'establishments' => $establishments,
@@ -62,10 +69,19 @@ class EstablishmentController
                 return;
             }
 
+            $this->accessService->requireEstablishmentAccess(
+                $request->user,
+                $establishment,
+                'Voce nao tem acesso a este estabelecimento'
+            );
+
             Response::success([
                 'establishment' => $establishment,
             ]);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to get establishment', [
@@ -93,6 +109,12 @@ class EstablishmentController
                 return;
             }
 
+            $this->accessService->requireEstablishmentAccess(
+                $request->user,
+                $establishment,
+                'Voce nao tem acesso aos servicos deste estabelecimento'
+            );
+
             // Get services using Model relationship
             $services = Establishment::getServices($id);
 
@@ -101,6 +123,9 @@ class EstablishmentController
                 'total' => count($services),
             ]);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to get establishment services', [
@@ -128,6 +153,12 @@ class EstablishmentController
                 return;
             }
 
+            $this->accessService->requireEstablishmentAccess(
+                $request->user,
+                $establishment,
+                'Voce nao tem acesso aos profissionais deste estabelecimento'
+            );
+
             // Get professionals using Model relationship
             $professionals = Establishment::getProfessionals($id);
 
@@ -136,6 +167,9 @@ class EstablishmentController
                 'total' => count($professionals),
             ]);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to get establishment professionals', [
@@ -184,13 +218,11 @@ class EstablishmentController
                 return;
             }
 
-            $userRole = $request->user['role'] ?? 'client';
-            $userId = (int)$request->user['id'];
-
-            if ($userRole !== 'admin' && !\QueueMaster\Models\BusinessUser::exists($businessId, $userId)) {
-                Response::forbidden('You do not have access to this business', $request->requestId);
-                return;
-            }
+            $this->accessService->requireBusinessManagement(
+                $request->user,
+                $businessId,
+                'Voce nao tem permissao para criar estabelecimentos neste negocio'
+            );
 
             $establishmentData = [
                 'name' => trim($data['name']),
@@ -229,6 +261,9 @@ class EstablishmentController
             ]);
 
         }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        }
         catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
         }
@@ -256,16 +291,11 @@ class EstablishmentController
                 return;
             }
 
-            // Check access: admin can update any, manager must belong to the business
-            $userRole = $request->user['role'] ?? 'client';
-            $userId = (int)$request->user['id'];
-
-            if ($userRole !== 'admin' && $establishment['business_id']) {
-                if (!\QueueMaster\Models\BusinessUser::exists((int)$establishment['business_id'], $userId)) {
-                    Response::forbidden('You do not have access to this establishment', $request->requestId);
-                    return;
-                }
-            }
+            $this->accessService->requireEstablishmentManagement(
+                $request->user,
+                $establishment,
+                'Voce nao tem permissao para editar este estabelecimento'
+            );
 
             $data = $request->all();
             $updateData = [];
@@ -333,6 +363,9 @@ class EstablishmentController
             ]);
 
         }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        }
         catch (\Exception $e) {
             Logger::error('Failed to update establishment', [
                 'establishment_id' => $id,
@@ -357,20 +390,11 @@ class EstablishmentController
                 return;
             }
 
-            // Check access: admin can delete any, manager must belong to the business
-            $userRole = $request->user['role'] ?? 'client';
-            $userId = (int)$request->user['id'];
-
-            if ($userRole !== 'admin' && $establishment['business_id']) {
-                if (!\QueueMaster\Models\BusinessUser::exists((int)$establishment['business_id'], $userId)) {
-                    Response::forbidden('You do not have access to this establishment', $request->requestId);
-                    return;
-                }
-            }
-            elseif ($userRole !== 'admin') {
-                Response::forbidden('Insufficient permissions', $request->requestId);
-                return;
-            }
+            $this->accessService->requireEstablishmentManagement(
+                $request->user,
+                $establishment,
+                'Voce nao tem permissao para excluir este estabelecimento'
+            );
 
             Establishment::delete($id);
 
@@ -387,6 +411,9 @@ class EstablishmentController
 
             Response::success(['message' => 'Establishment deleted successfully']);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to delete establishment', [

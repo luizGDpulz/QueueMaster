@@ -89,3 +89,6 @@ backups/
 
 # MariaDB local data
 docker/mariadb/data/
+
+# Codex local data
+.codex/

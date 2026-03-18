@@ -144,13 +144,14 @@ export default defineComponent({
       { path: '/app', label: 'Dashboard' },
       { path: '/app/businesses', label: 'Negócios' },
       { path: '/app/queues', label: 'Filas' },
+      { path: '/app/reports', label: 'Relatórios' },
       { path: '/app/appointments', label: 'Agendamentos' },
       { path: '/app/establishments', label: 'Estabelecimentos' },
       { path: '/app/admin', label: 'Administração' },
       { path: '/app/settings', label: 'Configurações' }
     ]
 
-    // ===== USUÁRIO =====
+    // ===== USUARIO =====
     const user = ref(null)
 
     const userName = computed(() => user.value?.name || 'Usuário')
@@ -173,7 +174,7 @@ export default defineComponent({
       try {
         await api.post('/auth/logout')
       } catch {
-        // Ignora erro — limpa localmente de qualquer forma
+        // Ignora erro - limpa localmente de qualquer forma
       }
       localStorage.removeItem('user')
       router.push('/login')
@@ -196,7 +197,7 @@ export default defineComponent({
         notifications.value = Array.isArray(data) ? data : (data?.notifications ?? [])
         unreadCount.value = countRes.data?.data?.unread_count ?? 0
       } catch {
-        // Silently fail — user might not be logged in yet
+        // Silently fail - user might not be logged in yet
       }
     }
 
@@ -224,6 +225,11 @@ export default defineComponent({
         } catch { /* ignore */ }
       }
       showNotifications.value = false
+
+      if (notif.data?.deep_link) {
+        router.push(notif.data.deep_link)
+        return
+      }
 
       // Navigate based on notification type
       if (notif.type === 'business_invitation' || notif.type === 'join_request' || notif.type === 'invitation_accepted') {
@@ -267,6 +273,7 @@ export default defineComponent({
       try {
         await api.post(`/invitations/${invId}/accept`)
         notif.read_at = new Date().toISOString()
+        await fetchCurrentUser()
         fetchNotifications()
       } catch { /* ignore */ }
     }
@@ -296,7 +303,7 @@ export default defineComponent({
           localStorage.setItem('user', JSON.stringify(response.data.data.user))
         }
       } catch {
-        // Token inválido/expirado — o interceptor em axios.js vai tentar o refresh.
+        // Token inválido ou expirado. O interceptor em axios.js vai tentar o refresh.
         // Se falhar, o interceptor redireciona para /login automaticamente.
       }
     }

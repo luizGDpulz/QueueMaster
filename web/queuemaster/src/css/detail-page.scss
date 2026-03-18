@@ -21,15 +21,25 @@
   gap: 0.75rem;
   flex: 1;
   min-height: 40px;
+  min-width: 0;
 }
 
 .header-bottom {
   flex-basis: 100%;
 }
 
+.header-back-row {
+  flex-basis: 100%;
+  margin-bottom: -0.25rem;
+}
+
 .back-btn {
   color: var(--qm-text-secondary);
   flex-shrink: 0;
+}
+
+.header-back-row .back-btn {
+  margin-left: -0.625rem;
 }
 
 // Column layout for detail pages with subtitle under title

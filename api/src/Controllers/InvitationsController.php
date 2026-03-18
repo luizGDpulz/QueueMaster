@@ -4,34 +4,43 @@ namespace QueueMaster\Controllers;
 
 use QueueMaster\Core\Request;
 use QueueMaster\Core\Response;
+use QueueMaster\Models\Business;
 use QueueMaster\Models\BusinessInvitation;
 use QueueMaster\Models\BusinessUser;
-use QueueMaster\Models\Business;
-use QueueMaster\Models\User;
+use QueueMaster\Models\Establishment;
 use QueueMaster\Models\Notification;
-use QueueMaster\Models\ProfessionalEstablishment;
+use QueueMaster\Models\User;
+use QueueMaster\Services\AuditService;
+use QueueMaster\Services\ContextAccessService;
+use QueueMaster\Services\ProfessionalMembershipService;
 use QueueMaster\Utils\Logger;
 use QueueMaster\Utils\Validator;
 
-/**
- * InvitationsController - Business Invitation Endpoints
- * 
- * Handles inviting professionals to businesses and vice-versa.
- * Creates notifications on invitation events.
- */
 class InvitationsController
 {
+    private ContextAccessService $accessService;
+    private ProfessionalMembershipService $membershipService;
+
+    public function __construct()
+    {
+        $this->accessService = new ContextAccessService();
+        $this->membershipService = new ProfessionalMembershipService();
+    }
+
     /**
      * POST /api/v1/businesses/{id}/invitations
-     * Manager invites a professional to join the business
+     * Manager/admin invites a professional to join the business.
      */
     public function invite(Request $request, int $businessId): void
     {
         $data = $request->all();
-        $userId = (int)$request->user['id'];
+        $actorId = (int)$request->user['id'];
 
         $errors = Validator::make($data, [
-            'to_user_id' => 'required|integer',
+            'email' => 'required|email',
+            'establishment_id' => 'integer',
+            'message' => 'max:2000',
+            'role' => 'in:professional,manager',
         ]);
 
         if (!empty($errors)) {
@@ -46,66 +55,90 @@ class InvitationsController
                 return;
             }
 
-            // Check that current user is owner/manager of the business
-            if (!BusinessUser::exists($businessId, $userId) && $request->user['role'] !== 'admin') {
-                Response::forbidden('You are not a manager of this business', $request->requestId);
+            $this->accessService->requireBusinessManagement(
+                $request->user,
+                $businessId,
+                'Você não tem permissão para convidar profissionais neste negócio'
+            );
+
+            $inviteRole = $data['role'] ?? 'professional';
+            $establishment = $this->resolveEstablishmentForInvitation($businessId, $data['establishment_id'] ?? null, $request->requestId);
+            if (($establishment !== null) && $inviteRole !== BusinessUser::ROLE_PROFESSIONAL) {
+                Response::validationError(['role' => 'Somente convites de profissional podem ser vinculados a um estabelecimento'], $request->requestId);
                 return;
             }
 
-            $toUserId = (int)$data['to_user_id'];
-            $targetUser = User::find($toUserId);
+            $targetUser = User::findByEmail(trim((string)$data['email']));
             if (!$targetUser) {
                 Response::notFound('Target user not found', $request->requestId);
                 return;
             }
 
-            // Target must be a professional
-            if (!in_array($targetUser['role'], ['professional', 'attendant'])) {
-                Response::error('INVALID_ROLE', 'Can only invite professionals', 400, $request->requestId);
+            if (($targetUser['role'] ?? 'client') === 'admin') {
+                Response::error('INVALID_ROLE', 'Administrators cannot be invited through this flow', 422, $request->requestId);
+                return;
+            }
+
+            $targetUserId = (int)$targetUser['id'];
+            $existingRole = BusinessUser::getRole($businessId, $targetUserId);
+            if ($inviteRole === BusinessUser::ROLE_MANAGER && in_array($existingRole, [BusinessUser::ROLE_OWNER, BusinessUser::ROLE_MANAGER], true)) {
+                Response::error('ALREADY_LINKED', 'User already manages this business', 409, $request->requestId);
+                return;
+            }
+
+            if ($inviteRole === BusinessUser::ROLE_PROFESSIONAL && $existingRole === BusinessUser::ROLE_PROFESSIONAL && $establishment !== null
+                && $this->accessService->userBelongsToEstablishment($targetUserId, (int)$establishment['id'])) {
+                Response::error('ALREADY_LINKED', 'User is already linked to this establishment', 409, $request->requestId);
                 return;
             }
 
             $invitationId = BusinessInvitation::create([
                 'business_id' => $businessId,
-                'from_user_id' => $userId,
-                'to_user_id' => $toUserId,
-                'direction' => 'business_to_professional',
+                'establishment_id' => $establishment['id'] ?? null,
+                'from_user_id' => $actorId,
+                'to_user_id' => $targetUserId,
+                'direction' => BusinessInvitation::DIRECTION_BUSINESS_TO_PROFESSIONAL,
+                'role' => $inviteRole,
                 'status' => 'pending',
                 'message' => $data['message'] ?? null,
             ]);
 
-            // Create notification for the professional
             Notification::create([
-                'user_id' => $toUserId,
+                'user_id' => $targetUserId,
                 'type' => 'business_invitation',
-                'title' => 'Convite de negócio',
-                'body' => $request->user['name'] . ' convidou você para trabalhar em ' . $business['name'],
+                'title' => 'Convite profissional',
+                'body' => $this->buildInvitationBody($request->user['name'] ?? 'Um gestor', $business['name'] ?? 'o negócio', $establishment['name'] ?? null, true),
                 'data' => [
                     'invitation_id' => $invitationId,
                     'business_id' => $businessId,
-                    'business_name' => $business['name'],
-                    'from_user_name' => $request->user['name'],
+                    'business_name' => $business['name'] ?? null,
+                    'establishment_id' => $establishment['id'] ?? null,
+                    'establishment_name' => $establishment['name'] ?? null,
+                    'deep_link' => '/app/settings?tab=profile&panel=professional',
                 ],
                 'channel' => 'in_app',
                 'sent_at' => date('Y-m-d H:i:s'),
             ]);
 
-            Logger::info('Business invitation sent', [
+            AuditService::logFromRequest($request, 'invite_professional', 'business', (string)$businessId, $establishment['id'] ?? null, $businessId, [
+                'target_user_id' => $targetUserId,
+                'target_email' => $targetUser['email'] ?? null,
+                'role' => $inviteRole,
+                'establishment_id' => $establishment['id'] ?? null,
                 'invitation_id' => $invitationId,
-                'business_id' => $businessId,
-                'from' => $userId,
-                'to' => $toUserId,
-            ], $request->requestId);
+            ]);
 
             Response::created([
                 'invitation_id' => $invitationId,
                 'message' => 'Invitation sent successfully',
             ]);
-
         } catch (\InvalidArgumentException $e) {
             Response::error('CONFLICT', $e->getMessage(), 409, $request->requestId);
+        } catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         } catch (\Exception $e) {
             Logger::error('Failed to send invitation', [
+                'business_id' => $businessId,
                 'error' => $e->getMessage(),
             ], $request->requestId);
             Response::serverError('Failed to send invitation', $request->requestId);
@@ -113,18 +146,62 @@ class InvitationsController
     }
 
     /**
+     * GET /api/v1/businesses/{id}/invitation-target
+     * Preview a target user before sending invitation.
+     */
+    public function previewTarget(Request $request, int $businessId): void
+    {
+        $email = trim((string)($request->getQuery()['email'] ?? ''));
+        if ($email === '') {
+            Response::validationError(['email' => 'Email is required'], $request->requestId);
+            return;
+        }
+
+        try {
+            $this->accessService->requireBusinessManagement(
+                $request->user,
+                $businessId,
+                'Você não tem permissão para pesquisar profissionais neste negócio'
+            );
+
+            $user = User::findByEmail($email);
+            if (!$user) {
+                Response::notFound('Target user not found', $request->requestId);
+                return;
+            }
+
+            Response::success([
+                'user' => User::getSafeData($user),
+                'already_linked' => BusinessUser::exists($businessId, (int)$user['id']),
+            ]);
+        } catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        } catch (\Exception $e) {
+            Logger::error('Failed to preview invitation target', [
+                'business_id' => $businessId,
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to search invitation target', $request->requestId);
+        }
+    }
+
+    /**
      * POST /api/v1/businesses/{id}/join-request
-     * Professional requests to join a business
+     * User requests to join a business/establishment as professional.
      */
     public function joinRequest(Request $request, int $businessId): void
     {
         $data = $request->all();
-        $userId = (int)$request->user['id'];
-        $userRole = $request->user['role'] ?? 'client';
+        $actorId = (int)$request->user['id'];
 
-        // Only professionals can request to join
-        if (!in_array($userRole, ['professional', 'attendant'])) {
-            Response::forbidden('Only professionals can request to join a business', $request->requestId);
+        $errors = Validator::make($data, [
+            'establishment_id' => 'required|integer',
+            'message' => 'max:2000',
+        ]);
+
+        if (!empty($errors)) {
+            Response::validationError($errors, $request->requestId);
             return;
         }
 
@@ -135,59 +212,77 @@ class InvitationsController
                 return;
             }
 
-            // Get business owner to send notification
-            $ownerId = (int)$business['owner_user_id'];
+            $establishment = $this->resolveEstablishmentForInvitation($businessId, $data['establishment_id'], $request->requestId);
+            if ($establishment === null) {
+                Response::validationError(['establishment_id' => 'Establishment is required'], $request->requestId);
+                return;
+            }
+
+            if (BusinessUser::exists($businessId, $actorId) && $this->accessService->userBelongsToEstablishment($actorId, (int)$establishment['id'])) {
+                Response::error('ALREADY_LINKED', 'You are already linked to this establishment', 409, $request->requestId);
+                return;
+            }
+
+            $managerRecipients = $this->membershipService->getBusinessManagerRecipients($businessId);
+            if (empty($managerRecipients)) {
+                $managerRecipients = [(int)$business['owner_user_id']];
+            }
 
             $invitationId = BusinessInvitation::create([
                 'business_id' => $businessId,
-                'from_user_id' => $userId,
-                'to_user_id' => $ownerId,
-                'direction' => 'professional_to_business',
+                'establishment_id' => (int)$establishment['id'],
+                'from_user_id' => $actorId,
+                'to_user_id' => (int)$managerRecipients[0],
+                'direction' => BusinessInvitation::DIRECTION_PROFESSIONAL_TO_BUSINESS,
                 'status' => 'pending',
+                'role' => BusinessUser::ROLE_PROFESSIONAL,
                 'message' => $data['message'] ?? null,
             ]);
 
-            // Notify business owner
-            Notification::create([
-                'user_id' => $ownerId,
-                'type' => 'join_request',
-                'title' => 'Solicitação de vínculo',
-                'body' => $request->user['name'] . ' quer se vincular ao negócio ' . $business['name'],
-                'data' => [
-                    'invitation_id' => $invitationId,
-                    'business_id' => $businessId,
-                    'from_user_name' => $request->user['name'],
-                    'from_user_id' => $userId,
-                ],
-                'channel' => 'in_app',
-                'sent_at' => date('Y-m-d H:i:s'),
-            ]);
+            foreach (array_unique($managerRecipients) as $recipientId) {
+                Notification::create([
+                    'user_id' => (int)$recipientId,
+                    'type' => 'join_request',
+                    'title' => 'Nova solicitação profissional',
+                    'body' => $this->buildInvitationBody($request->user['name'] ?? 'Um usuário', $business['name'] ?? 'o negócio', $establishment['name'] ?? null, false),
+                    'data' => [
+                        'invitation_id' => $invitationId,
+                        'business_id' => $businessId,
+                        'business_name' => $business['name'] ?? null,
+                        'establishment_id' => (int)$establishment['id'],
+                        'establishment_name' => $establishment['name'] ?? null,
+                        'requester_id' => $actorId,
+                        'requester_name' => $request->user['name'] ?? null,
+                        'deep_link' => '/app/businesses/' . $businessId . '?tab=professionals&view=invitations',
+                    ],
+                    'channel' => 'in_app',
+                    'sent_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
 
-            Logger::info('Join request sent', [
+            AuditService::logFromRequest($request, 'request_professional_link', 'business', (string)$businessId, (int)$establishment['id'], $businessId, [
+                'requester_user_id' => $actorId,
+                'establishment_id' => (int)$establishment['id'],
                 'invitation_id' => $invitationId,
-                'business_id' => $businessId,
-                'from' => $userId,
-            ], $request->requestId);
+            ]);
 
             Response::created([
                 'invitation_id' => $invitationId,
                 'message' => 'Join request sent successfully',
             ]);
-
         } catch (\InvalidArgumentException $e) {
             Response::error('CONFLICT', $e->getMessage(), 409, $request->requestId);
+        } catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         } catch (\Exception $e) {
             Logger::error('Failed to send join request', [
+                'business_id' => $businessId,
                 'error' => $e->getMessage(),
             ], $request->requestId);
             Response::serverError('Failed to send join request', $request->requestId);
         }
     }
 
-    /**
-     * GET /api/v1/invitations
-     * Get invitations for current user (received + sent)
-     */
     public function list(Request $request): void
     {
         $userId = (int)$request->user['id'];
@@ -204,20 +299,15 @@ class InvitationsController
             ]);
         } catch (\Exception $e) {
             Logger::error('Failed to list invitations', [
+                'user_id' => $userId,
                 'error' => $e->getMessage(),
             ], $request->requestId);
             Response::serverError('Failed to retrieve invitations', $request->requestId);
         }
     }
 
-    /**
-     * GET /api/v1/businesses/{id}/invitations
-     * Get invitations for a business (managers)
-     */
     public function listForBusiness(Request $request, int $businessId): void
     {
-        $userId = (int)$request->user['id'];
-
         try {
             $business = Business::find($businessId);
             if (!$business) {
@@ -225,10 +315,11 @@ class InvitationsController
                 return;
             }
 
-            if (!BusinessUser::exists($businessId, $userId) && $request->user['role'] !== 'admin') {
-                Response::forbidden('Access denied', $request->requestId);
-                return;
-            }
+            $this->accessService->requireBusinessManagement(
+                $request->user,
+                $businessId,
+                'Você não tem permissão para visualizar convites deste negócio'
+            );
 
             $params = $request->getQuery();
             $status = $params['status'] ?? null;
@@ -238,21 +329,20 @@ class InvitationsController
                 'invitations' => $invitations,
                 'total' => count($invitations),
             ]);
+        } catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         } catch (\Exception $e) {
             Logger::error('Failed to list business invitations', [
+                'business_id' => $businessId,
                 'error' => $e->getMessage(),
             ], $request->requestId);
             Response::serverError('Failed to retrieve invitations', $request->requestId);
         }
     }
 
-    /**
-     * POST /api/v1/invitations/{id}/accept
-     * Accept an invitation
-     */
     public function accept(Request $request, int $id): void
     {
-        $userId = (int)$request->user['id'];
+        $actorId = (int)$request->user['id'];
 
         try {
             $invitation = BusinessInvitation::find($id);
@@ -261,54 +351,68 @@ class InvitationsController
                 return;
             }
 
-            if ($invitation['status'] !== 'pending') {
+            if (($invitation['status'] ?? null) !== 'pending') {
                 Response::error('INVALID_STATUS', 'Invitation is no longer pending', 400, $request->requestId);
                 return;
             }
 
-            // Only the recipient can accept
-            if ((int)$invitation['to_user_id'] !== $userId) {
-                Response::forbidden('Only the recipient can accept this invitation', $request->requestId);
+            if (!$this->canRespondToInvitation($request->user, $invitation)) {
+                Response::forbidden('You cannot accept this invitation', $request->requestId);
                 return;
+            }
+
+            $business = Business::find((int)$invitation['business_id']);
+            if (!$business) {
+                Response::notFound('Business not found', $request->requestId);
+                return;
+            }
+
+            $targetProfessionalId = ($invitation['direction'] === BusinessInvitation::DIRECTION_BUSINESS_TO_PROFESSIONAL)
+                ? (int)$invitation['to_user_id']
+                : (int)$invitation['from_user_id'];
+
+            $role = $invitation['role'] ?? BusinessUser::ROLE_PROFESSIONAL;
+            if ($role === BusinessUser::ROLE_MANAGER) {
+                if (!BusinessUser::exists((int)$invitation['business_id'], $targetProfessionalId)) {
+                    BusinessUser::addUser((int)$invitation['business_id'], $targetProfessionalId, BusinessUser::ROLE_MANAGER);
+                }
+
+                $targetUser = User::find($targetProfessionalId);
+                if ($targetUser && ($targetUser['role'] ?? 'client') !== 'admin') {
+                    User::update($targetProfessionalId, ['role' => 'manager']);
+                }
+            } else {
+                $this->membershipService->ensureProfessionalRole($targetProfessionalId);
+                $this->membershipService->ensureBusinessProfessional((int)$invitation['business_id'], $targetProfessionalId);
+
+                if (!empty($invitation['establishment_id'])) {
+                    $this->membershipService->ensureEstablishmentProfessional(
+                        (int)$invitation['business_id'],
+                        (int)$invitation['establishment_id'],
+                        $targetProfessionalId
+                    );
+                }
             }
 
             BusinessInvitation::accept($id);
 
-            // Get the professional user ID (the one being linked)
-            $professionalUserId = $invitation['direction'] === 'business_to_professional'
-                ? (int)$invitation['to_user_id']
-                : (int)$invitation['from_user_id'];
+            $this->notifyInvitationDecision(
+                $invitation,
+                $actorId,
+                true,
+                $business['name'] ?? 'o negócio',
+                $invitation['establishment_id'] ?? null
+            );
 
-            $businessId = (int)$invitation['business_id'];
-
-            // Add professional to business_users if not already there
-            if (!BusinessUser::exists($businessId, $professionalUserId)) {
-                BusinessUser::addUser($businessId, $professionalUserId, 'manager');
-            }
-
-            // Notify the sender
-            $business = Business::find($businessId);
-            Notification::create([
-                'user_id' => (int)$invitation['from_user_id'],
-                'type' => 'invitation_accepted',
-                'title' => 'Convite aceito',
-                'body' => $request->user['name'] . ' aceitou o convite para ' . ($business['name'] ?? 'o negócio'),
-                'data' => [
-                    'invitation_id' => $id,
-                    'business_id' => $businessId,
-                    'accepted_by' => $userId,
-                ],
-                'channel' => 'in_app',
-                'sent_at' => date('Y-m-d H:i:s'),
+            AuditService::logFromRequest($request, 'accept_invitation', 'business_invitation', (string)$id, $invitation['establishment_id'] ?? null, $invitation['business_id'] ?? null, [
+                'target_user_id' => $targetProfessionalId,
+                'direction' => $invitation['direction'] ?? null,
+                'role' => $role,
             ]);
 
-            Logger::info('Invitation accepted', [
-                'invitation_id' => $id,
-                'accepted_by' => $userId,
-            ], $request->requestId);
-
             Response::success(['message' => 'Invitation accepted']);
-
+        } catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         } catch (\Exception $e) {
             Logger::error('Failed to accept invitation', [
                 'invitation_id' => $id,
@@ -318,13 +422,9 @@ class InvitationsController
         }
     }
 
-    /**
-     * POST /api/v1/invitations/{id}/reject
-     * Reject an invitation
-     */
     public function reject(Request $request, int $id): void
     {
-        $userId = (int)$request->user['id'];
+        $actorId = (int)$request->user['id'];
 
         try {
             $invitation = BusinessInvitation::find($id);
@@ -333,39 +433,33 @@ class InvitationsController
                 return;
             }
 
-            if ($invitation['status'] !== 'pending') {
+            if (($invitation['status'] ?? null) !== 'pending') {
                 Response::error('INVALID_STATUS', 'Invitation is no longer pending', 400, $request->requestId);
                 return;
             }
 
-            if ((int)$invitation['to_user_id'] !== $userId) {
-                Response::forbidden('Only the recipient can reject this invitation', $request->requestId);
+            if (!$this->canRespondToInvitation($request->user, $invitation)) {
+                Response::forbidden('You cannot reject this invitation', $request->requestId);
                 return;
             }
 
             BusinessInvitation::reject($id);
+            $business = Business::find((int)$invitation['business_id']);
+            $this->notifyInvitationDecision(
+                $invitation,
+                $actorId,
+                false,
+                $business['name'] ?? 'o negócio',
+                $invitation['establishment_id'] ?? null
+            );
 
-            // Notify the sender
-            Notification::create([
-                'user_id' => (int)$invitation['from_user_id'],
-                'type' => 'invitation_rejected',
-                'title' => 'Convite recusado',
-                'body' => $request->user['name'] . ' recusou o convite',
-                'data' => [
-                    'invitation_id' => $id,
-                    'rejected_by' => $userId,
-                ],
-                'channel' => 'in_app',
-                'sent_at' => date('Y-m-d H:i:s'),
+            AuditService::logFromRequest($request, 'reject_invitation', 'business_invitation', (string)$id, $invitation['establishment_id'] ?? null, $invitation['business_id'] ?? null, [
+                'direction' => $invitation['direction'] ?? null,
             ]);
 
-            Logger::info('Invitation rejected', [
-                'invitation_id' => $id,
-                'rejected_by' => $userId,
-            ], $request->requestId);
-
             Response::success(['message' => 'Invitation rejected']);
-
+        } catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         } catch (\Exception $e) {
             Logger::error('Failed to reject invitation', [
                 'invitation_id' => $id,
@@ -375,13 +469,9 @@ class InvitationsController
         }
     }
 
-    /**
-     * POST /api/v1/invitations/{id}/cancel
-     * Cancel an invitation (by sender)
-     */
     public function cancelInvitation(Request $request, int $id): void
     {
-        $userId = (int)$request->user['id'];
+        $actorId = (int)$request->user['id'];
 
         try {
             $invitation = BusinessInvitation::find($id);
@@ -390,25 +480,26 @@ class InvitationsController
                 return;
             }
 
-            if ($invitation['status'] !== 'pending') {
+            if (($invitation['status'] ?? null) !== 'pending') {
                 Response::error('INVALID_STATUS', 'Invitation is no longer pending', 400, $request->requestId);
                 return;
             }
 
-            if ((int)$invitation['from_user_id'] !== $userId) {
+            $canCancel = (int)$invitation['from_user_id'] === $actorId;
+            if (!$canCancel && ($invitation['direction'] ?? null) === BusinessInvitation::DIRECTION_BUSINESS_TO_PROFESSIONAL) {
+                $canCancel = $this->accessService->canManageBusiness($request->user, (int)$invitation['business_id']);
+            }
+
+            if (!$canCancel) {
                 Response::forbidden('Only the sender can cancel this invitation', $request->requestId);
                 return;
             }
 
             BusinessInvitation::cancel($id);
 
-            Logger::info('Invitation cancelled', [
-                'invitation_id' => $id,
-                'cancelled_by' => $userId,
-            ], $request->requestId);
+            AuditService::logFromRequest($request, 'cancel_invitation', 'business_invitation', (string)$id, $invitation['establishment_id'] ?? null, $invitation['business_id'] ?? null, null);
 
             Response::success(['message' => 'Invitation cancelled']);
-
         } catch (\Exception $e) {
             Logger::error('Failed to cancel invitation', [
                 'invitation_id' => $id,
@@ -416,5 +507,80 @@ class InvitationsController
             ], $request->requestId);
             Response::serverError('Failed to cancel invitation', $request->requestId);
         }
+    }
+
+    private function resolveEstablishmentForInvitation(int $businessId, mixed $establishmentId, ?string $requestId): ?array
+    {
+        if ($establishmentId === null || $establishmentId === '') {
+            return null;
+        }
+
+        $establishment = Establishment::find((int)$establishmentId);
+        if (!$establishment) {
+            throw new \RuntimeException('Establishment not found');
+        }
+
+        if ((int)($establishment['business_id'] ?? 0) !== $businessId) {
+            throw new \RuntimeException('Establishment does not belong to this business');
+        }
+
+        return $establishment;
+    }
+
+    private function canRespondToInvitation(array $user, array $invitation): bool
+    {
+        $direction = $invitation['direction'] ?? null;
+        if ($direction === BusinessInvitation::DIRECTION_BUSINESS_TO_PROFESSIONAL) {
+            return (int)($invitation['to_user_id'] ?? 0) === (int)($user['id'] ?? 0);
+        }
+
+        if ($direction === BusinessInvitation::DIRECTION_PROFESSIONAL_TO_BUSINESS) {
+            return $this->accessService->canManageBusiness($user, (int)($invitation['business_id'] ?? 0));
+        }
+
+        return false;
+    }
+
+    private function notifyInvitationDecision(array $invitation, int $actorId, bool $accepted, string $businessName, mixed $establishmentId): void
+    {
+        $actor = User::find($actorId);
+        $actorName = $actor['name'] ?? 'Um usuário';
+        $targetUserId = ($invitation['direction'] ?? null) === BusinessInvitation::DIRECTION_BUSINESS_TO_PROFESSIONAL
+            ? (int)$invitation['to_user_id']
+            : (int)$invitation['from_user_id'];
+
+        $establishmentName = null;
+        if (!empty($establishmentId)) {
+            $establishment = Establishment::find((int)$establishmentId);
+            $establishmentName = $establishment['name'] ?? null;
+        }
+
+        Notification::create([
+            'user_id' => $targetUserId,
+            'type' => $accepted ? 'invitation_accepted' : 'invitation_rejected',
+            'title' => $accepted ? 'Solicitação aceita' : 'Solicitação recusada',
+            'body' => $accepted
+                ? $actorName . ' aprovou o vínculo com ' . $businessName . ($establishmentName ? ' em ' . $establishmentName : '')
+                : $actorName . ' recusou o vínculo com ' . $businessName . ($establishmentName ? ' em ' . $establishmentName : ''),
+            'data' => [
+                'invitation_id' => (int)$invitation['id'],
+                'business_id' => (int)$invitation['business_id'],
+                'business_name' => $businessName,
+                'establishment_id' => $establishmentId ? (int)$establishmentId : null,
+                'establishment_name' => $establishmentName,
+                'deep_link' => '/app/businesses/' . (int)$invitation['business_id'] . '?tab=professionals',
+            ],
+            'channel' => 'in_app',
+            'sent_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    private function buildInvitationBody(string $actorName, string $businessName, ?string $establishmentName, bool $isInvite): string
+    {
+        if ($isInvite) {
+            return $actorName . ' convidou você para atuar em ' . $businessName . ($establishmentName ? ' / ' . $establishmentName : '');
+        }
+
+        return $actorName . ' solicitou vínculo profissional em ' . $businessName . ($establishmentName ? ' / ' . $establishmentName : '');
     }
 }
