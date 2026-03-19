@@ -83,7 +83,7 @@
                 <div class="detail-content">
                   <span class="detail-label">E-mail verificado</span>
                   <span class="detail-value">
-                    <q-badge :color="user?.email_verified ? 'positive' : 'grey-6'" class="verification-badge">
+                    <q-badge :color="user?.email_verified ? 'positive' : undefined" class="verification-badge" :class="{ 'verification-badge--neutral': !user?.email_verified }">
                       {{ user?.email_verified ? 'Verificado' : 'Não verificado' }}
                     </q-badge>
                   </span>
@@ -301,39 +301,154 @@
         <q-tab-panel name="notifications" class="tab-panel">
           <div class="panel-header">
             <h3>Notificações</h3>
-            <p>Configure como deseja receber alertas</p>
+            <p>Configure push e acompanhe sua inbox</p>
           </div>
 
           <div class="settings-list">
-            <div class="setting-row">
-              <div class="setting-icon">
-                <q-icon name="mark_email_unread" size="24px" />
-              </div>
-              <div class="setting-info">
-                <span class="setting-title">Notificações por e-mail</span>
-                <span class="setting-description">Receber atualizações por e-mail</span>
-              </div>
-              <q-toggle v-model="emailNotifications" color="primary" />
-            </div>
             <div class="setting-row">
               <div class="setting-icon">
                 <q-icon name="campaign" size="24px" />
               </div>
               <div class="setting-info">
                 <span class="setting-title">Notificações push</span>
-                <span class="setting-description">Receber alertas no navegador</span>
+                <span class="setting-description">
+                  {{ browserPermissionLabel }}
+                </span>
               </div>
-              <q-toggle v-model="pushNotifications" color="primary" />
+              <q-toggle :model-value="preferences.push_enabled" color="primary" @update:model-value="togglePushNotifications" />
             </div>
-            <div class="setting-row">
-              <div class="setting-icon">
-                <q-icon name="sms" size="24px" />
+          </div>
+
+          <div class="notifications-inbox soft-card q-mt-lg">
+            <div class="notifications-inbox__header">
+              <div>
+                <h4>Inbox</h4>
+                <p>Filtre por período, tipo e texto para localizar notificações.</p>
               </div>
-              <div class="setting-info">
-                <span class="setting-title">Notificações por SMS</span>
-                <span class="setting-description">Receber alertas importantes por SMS</span>
+              <div class="notifications-inbox__actions">
+                <q-btn flat no-caps icon="restart_alt" label="Limpar" @click="resetNotificationFilters" />
+                <q-btn color="primary" no-caps icon="search" label="Aplicar" @click="applyNotificationFilters" />
               </div>
-              <q-toggle v-model="smsNotifications" color="primary" />
+            </div>
+
+            <div class="notifications-filters">
+              <q-input
+                v-model="notificationFilters.search"
+                outlined
+                dense
+                label="Pesquisar"
+                placeholder="Título, remetente, negócio..."
+                @keyup.enter="applyNotificationFilters"
+              >
+                <template #prepend>
+                  <q-icon name="search" />
+                </template>
+              </q-input>
+
+              <q-select
+                v-model="notificationFilters.type"
+                outlined
+                dense
+                emit-value
+                map-options
+                :options="notificationTypeOptions"
+                label="Tipo"
+                @update:model-value="applyNotificationFilters"
+              />
+
+              <q-input
+                v-model="notificationFilters.date_from"
+                outlined
+                dense
+                type="date"
+                label="De"
+                @update:model-value="applyNotificationFilters"
+              />
+
+              <q-input
+                v-model="notificationFilters.date_to"
+                outlined
+                dense
+                type="date"
+                label="Até"
+                @update:model-value="applyNotificationFilters"
+              />
+            </div>
+
+            <div v-if="inboxLoading" class="loading-state-sm">
+              <q-spinner-dots color="primary" size="28px" />
+            </div>
+
+            <div v-else-if="inboxNotifications.length === 0" class="empty-state-sm">
+              <q-icon name="notifications_none" size="44px" />
+              <p>Nenhuma notificação encontrada</p>
+            </div>
+
+            <div v-else class="list-items">
+              <div v-for="notification in inboxNotifications" :key="notification.id" class="list-item list-item--interactive" @click="openInboxNotification(notification)">
+                <div class="list-item-info">
+                  <div class="list-item-avatar" :class="{ 'list-item-avatar--unread': !notification.read_at }">
+                    <q-icon :name="getNotifIcon(notification.type)" size="18px" />
+                  </div>
+                  <div class="list-item-details">
+                    <span class="list-item-name">{{ notification.title }}</span>
+                    <span class="list-item-meta">
+                      {{ getNotificationTypeLabel(notification.type) }} · {{ formatNotifTime(notification.sent_at || notification.created_at) }}
+                    </span>
+                    <span class="notification-item-body">{{ notification.body }}</span>
+                  </div>
+                </div>
+
+                <div class="list-item-side notification-item-actions" @click.stop>
+                  <q-btn
+                    v-if="!notification.read_at"
+                    flat
+                    round
+                    dense
+                    icon="done"
+                    size="sm"
+                    :loading="notificationActionId === notification.id && notificationAction === 'read'"
+                    @click="markInboxNotificationRead(notification)"
+                  >
+                    <q-tooltip>Marcar como lida</q-tooltip>
+                  </q-btn>
+
+                  <template v-if="notification.type === 'business_invitation' && notification.data?.invitation_id">
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      icon="check_circle"
+                      size="sm"
+                      color="positive"
+                      :loading="notificationActionId === notification.id && notificationAction === 'accept'"
+                      @click="acceptInboxNotification(notification)"
+                    />
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      icon="cancel"
+                      size="sm"
+                      color="negative"
+                      :loading="notificationActionId === notification.id && notificationAction === 'reject'"
+                      @click="rejectInboxNotification(notification)"
+                    />
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="inboxMeta.total_pages > 1" class="notifications-pagination">
+              <q-pagination
+                :model-value="inboxMeta.page"
+                :max="inboxMeta.total_pages"
+                max-pages="6"
+                direction-links
+                boundary-links
+                color="primary"
+                @update:model-value="changeNotificationPage"
+              />
             </div>
           </div>
         </q-tab-panel>
@@ -348,6 +463,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { BRAND_PRESETS, loadBrandColor, saveBrandColor, resetBrandColor, isValidHex, normalizeHex } from 'src/utils/brand'
+import { useNotificationsCenter } from 'src/composables/useNotificationsCenter'
 
 export default defineComponent({
   name: 'SettingsPage',
@@ -368,9 +484,6 @@ export default defineComponent({
     const customHex = ref('')
     const hexError = ref(false)
     const hexErrorMsg = ref('')
-    const emailNotifications = ref(true)
-    const pushNotifications = ref(false)
-    const smsNotifications = ref(false)
 
     const businessSearchOptions = ref([])
     const establishmentSearchOptions = ref([])
@@ -383,6 +496,33 @@ export default defineComponent({
     const invitationSummary = ref({ sent: [] })
     const invitationActionId = ref(null)
     const invitationAction = ref('')
+    const notificationActionId = ref(null)
+    const notificationAction = ref('')
+    const notificationFilters = ref({
+      search: '',
+      type: '',
+      date_from: '',
+      date_to: '',
+    })
+
+    const {
+      preferences,
+      browserPermission,
+      inboxNotifications,
+      inboxMeta,
+      inboxLoading,
+      notificationTypeOptions,
+      getNotifIcon,
+      getNotificationTypeLabel,
+      formatNotifTime,
+      fetchPreferences,
+      setPushEnabled,
+      fetchInbox,
+      markNotificationRead,
+      openNotification,
+      acceptInvitation,
+      rejectInvitation,
+    } = useNotificationsCenter()
 
     const roleLabel = computed(() => getRoleLabel(verifiedRole.value))
     const roleColor = computed(() => getRoleColor(verifiedRole.value))
@@ -399,14 +539,17 @@ export default defineComponent({
       fetchUserFromBackend()
       loadTheme()
       fetchInvitationSummary()
-    })
-
-    watch([emailNotifications, pushNotifications, smsNotifications], () => {
-      saveNotificationPrefs()
+      fetchPreferences().catch(() => {})
+      if (activeTab.value === 'notifications') {
+        applyNotificationFilters()
+      }
     })
 
     watch(activeTab, (value) => {
       router.replace({ query: value === 'profile' ? {} : { tab: value } })
+      if (value === 'notifications') {
+        applyNotificationFilters()
+      }
     })
 
     const fetchUserFromBackend = async () => {
@@ -446,26 +589,95 @@ export default defineComponent({
       }
 
       brandColor.value = loadBrandColor()
+    }
 
-      const savedNotifs = localStorage.getItem('notification_preferences')
-      if (savedNotifs) {
-        try {
-          const prefs = JSON.parse(savedNotifs)
-          emailNotifications.value = prefs.email ?? true
-          pushNotifications.value = prefs.push ?? false
-          smsNotifications.value = prefs.sms ?? false
-        } catch {
-          // ignore parse errors
-        }
+    const browserPermissionLabel = computed(() => {
+      if (browserPermission.value === 'granted') return 'Permissão concedida no navegador.'
+      if (browserPermission.value === 'denied') return 'Permissão bloqueada no navegador.'
+      if (browserPermission.value === 'unsupported') return 'Push não suportado neste dispositivo.'
+      return 'Receber alertas no navegador quando houver novidades.'
+    })
+
+    const applyNotificationFilters = async (page = 1) => {
+      await fetchInbox({
+        ...notificationFilters.value,
+        page,
+        per_page: 12,
+      })
+    }
+
+    const resetNotificationFilters = async () => {
+      notificationFilters.value = {
+        search: '',
+        type: '',
+        date_from: '',
+        date_to: '',
+      }
+      await applyNotificationFilters()
+    }
+
+    const changeNotificationPage = async (page) => {
+      await applyNotificationFilters(page)
+    }
+
+    const togglePushNotifications = async (value) => {
+      try {
+        await setPushEnabled(Boolean(value))
+        $q.notify({
+          type: 'positive',
+          message: value ? 'Notificações push ativadas' : 'Notificações push desativadas',
+        })
+      } catch (err) {
+        $q.notify({
+          type: 'warning',
+          message: err.message || 'Não foi possível atualizar o push',
+        })
       }
     }
 
-    const saveNotificationPrefs = () => {
-      localStorage.setItem('notification_preferences', JSON.stringify({
-        email: emailNotifications.value,
-        push: pushNotifications.value,
-        sms: smsNotifications.value,
-      }))
+    const openInboxNotification = async (notification) => {
+      await openNotification(router, notification)
+    }
+
+    const markInboxNotificationRead = async (notification) => {
+      notificationActionId.value = notification.id
+      notificationAction.value = 'read'
+      try {
+        await markNotificationRead(notification)
+      } finally {
+        notificationActionId.value = null
+        notificationAction.value = ''
+      }
+    }
+
+    const acceptInboxNotification = async (notification) => {
+      notificationActionId.value = notification.id
+      notificationAction.value = 'accept'
+      try {
+        await acceptInvitation(notification)
+        await Promise.all([applyNotificationFilters(inboxMeta.value.page), fetchInvitationSummary(), fetchUserFromBackend()])
+        $q.notify({ type: 'positive', message: 'Convite aceito com sucesso' })
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao aceitar convite' })
+      } finally {
+        notificationActionId.value = null
+        notificationAction.value = ''
+      }
+    }
+
+    const rejectInboxNotification = async (notification) => {
+      notificationActionId.value = notification.id
+      notificationAction.value = 'reject'
+      try {
+        await rejectInvitation(notification)
+        await applyNotificationFilters(inboxMeta.value.page)
+        $q.notify({ type: 'positive', message: 'Convite recusado' })
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao recusar convite' })
+      } finally {
+        notificationActionId.value = null
+        notificationAction.value = ''
+      }
     }
 
     const filterBusinesses = async (value, update) => {
@@ -664,9 +876,6 @@ export default defineComponent({
       hexError,
       hexErrorMsg,
       hexPreviewColor,
-      emailNotifications,
-      pushNotifications,
-      smsNotifications,
       roleLabel,
       roleColor,
       selectedBusinessId,
@@ -681,6 +890,16 @@ export default defineComponent({
       receivedProfessionalInvitations,
       invitationActionId,
       invitationAction,
+      preferences,
+      browserPermission,
+      browserPermissionLabel,
+      notificationFilters,
+      notificationTypeOptions,
+      inboxNotifications,
+      inboxMeta,
+      inboxLoading,
+      notificationActionId,
+      notificationAction,
       toggleTheme,
       setBrandColor,
       applyCustomHex,
@@ -692,6 +911,17 @@ export default defineComponent({
       filterBusinesses,
       filterEstablishments,
       onBusinessSelected,
+      applyNotificationFilters,
+      resetNotificationFilters,
+      changeNotificationPage,
+      togglePushNotifications,
+      openInboxNotification,
+      markInboxNotificationRead,
+      acceptInboxNotification,
+      rejectInboxNotification,
+      getNotifIcon,
+      getNotificationTypeLabel,
+      formatNotifTime,
       submitProfessionalRequest,
       respondToInvitation,
       handleLogout,
@@ -808,6 +1038,12 @@ export default defineComponent({
 
 .role-badge {
   font-size: 0.75rem;
+}
+
+.verification-badge--neutral {
+  background: var(--qm-bg-tertiary);
+  color: var(--qm-text-secondary);
+  border: 1px solid var(--qm-border);
 }
 
 .profile-details-grid {
@@ -982,6 +1218,71 @@ export default defineComponent({
   margin-top: 2px;
 }
 
+.notifications-inbox {
+  padding: 1.25rem;
+  border-radius: 16px;
+}
+
+.notifications-inbox__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  h4 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+    color: var(--qm-text-primary);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--qm-text-muted);
+  }
+}
+
+.notifications-inbox__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.notifications-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.notification-item-body {
+  font-size: 0.8125rem;
+  color: var(--qm-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notification-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.notifications-pagination {
+  display: flex;
+  justify-content: center;
+  padding-top: 1rem;
+}
+
+.list-item-avatar--unread {
+  background: var(--qm-brand-light);
+  color: var(--qm-brand);
+}
+
 .color-swatch {
   width: 36px;
   height: 36px;
@@ -1008,6 +1309,11 @@ export default defineComponent({
 }
 
 @media (max-width: 768px) {
+  .panel-header {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
   .professional-request-card__header {
     flex-direction: column;
   }
@@ -1018,6 +1324,19 @@ export default defineComponent({
     :deep(.q-btn) {
       width: 100%;
     }
+  }
+
+  .notifications-inbox__header {
+    flex-direction: column;
+  }
+
+  .notifications-inbox__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .custom-hex-row {
+    align-items: stretch;
   }
 }
 </style>

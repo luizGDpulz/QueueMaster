@@ -66,29 +66,49 @@ class BusinessController
     public function search(Request $request): void
     {
         try {
-            $query = $request->getQuery('q', '');
+            $query = trim((string)$request->getQuery('q', ''));
             $limit = min((int)$request->getQuery('limit', 20), 50);
+            $accessibleBusinessIds = $this->accessService->getAccessibleBusinessIds($request->user);
+            $accessibleBusinessMap = array_flip($accessibleBusinessIds);
 
-            $qb = new \QueueMaster\Builders\QueryBuilder();
-            $qb->select('businesses')
-                ->where('is_active', '=', 1);
-
-            if (!empty($query)) {
-                $qb->where('name', 'LIKE', '%' . $query . '%');
+            $params = [];
+            $searchSql = '';
+            if ($query !== '') {
+                $searchSql = ' AND (b.name LIKE ? OR b.description LIKE ? OR b.slug LIKE ?)';
+                $like = '%' . $query . '%';
+                $params = [$like, $like, $like];
             }
 
-            $qb->orderBy('name', 'ASC')
-                ->limit($limit);
+            $db = Database::getInstance();
+            $businesses = $db->query(
+                "
+                SELECT
+                    b.id,
+                    b.name,
+                    b.slug,
+                    b.description,
+                    b.is_active,
+                    COUNT(DISTINCT CASE WHEN e.is_active = 1 THEN e.id END) AS establishment_count
+                FROM businesses b
+                LEFT JOIN establishments e ON e.business_id = b.id
+                WHERE b.is_active = 1
+                $searchSql
+                GROUP BY b.id, b.name, b.slug, b.description, b.is_active
+                ORDER BY b.name ASC
+                LIMIT $limit
+                ",
+                $params
+            );
 
-            $businesses = $qb->get();
-
-            // Strip sensitive data, only return public info
-            $results = array_map(function ($b) {
+            $results = array_map(function (array $business) use ($accessibleBusinessMap) {
+                $businessId = (int)$business['id'];
                 return [
-                    'id' => $b['id'],
-                    'name' => $b['name'],
-                    'slug' => $b['slug'] ?? null,
-                    'description' => $b['description'] ?? null,
+                    'id' => $businessId,
+                    'name' => $business['name'],
+                    'slug' => $business['slug'] ?? null,
+                    'description' => $business['description'] ?? null,
+                    'establishment_count' => (int)($business['establishment_count'] ?? 0),
+                    'is_linked' => isset($accessibleBusinessMap[$businessId]),
                 ];
             }, $businesses);
 
@@ -101,6 +121,60 @@ class BusinessController
                 'error' => $e->getMessage(),
             ], $request->requestId);
             Response::serverError('Failed to search businesses', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/businesses/:id/discover
+     * Public authenticated read-only business detail.
+     */
+    public function discover(Request $request, int $id): void
+    {
+        try {
+            $business = Business::find($id);
+            if (!$business || !($business['is_active'] ?? false)) {
+                Response::notFound('Business not found', $request->requestId);
+                return;
+            }
+
+            $accessibleBusinessIds = $this->accessService->getAccessibleBusinessIds($request->user);
+            $establishments = array_values(array_filter(
+                Business::getEstablishments($id),
+                static fn(array $establishment): bool => (bool)($establishment['is_active'] ?? false)
+            ));
+
+            Response::success([
+                'business' => [
+                    'id' => (int)$business['id'],
+                    'name' => $business['name'],
+                    'slug' => $business['slug'] ?? null,
+                    'description' => $business['description'] ?? null,
+                    'is_active' => (bool)($business['is_active'] ?? false),
+                    'is_linked' => in_array($id, $accessibleBusinessIds, true),
+                ],
+                'establishments' => array_map(static function (array $establishment): array {
+                    return [
+                        'id' => (int)$establishment['id'],
+                        'business_id' => (int)$establishment['business_id'],
+                        'name' => $establishment['name'],
+                        'slug' => $establishment['slug'] ?? null,
+                        'description' => $establishment['description'] ?? null,
+                        'address' => $establishment['address'] ?? null,
+                        'phone' => $establishment['phone'] ?? null,
+                        'email' => $establishment['email'] ?? null,
+                        'timezone' => $establishment['timezone'] ?? 'America/Sao_Paulo',
+                        'opens_at' => $establishment['opens_at'] ?? null,
+                        'closes_at' => $establishment['closes_at'] ?? null,
+                        'is_active' => (bool)($establishment['is_active'] ?? false),
+                    ];
+                }, $establishments),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to discover business', [
+                'business_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to retrieve business', $request->requestId);
         }
     }
 

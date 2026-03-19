@@ -23,7 +23,7 @@ class Database
     {
         $host = $_ENV['DB_HOST'] ?? 'localhost';
         $port = $_ENV['DB_PORT'] ?? '3306';
-        $dbname = $_ENV['DB_NAME'] ?? 'queue_system';
+        $dbname = $_ENV['DB_NAME'] ?? 'queue_master';
         $username = $_ENV['DB_USER'] ?? 'root';
         $password = $_ENV['DB_PASS'] ?? '';
 

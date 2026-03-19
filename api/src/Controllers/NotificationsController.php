@@ -7,7 +7,9 @@ use QueueMaster\Core\Response;
 use QueueMaster\Core\Database;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
+use QueueMaster\Models\FcmToken;
 use QueueMaster\Models\Notification;
+use QueueMaster\Models\NotificationPreference;
 
 /**
  * NotificationsController - Notification Management Endpoints
@@ -16,6 +18,13 @@ use QueueMaster\Models\Notification;
  */
 class NotificationsController
 {
+    private Database $db;
+
+    public function __construct()
+    {
+        $this->db = Database::getInstance();
+    }
+
     /**
      * GET /api/v1/notifications
      * 
@@ -24,29 +33,65 @@ class NotificationsController
     public function list(Request $request): void
     {
         $userId = (int)$request->user['id'];
-        $params = $request->getQuery();
-
-        $page = isset($params['page']) ? (int)$params['page'] : 1;
-        $perPage = isset($params['per_page']) ? (int)$params['per_page'] : 20;
-        $perPage = min($perPage, 100); // Max 100 per page
-
+        $page = max((int)$request->getQuery('page', 1), 1);
+        $perPage = min(max((int)$request->getQuery('per_page', 20), 1), 100);
         $offset = ($page - 1) * $perPage;
+        $type = trim((string)$request->getQuery('type', ''));
+        $search = trim((string)$request->getQuery('search', ''));
+        $dateFrom = trim((string)$request->getQuery('date_from', ''));
+        $dateTo = trim((string)$request->getQuery('date_to', ''));
+        $unread = filter_var($request->getQuery('unread', false), FILTER_VALIDATE_BOOLEAN);
 
         try {
-            // Get all notifications for user
-            $allNotifications = Notification::getByUser($userId);
-            $total = count($allNotifications);
+            $where = ['user_id = ?'];
+            $params = [$userId];
 
-            // Apply pagination manually (since Model doesn't support offset)
-            $notifications = array_slice($allNotifications, $offset, $perPage);
-
-            // Parse JSON data field and add is_read flag
-            foreach ($notifications as &$notification) {
-                if (is_string($notification['data'])) {
-                    $notification['data'] = json_decode($notification['data'], true) ?? [];
-                }
-                $notification['is_read'] = !is_null($notification['read_at']);
+            if ($unread) {
+                $where[] = 'read_at IS NULL';
             }
+
+            if ($type !== '') {
+                $where[] = 'type = ?';
+                $params[] = $type;
+            }
+
+            if ($search !== '') {
+                $like = '%' . $search . '%';
+                $where[] = '(title LIKE ? OR body LIKE ? OR CAST(data AS CHAR) LIKE ?)';
+                array_push($params, $like, $like, $like);
+            }
+
+            if ($dateFrom !== '') {
+                $where[] = 'DATE(COALESCE(sent_at, created_at)) >= ?';
+                $params[] = $dateFrom;
+            }
+
+            if ($dateTo !== '') {
+                $where[] = 'DATE(COALESCE(sent_at, created_at)) <= ?';
+                $params[] = $dateTo;
+            }
+
+            $whereSql = implode(' AND ', $where);
+
+            $countRows = $this->db->query(
+                "SELECT COUNT(*) AS total FROM notifications WHERE $whereSql",
+                $params
+            );
+            $total = (int)($countRows[0]['total'] ?? 0);
+
+            $queryParams = array_merge($params, [$perPage, $offset]);
+            $notifications = $this->db->query(
+                "
+                SELECT *
+                FROM notifications
+                WHERE $whereSql
+                ORDER BY COALESCE(sent_at, created_at) DESC, id DESC
+                LIMIT ? OFFSET ?
+                ",
+                $queryParams
+            );
+
+            $notifications = array_map([$this, 'normalizeNotification'], $notifications);
 
             Response::success($notifications, [
                 'pagination' => [
@@ -89,11 +134,7 @@ class NotificationsController
                 return;
             }
 
-            // Parse JSON data field
-            if (is_string($notification['data'])) {
-                $notification['data'] = json_decode($notification['data'], true) ?? [];
-            }
-            $notification['is_read'] = !is_null($notification['read_at']);
+            $notification = $this->normalizeNotification($notification);
 
             Response::success([
                 'notification' => $notification,
@@ -134,32 +175,13 @@ class NotificationsController
         $deviceId = trim($data['device_id']);
 
         try {
-            $db = Database::getInstance();
+            $tokenId = FcmToken::upsert($userId, $deviceId, $token);
 
-            // Check if token already exists for this user/device
-            $checkSql = "SELECT id FROM fcm_tokens WHERE user_id = ? AND device_id = ? LIMIT 1";
-            $existing = $db->query($checkSql, [$userId, $deviceId]);
-
-            if (!empty($existing)) {
-                // Update existing token
-                $updateSql = "UPDATE fcm_tokens SET token = ?, updated_at = NOW() WHERE user_id = ? AND device_id = ?";
-                $db->execute($updateSql, [$token, $userId, $deviceId]);
-
-                Logger::info('FCM token updated', [
-                    'user_id' => $userId,
-                    'device_id' => $deviceId,
-                ], $request->requestId);
-
-            } else {
-                // Insert new token
-                $insertSql = "INSERT INTO fcm_tokens (user_id, token, device_id, created_at) VALUES (?, ?, ?, NOW())";
-                $db->execute($insertSql, [$userId, $token, $deviceId]);
-
-                Logger::info('FCM token saved', [
-                    'user_id' => $userId,
-                    'device_id' => $deviceId,
-                ], $request->requestId);
-            }
+            Logger::info('FCM token saved', [
+                'token_id' => $tokenId,
+                'user_id' => $userId,
+                'device_id' => $deviceId,
+            ], $request->requestId);
 
             Response::success([
                 'message' => 'FCM token saved successfully',
@@ -316,5 +338,71 @@ class NotificationsController
 
             Response::serverError('Failed to retrieve unread count', $request->requestId);
         }
+    }
+
+    public function getPreferences(Request $request): void
+    {
+        $userId = (int)$request->user['id'];
+
+        try {
+            Response::success([
+                'preferences' => NotificationPreference::getByUser($userId),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to get notification preferences', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to retrieve notification preferences', $request->requestId);
+        }
+    }
+
+    public function updatePreferences(Request $request): void
+    {
+        $userId = (int)$request->user['id'];
+        $data = $request->all();
+
+        $errors = Validator::make($data, [
+            'push_enabled' => 'required|boolean',
+        ]);
+
+        if (!empty($errors)) {
+            Response::validationError($errors, $request->requestId);
+            return;
+        }
+
+        try {
+            $preferences = NotificationPreference::saveForUser(
+                $userId,
+                filter_var($data['push_enabled'], FILTER_VALIDATE_BOOLEAN)
+            );
+
+            Response::success([
+                'preferences' => $preferences,
+                'message' => 'Notification preferences updated',
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to update notification preferences', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to update notification preferences', $request->requestId);
+        }
+    }
+
+    private function normalizeNotification(array $notification): array
+    {
+        if (isset($notification['data']) && is_string($notification['data'])) {
+            $notification['data'] = json_decode($notification['data'], true) ?? [];
+        }
+
+        if (!isset($notification['data']) || !is_array($notification['data'])) {
+            $notification['data'] = [];
+        }
+
+        $notification['is_read'] = !is_null($notification['read_at'] ?? null);
+        return $notification;
     }
 }

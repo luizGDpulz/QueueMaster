@@ -37,7 +37,7 @@
         >
           <q-tab name="info" icon="info" label="Informações" no-caps />
           <q-tab name="services" icon="build" label="Serviços" no-caps />
-          <q-tab name="professionals" icon="badge" label="Profissionais" no-caps />
+          <q-tab v-if="showProfessionalsTab" name="professionals" icon="badge" label="Profissionais" no-caps />
         </q-tabs>
 
         <q-separator style="margin-top: 10px;" />
@@ -142,7 +142,7 @@
                 v-for="service in services"
                 :key="service.id"
                 class="list-item clickable"
-                @click="$router.push(`/app/establishments/${$route.params.id}/services/${service.id}`)"
+                @click="canManage ? $router.push(`/app/establishments/${$route.params.id}/services/${service.id}`) : null"
               >
                 <div class="list-item-info">
                   <div class="list-item-avatar">
@@ -157,7 +157,7 @@
                   </div>
                 </div>
                 <div class="list-item-side">
-                  <q-icon name="chevron_right" class="chevron" />
+                  <q-icon v-if="canManage" name="chevron_right" class="chevron" />
                 </div>
               </div>
             </div>
@@ -255,6 +255,7 @@ export default defineComponent({
     const originalEstablishment = ref(null)
     const services = ref([])
     const professionals = ref([])
+    const isDiscoverMode = ref(false)
     const loading = ref(true)
     const loadingServices = ref(false)
     const loadingProfessionals = ref(false)
@@ -267,7 +268,8 @@ export default defineComponent({
 
     const editForm = ref({ name: '', slug: '', description: '', address: '', phone: '', email: '', opens_at: '', closes_at: '', timezone: '' })
 
-    const canManage = computed(() => ['admin', 'manager'].includes(userRole.value))
+    const canManage = computed(() => !isDiscoverMode.value && ['admin', 'manager'].includes(userRole.value))
+    const showProfessionalsTab = computed(() => !isDiscoverMode.value)
     const hasChanges = computed(() => {
       if (loading.value || originalEstablishment.value === null) {
         return false
@@ -296,17 +298,18 @@ export default defineComponent({
     const fetchEstablishment = async () => {
       loading.value = true
       try {
-        const response = await api.get('/establishments')
-        const list = response.data?.data?.establishments || response.data?.data || []
-        const found = list.find(e => e.id == route.params.id) || null
-        if (!found) {
-          $q.notify({ type: 'negative', message: 'Estabelecimento não encontrado' })
-          goBack()
+        const response = await api.get(`/establishments/${route.params.id}`)
+        const found = response.data?.data?.establishment || null
+        if (found) {
+          establishment.value = found
+          setFormData(found)
+          isDiscoverMode.value = false
+        }
+      } catch (err) {
+        if (err.response?.status === 403) {
+          await fetchDiscoverEstablishment()
           return
         }
-        establishment.value = found
-        setFormData(found)
-      } catch (err) {
         console.error('Erro:', err)
         $q.notify({ type: 'negative', message: 'Erro ao carregar' })
         goBack()
@@ -315,7 +318,28 @@ export default defineComponent({
       }
     }
 
+    const fetchDiscoverEstablishment = async () => {
+      try {
+        const response = await api.get(`/establishments/${route.params.id}/discover`)
+        if (response.data?.success) {
+          establishment.value = response.data.data?.establishment || null
+          services.value = response.data.data?.services || []
+          professionals.value = []
+          setFormData(establishment.value)
+          isDiscoverMode.value = true
+          if (activeTab.value === 'professionals') {
+            activeTab.value = 'services'
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar descoberta do estabelecimento:', err)
+        $q.notify({ type: 'negative', message: 'Estabelecimento não encontrado' })
+        goBack()
+      }
+    }
+
     const fetchServices = async () => {
+      if (isDiscoverMode.value) return
       loadingServices.value = true
       try {
         const response = await api.get(`/establishments/${route.params.id}/services`)
@@ -330,6 +354,7 @@ export default defineComponent({
     }
 
     const fetchProfessionals = async () => {
+      if (isDiscoverMode.value) return
       loadingProfessionals.value = true
       try {
         const response = await api.get(`/establishments/${route.params.id}/professionals`)
@@ -397,7 +422,7 @@ export default defineComponent({
     return {
       establishment, services, professionals,
       loading, loadingServices, loadingProfessionals, saving, deleting,
-      canManage, hasChanges, activeTab,
+      canManage, hasChanges, activeTab, showProfessionalsTab,
       showDeleteConfirm, editForm,
       goBack, saveEstablishment, deleteEstablishment, cancelChanges,
       formatDate

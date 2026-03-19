@@ -250,7 +250,8 @@
                   v-for="slot in availableSlots"
                   :key="slot.start"
                   :outline="form.start_at !== slot.start"
-                  :color="form.start_at === slot.start ? 'primary' : 'grey-7'"
+                  :color="form.start_at === slot.start ? 'primary' : undefined"
+                  :class="{ 'slot-btn--idle': form.start_at !== slot.start }"
                   :label="formatSlotTime(slot.start)"
                   dense
                   no-caps
@@ -261,7 +262,7 @@
               </div>
             </div>
             <div v-else-if="slotDate && !loadingSlots && slotsSearched" class="slots-empty">
-              <q-icon name="event_busy" size="20px" color="grey-6" />
+              <q-icon name="event_busy" size="20px" class="slots-empty__icon" />
               <span>Nenhum horário disponível nesta data</span>
             </div>
             <q-input
@@ -1088,6 +1089,12 @@ export default defineComponent({
   min-width: 64px;
 }
 
+.slot-btn--idle {
+  background: var(--qm-bg-tertiary);
+  color: var(--qm-text-secondary);
+  border: 1px solid var(--qm-border);
+}
+
 .slots-empty {
   grid-column: 1 / -1;
   display: flex;
@@ -1096,5 +1103,9 @@ export default defineComponent({
   color: var(--qm-text-muted);
   font-size: 0.8125rem;
   padding: 0.25rem 0;
+}
+
+.slots-empty__icon {
+  color: var(--qm-text-muted);
 }
 </style>

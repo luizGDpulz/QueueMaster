@@ -207,6 +207,11 @@ class ContextAccessService
         return $this->isStaff($user);
     }
 
+    public function canViewGeneralReports(array $user): bool
+    {
+        return $this->isStaff($user) || $this->isClient($user);
+    }
+
     public function getAccessibleBusinessIds(array $user): array
     {
         return array_map(

@@ -1,39 +1,34 @@
 -- 0001_schema_up.sql
--- QueueMaster Database Schema (unified)
--- Hybrid Queue + Scheduling system with Google OAuth authentication
--- 
+-- QueueMaster unified database schema
 -- Run with: php scripts/migrate.php up
 
 SET FOREIGN_KEY_CHECKS=0;
-CREATE DATABASE IF NOT EXISTS `queue_master` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE DATABASE IF NOT EXISTS `queue_master`
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
 USE `queue_master`;
 SET FOREIGN_KEY_CHECKS=1;
 
--- ============================================================================
--- USERS (Google OAuth only - no password)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
   email VARCHAR(150) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NULL COMMENT 'Optional local password hash for admin/manual users',
   google_id VARCHAR(255) NULL UNIQUE COMMENT 'Google OAuth sub (unique ID)',
   avatar_url VARCHAR(500) NULL COMMENT 'Google profile picture URL',
   avatar_base64 MEDIUMTEXT NULL COMMENT 'Avatar image stored as base64 data URI',
-  email_verified BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Email verified by Google',
+  email_verified BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Email verified by provider',
   phone VARCHAR(20) NULL COMMENT 'Contact phone number',
   role ENUM('client','attendant','professional','manager','admin') NOT NULL DEFAULT 'client',
   is_active BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Account active status',
   last_login_at TIMESTAMP NULL COMMENT 'Last successful login',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_users_email (email),
   INDEX idx_users_google_id (google_id),
   INDEX idx_users_role (role)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- BUSINESSES (Brand / Company)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS businesses (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   owner_user_id BIGINT UNSIGNED NOT NULL COMMENT 'User who owns this business',
@@ -42,29 +37,30 @@ CREATE TABLE IF NOT EXISTS businesses (
   description TEXT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_businesses_owner_user
+    FOREIGN KEY (owner_user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   INDEX idx_businesses_owner (owner_user_id),
   INDEX idx_businesses_slug (slug)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- BUSINESS_USERS (link business <-> users with roles)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS business_users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   business_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
-  role ENUM('owner','manager') NOT NULL DEFAULT 'manager',
+  role ENUM('owner','manager','professional') NOT NULL DEFAULT 'manager',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  UNIQUE KEY idx_business_user (business_id, user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  CONSTRAINT fk_business_users_business
+    FOREIGN KEY (business_id) REFERENCES businesses(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_business_users_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uq_business_user (business_id, user_id),
+  INDEX idx_business_users_role (business_id, role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- ESTABLISHMENTS
--- ============================================================================
 CREATE TABLE IF NOT EXISTS establishments (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   owner_id BIGINT UNSIGNED NULL COMMENT 'User who owns/manages this establishment',
@@ -81,36 +77,38 @@ CREATE TABLE IF NOT EXISTS establishments (
   opens_at TIME NULL COMMENT 'Default opening time',
   closes_at TIME NULL COMMENT 'Default closing time',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
-  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_establishments_owner
+    FOREIGN KEY (owner_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_establishments_business
+    FOREIGN KEY (business_id) REFERENCES businesses(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_establishments_owner (owner_id),
   INDEX idx_establishments_slug (slug),
   INDEX idx_establishments_business (business_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- SERVICES
--- ============================================================================
 CREATE TABLE IF NOT EXISTS services (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   establishment_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(150) NOT NULL,
   description TEXT NULL,
+  icon VARCHAR(100) NULL,
+  image_url VARCHAR(500) NULL,
   duration_minutes INT NOT NULL DEFAULT 30,
   price DECIMAL(10,2) NULL COMMENT 'Service price (optional)',
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   sort_order INT NOT NULL DEFAULT 0 COMMENT 'Display order',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (establishment_id) REFERENCES establishments(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_services_establishment
+    FOREIGN KEY (establishment_id) REFERENCES establishments(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   INDEX idx_services_establishment (establishment_id),
   INDEX idx_services_active (establishment_id, is_active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- PROFESSIONALS
--- ============================================================================
 CREATE TABLE IF NOT EXISTS professionals (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   establishment_id BIGINT UNSIGNED NOT NULL,
@@ -122,48 +120,49 @@ CREATE TABLE IF NOT EXISTS professionals (
   specialty VARCHAR(150) NULL COMMENT 'Professional specialty/role',
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (establishment_id) REFERENCES establishments(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_professionals_establishment
+    FOREIGN KEY (establishment_id) REFERENCES establishments(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_professionals_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_professionals_establishment (establishment_id),
   INDEX idx_professionals_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- PROFESSIONAL_SERVICES (many-to-many)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS professional_services (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   professional_id BIGINT UNSIGNED NOT NULL,
   service_id BIGINT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  UNIQUE KEY idx_professional_service (professional_id, service_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  CONSTRAINT fk_professional_services_professional
+    FOREIGN KEY (professional_id) REFERENCES professionals(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_professional_services_service
+    FOREIGN KEY (service_id) REFERENCES services(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uq_professional_service (professional_id, service_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- PROFESSIONAL_ESTABLISHMENTS (N:N pivot)
--- A professional user can be linked to many establishments.
--- An establishment can have many professional users.
--- ============================================================================
 CREATE TABLE IF NOT EXISTS professional_establishments (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  user_id BIGINT UNSIGNED NOT NULL COMMENT 'The professional user',
-  establishment_id BIGINT UNSIGNED NOT NULL COMMENT 'The establishment they work at',
+  user_id BIGINT UNSIGNED NOT NULL COMMENT 'Professional user',
+  establishment_id BIGINT UNSIGNED NOT NULL COMMENT 'Establishment they work at',
   is_active BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Active link',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (establishment_id) REFERENCES establishments(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  UNIQUE KEY idx_prof_estab (user_id, establishment_id),
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_professional_establishments_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_professional_establishments_establishment
+    FOREIGN KEY (establishment_id) REFERENCES establishments(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uq_professional_establishment (user_id, establishment_id),
   INDEX idx_pe_establishment (establishment_id),
   INDEX idx_pe_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- QUEUES
--- ============================================================================
 CREATE TABLE IF NOT EXISTS queues (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   establishment_id BIGINT UNSIGNED NOT NULL,
@@ -171,61 +170,102 @@ CREATE TABLE IF NOT EXISTS queues (
   name VARCHAR(150) NOT NULL,
   description TEXT NULL,
   status ENUM('open','closed','paused') NOT NULL DEFAULT 'open',
-  max_capacity INT NULL COMMENT 'Maximum entries allowed (null = unlimited)',
+  max_capacity INT NULL COMMENT 'Maximum entries allowed (NULL = unlimited)',
   avg_wait_minutes INT NULL COMMENT 'Average wait time in minutes',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (establishment_id) REFERENCES establishments(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_queues_establishment
+    FOREIGN KEY (establishment_id) REFERENCES establishments(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_queues_service
+    FOREIGN KEY (service_id) REFERENCES services(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_queues_establishment (establishment_id),
   INDEX idx_queues_status (establishment_id, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- QUEUE ENTRIES (walk-in)
--- ============================================================================
+CREATE TABLE IF NOT EXISTS queue_professionals (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  queue_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_queue_professionals_queue
+    FOREIGN KEY (queue_id) REFERENCES queues(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_queue_professionals_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uq_queue_professional (queue_id, user_id),
+  INDEX idx_queue_professionals_active (queue_id, is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS queue_entries (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   queue_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NULL COMMENT 'Registered user (null = anonymous)',
+  user_id BIGINT UNSIGNED NULL COMMENT 'Registered user (NULL = anonymous)',
   guest_name VARCHAR(150) NULL COMMENT 'Name for anonymous entries',
   guest_phone VARCHAR(20) NULL COMMENT 'Phone for anonymous entries',
   position INT NOT NULL,
-  ticket_number VARCHAR(20) NULL COMMENT 'Display ticket (e.g., A001)',
+  ticket_number VARCHAR(20) NULL COMMENT 'Display ticket (example: A001)',
   status ENUM('waiting','called','serving','done','no_show','cancelled') NOT NULL DEFAULT 'waiting',
   priority INT NOT NULL DEFAULT 0 COMMENT 'Higher = more priority',
   notes TEXT NULL COMMENT 'Special notes/requests',
+  professional_id BIGINT UNSIGNED NULL COMMENT 'Professional user currently serving the entry',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   called_at TIMESTAMP NULL DEFAULT NULL,
   served_at TIMESTAMP NULL DEFAULT NULL,
   completed_at TIMESTAMP NULL DEFAULT NULL,
-  FOREIGN KEY (queue_id) REFERENCES queues(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_queue_entries_queue
+    FOREIGN KEY (queue_id) REFERENCES queues(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_queue_entries_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_queue_entries_professional
+    FOREIGN KEY (professional_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_queue_entries_queue_status (queue_id, status, position),
   INDEX idx_queue_entries_user (user_id),
-  INDEX idx_queue_entries_created (queue_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  INDEX idx_queue_entries_created (queue_id, created_at),
+  INDEX idx_qe_queue_created_status (queue_id, created_at, status),
+  INDEX idx_qe_queue_completed (queue_id, completed_at),
+  INDEX idx_qe_professional_completed (professional_id, completed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- QUEUE ACCESS CODES (join by code / QR)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS queue_access_codes (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   queue_id BIGINT UNSIGNED NOT NULL,
   code VARCHAR(50) NOT NULL UNIQUE COMMENT 'Unique join code',
-  expires_at DATETIME NULL COMMENT 'Expiration time (null = never)',
-  max_uses INT NULL COMMENT 'Maximum uses (null = unlimited)',
+  expires_at DATETIME NULL COMMENT 'Expiration time (NULL = never)',
+  max_uses INT NULL COMMENT 'Maximum uses (NULL = unlimited)',
   uses INT NOT NULL DEFAULT 0 COMMENT 'Current use count',
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (queue_id) REFERENCES queues(id) ON DELETE CASCADE,
+  CONSTRAINT fk_queue_access_codes_queue
+    FOREIGN KEY (queue_id) REFERENCES queues(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   INDEX idx_queue_access_codes_queue (queue_id),
   INDEX idx_queue_access_codes_code (code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- APPOINTMENTS (scheduled bookings)
--- ============================================================================
+CREATE TABLE IF NOT EXISTS queue_services (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  queue_id BIGINT UNSIGNED NOT NULL,
+  service_id BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_queue_services_queue
+    FOREIGN KEY (queue_id) REFERENCES queues(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_queue_services_service
+    FOREIGN KEY (service_id) REFERENCES services(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uq_queue_service (queue_id, service_id),
+  INDEX idx_qs_queue (queue_id),
+  INDEX idx_qs_service (service_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS appointments (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   establishment_id BIGINT UNSIGNED NOT NULL,
@@ -238,26 +278,31 @@ CREATE TABLE IF NOT EXISTS appointments (
   notes TEXT NULL COMMENT 'Appointment notes',
   cancellation_reason TEXT NULL COMMENT 'Reason if cancelled',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   confirmed_at TIMESTAMP NULL COMMENT 'When user confirmed',
   checkin_at TIMESTAMP NULL DEFAULT NULL,
-  FOREIGN KEY (establishment_id) REFERENCES establishments(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_appointments_establishment
+    FOREIGN KEY (establishment_id) REFERENCES establishments(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_appointments_professional
+    FOREIGN KEY (professional_id) REFERENCES professionals(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_appointments_service
+    FOREIGN KEY (service_id) REFERENCES services(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_appointments_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   INDEX idx_appointments_start (start_at),
   INDEX idx_appointments_professional (professional_id, start_at),
   INDEX idx_appointments_user (user_id, start_at),
   INDEX idx_appointments_establishment (establishment_id, start_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- NOTIFICATIONS
--- ============================================================================
 CREATE TABLE IF NOT EXISTS notifications (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT UNSIGNED NULL,
-  type VARCHAR(50) NULL COMMENT 'Notification type (queue_called, appointment_reminder, etc)',
+  type VARCHAR(50) NULL COMMENT 'Notification type',
   title VARCHAR(255) NOT NULL,
   body TEXT NULL,
   data JSON NULL COMMENT 'Additional payload data',
@@ -265,14 +310,37 @@ CREATE TABLE IF NOT EXISTS notifications (
   read_at TIMESTAMP NULL DEFAULT NULL,
   sent_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_notifications_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_notifications_user (user_id, read_at),
   INDEX idx_notifications_type (type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- REFRESH TOKENS (JWT rotation)
--- ============================================================================
+CREATE TABLE IF NOT EXISTS fcm_tokens (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  token VARCHAR(255) NOT NULL,
+  device_id VARCHAR(191) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_fcm_tokens_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uq_fcm_user_device (user_id, device_id),
+  INDEX idx_fcm_token_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS notification_preferences (
+  user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  push_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_notification_preferences_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS refresh_tokens (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT UNSIGNED NOT NULL,
@@ -282,58 +350,40 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   expires_at DATETIME NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   revoked_at TIMESTAMP NULL DEFAULT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_refresh_tokens_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   INDEX idx_refresh_tokens_user (user_id),
   INDEX idx_refresh_tokens_expires (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- IDEMPOTENCY KEYS (request deduplication)
--- ============================================================================
-CREATE TABLE IF NOT EXISTS idempotency_keys (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  key_hash VARCHAR(255) NOT NULL UNIQUE,
-  request_method VARCHAR(10) NOT NULL,
-  request_path VARCHAR(255) NOT NULL,
-  response_body TEXT NULL,
-  status_code INT NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at DATETIME NOT NULL,
-  INDEX idx_idempotency_expires (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- ============================================================================
--- ESTABLISHMENT_USERS (staff/team members)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS establishment_users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   establishment_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
   role ENUM('owner','manager','professional') NOT NULL DEFAULT 'professional',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (establishment_id) REFERENCES establishments(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  UNIQUE KEY idx_establishment_user (establishment_id, user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  CONSTRAINT fk_establishment_users_establishment
+    FOREIGN KEY (establishment_id) REFERENCES establishments(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_establishment_users_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uq_establishment_user (establishment_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- PLANS (SaaS plan definitions)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS plans (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
-  max_businesses INT NULL COMMENT 'Max businesses per owner (null = unlimited)',
-  max_establishments_per_business INT NULL COMMENT 'Max establishments per business (null = unlimited)',
-  max_managers INT NULL COMMENT 'Max managers per business (null = unlimited)',
-  max_professionals_per_establishment INT NULL COMMENT 'Max professionals per establishment (null = unlimited)',
+  max_businesses INT NULL COMMENT 'Max businesses per owner (NULL = unlimited)',
+  max_establishments_per_business INT NULL COMMENT 'Max establishments per business (NULL = unlimited)',
+  max_managers INT NULL COMMENT 'Max managers per business (NULL = unlimited)',
+  max_professionals_per_establishment INT NULL COMMENT 'Max professionals per establishment (NULL = unlimited)',
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- BUSINESS SUBSCRIPTIONS
--- ============================================================================
 CREATE TABLE IF NOT EXISTS business_subscriptions (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   business_id BIGINT UNSIGNED NOT NULL,
@@ -342,67 +392,82 @@ CREATE TABLE IF NOT EXISTS business_subscriptions (
   starts_at DATETIME NOT NULL,
   ends_at DATETIME NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
-  FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE RESTRICT,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_business_subscriptions_business
+    FOREIGN KEY (business_id) REFERENCES businesses(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_business_subscriptions_plan
+    FOREIGN KEY (plan_id) REFERENCES plans(id)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
   INDEX idx_business_subscriptions_business (business_id),
   INDEX idx_business_subscriptions_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- AUDIT LOGS
--- ============================================================================
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT UNSIGNED NULL,
-  action VARCHAR(100) NOT NULL COMMENT 'Action performed (e.g. create, update, delete)',
-  entity VARCHAR(100) NULL COMMENT 'Entity type (e.g. business, establishment)',
-  entity_id VARCHAR(100) NULL COMMENT 'Entity ID',
+  action VARCHAR(100) NOT NULL COMMENT 'Action performed',
+  entity VARCHAR(100) NULL COMMENT 'Entity type',
+  entity_id VARCHAR(100) NULL COMMENT 'Entity identifier',
   establishment_id BIGINT UNSIGNED NULL COMMENT 'Related establishment for filtering',
   business_id BIGINT UNSIGNED NULL COMMENT 'Related business for filtering',
   payload JSON NULL COMMENT 'Additional action data',
   ip VARCHAR(45) NULL COMMENT 'Client IP address',
   user_agent VARCHAR(500) NULL COMMENT 'Client User-Agent string',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_audit_logs_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_audit_logs_user (user_id),
   INDEX idx_audit_logs_entity (entity, entity_id),
   INDEX idx_audit_logs_establishment (establishment_id),
   INDEX idx_audit_logs_business (business_id),
   INDEX idx_audit_logs_action (action),
   INDEX idx_audit_logs_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- BUSINESS INVITATIONS
--- Handles both directions:
---   - Manager invites a professional to join → direction = 'business_to_professional'
---   - Professional requests to join → direction = 'professional_to_business'
--- ============================================================================
 CREATE TABLE IF NOT EXISTS business_invitations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   business_id BIGINT UNSIGNED NOT NULL COMMENT 'The business involved',
+  establishment_id BIGINT UNSIGNED NULL COMMENT 'Optional establishment scope',
   from_user_id BIGINT UNSIGNED NOT NULL COMMENT 'User who initiated the invitation/request',
   to_user_id BIGINT UNSIGNED NOT NULL COMMENT 'User who receives the invitation/request',
   direction ENUM('business_to_professional','professional_to_business') NOT NULL COMMENT 'Who initiated',
+  role VARCHAR(50) NULL DEFAULT 'professional' COMMENT 'Requested role for the target user',
   status ENUM('pending','accepted','rejected','cancelled') NOT NULL DEFAULT 'pending',
   message TEXT NULL COMMENT 'Optional message with the invitation',
   responded_at TIMESTAMP NULL COMMENT 'When the recipient responded',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_business_invitations_business
+    FOREIGN KEY (business_id) REFERENCES businesses(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_business_invitations_establishment
+    FOREIGN KEY (establishment_id) REFERENCES establishments(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_business_invitations_from_user
+    FOREIGN KEY (from_user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_business_invitations_to_user
+    FOREIGN KEY (to_user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   INDEX idx_bi_business (business_id),
+  INDEX idx_bi_establishment (establishment_id),
   INDEX idx_bi_from (from_user_id),
   INDEX idx_bi_to (to_user_id),
-  INDEX idx_bi_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  INDEX idx_bi_status (status),
+  INDEX idx_bi_business_status (business_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- DEFAULT PLANS (production data)
--- ============================================================================
-INSERT INTO plans (name, max_businesses, max_establishments_per_business, max_managers, max_professionals_per_establishment) VALUES
+INSERT INTO plans (
+  name,
+  max_businesses,
+  max_establishments_per_business,
+  max_managers,
+  max_professionals_per_establishment
+) VALUES
   ('Free', 1, 1, 2, 5),
   ('Basic', 3, 5, 10, 20),
-  ('Premium', NULL, NULL, NULL, NULL);
+  ('Premium', NULL, NULL, NULL, NULL)
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name);

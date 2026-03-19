@@ -36,13 +36,11 @@ const routes = [
       {
         path: 'businesses',
         name: 'businesses',
-        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/businesses/BusinessesPage.vue')
       },
       {
         path: 'businesses/:id',
         name: 'business-detail',
-        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/businesses/BusinessDetailPage.vue')
       },
       {
@@ -58,7 +56,7 @@ const routes = [
       {
         path: 'reports',
         name: 'queue-reports',
-        meta: { roles: ['professional', 'manager', 'admin'] },
+        meta: { roles: ['client', 'professional', 'manager', 'admin'] },
         component: () => import('pages/reports/QueueReportsPage.vue')
       },
       {
@@ -74,13 +72,11 @@ const routes = [
       {
         path: 'establishments',
         name: 'establishments',
-        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/establishments/EstablishmentsPage.vue')
       },
       {
         path: 'establishments/:id',
         name: 'establishment-detail',
-        meta: { roles: ['professional', 'manager', 'admin'] },
         component: () => import('pages/establishments/EstablishmentDetailPage.vue')
       },
       {

@@ -227,12 +227,19 @@ class AuditLog
         $bindings = [];
 
         foreach ($conditions as $column => $value) {
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column)) {
+                throw new \InvalidArgumentException('Unsafe audit log filter column');
+            }
             $where[] = "$column = ?";
             $bindings[] = $value;
         }
 
         $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $orderBy)) {
+            $orderBy = 'created_at';
+        }
         $direction = strtoupper($direction) === 'DESC' ? 'DESC' : 'ASC';
+        $limit = $limit !== null ? max(1, $limit) : null;
 
         $sql = "SELECT * FROM " . self::$table . " $whereClause ORDER BY $orderBy $direction";
 

@@ -54,6 +54,82 @@ class EstablishmentController
     }
 
     /**
+     * GET /api/v1/establishments/search
+     *
+     * Search active establishments for discovery.
+     */
+    public function search(Request $request): void
+    {
+        try {
+            $query = trim((string)$request->getQuery('q', ''));
+            $limit = min(max((int)$request->getQuery('limit', 20), 1), 50);
+
+            $params = [];
+            $searchSql = '';
+            if ($query !== '') {
+                $searchSql = ' AND (e.name LIKE ? OR e.address LIKE ? OR b.name LIKE ?)';
+                $like = '%' . $query . '%';
+                $params = [$like, $like, $like];
+            }
+
+            $db = Database::getInstance();
+            $establishments = $db->query(
+                "
+                SELECT
+                    e.id,
+                    e.business_id,
+                    e.name,
+                    e.slug,
+                    e.description,
+                    e.address,
+                    e.phone,
+                    e.email,
+                    e.timezone,
+                    e.opens_at,
+                    e.closes_at,
+                    e.is_active,
+                    b.name AS business_name
+                FROM establishments e
+                INNER JOIN businesses b ON b.id = e.business_id
+                WHERE e.is_active = 1
+                  AND b.is_active = 1
+                  $searchSql
+                ORDER BY b.name ASC, e.name ASC
+                LIMIT $limit
+                ",
+                $params
+            );
+
+            Response::success([
+                'establishments' => array_map(static function (array $establishment): array {
+                    return [
+                        'id' => (int)$establishment['id'],
+                        'business_id' => (int)$establishment['business_id'],
+                        'business_name' => $establishment['business_name'] ?? null,
+                        'name' => $establishment['name'],
+                        'slug' => $establishment['slug'] ?? null,
+                        'description' => $establishment['description'] ?? null,
+                        'address' => $establishment['address'] ?? null,
+                        'phone' => $establishment['phone'] ?? null,
+                        'email' => $establishment['email'] ?? null,
+                        'timezone' => $establishment['timezone'] ?? 'America/Sao_Paulo',
+                        'opens_at' => $establishment['opens_at'] ?? null,
+                        'closes_at' => $establishment['closes_at'] ?? null,
+                        'is_active' => (bool)($establishment['is_active'] ?? false),
+                    ];
+                }, $establishments),
+                'total' => count($establishments),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to search establishments', [
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to search establishments', $request->requestId);
+        }
+    }
+
+    /**
      * GET /api/v1/establishments/:id
      * 
      * Get single establishment by ID
@@ -85,6 +161,84 @@ class EstablishmentController
         }
         catch (\Exception $e) {
             Logger::error('Failed to get establishment', [
+                'establishment_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to retrieve establishment', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/establishments/:id/discover
+     *
+     * Public authenticated read-only establishment detail.
+     */
+    public function discover(Request $request, int $id): void
+    {
+        try {
+            $establishment = Establishment::find($id);
+
+            if (!$establishment || !($establishment['is_active'] ?? false)) {
+                Response::notFound('Establishment not found', $request->requestId);
+                return;
+            }
+
+            $business = \QueueMaster\Models\Business::find((int)$establishment['business_id']);
+            if (!$business || !($business['is_active'] ?? false)) {
+                Response::notFound('Establishment not found', $request->requestId);
+                return;
+            }
+
+            $accessibleEstablishmentIds = $this->accessService->getAccessibleEstablishmentIds($request->user);
+            $services = array_values(array_filter(
+                Service::getActiveByEstablishment($id),
+                static fn(array $service): bool => (bool)($service['is_active'] ?? false)
+            ));
+            $queues = array_values(array_filter(
+                \QueueMaster\Models\Queue::getByEstablishment($id),
+                static fn(array $queue): bool => in_array(($queue['status'] ?? 'closed'), ['open', 'paused', 'closed'], true)
+            ));
+
+            Response::success([
+                'establishment' => [
+                    'id' => (int)$establishment['id'],
+                    'business_id' => (int)$establishment['business_id'],
+                    'business_name' => $business['name'] ?? null,
+                    'name' => $establishment['name'],
+                    'slug' => $establishment['slug'] ?? null,
+                    'description' => $establishment['description'] ?? null,
+                    'address' => $establishment['address'] ?? null,
+                    'phone' => $establishment['phone'] ?? null,
+                    'email' => $establishment['email'] ?? null,
+                    'timezone' => $establishment['timezone'] ?? 'America/Sao_Paulo',
+                    'opens_at' => $establishment['opens_at'] ?? null,
+                    'closes_at' => $establishment['closes_at'] ?? null,
+                    'is_active' => (bool)($establishment['is_active'] ?? false),
+                    'is_linked' => in_array($id, $accessibleEstablishmentIds, true),
+                ],
+                'services' => array_map(static function (array $service): array {
+                    return [
+                        'id' => (int)$service['id'],
+                        'name' => $service['name'],
+                        'description' => $service['description'] ?? null,
+                        'duration_minutes' => (int)($service['duration_minutes'] ?? 0),
+                        'price' => $service['price'] ?? null,
+                    ];
+                }, $services),
+                'queues' => array_map(static function (array $queue): array {
+                    return [
+                        'id' => (int)$queue['id'],
+                        'service_id' => !empty($queue['service_id']) ? (int)$queue['service_id'] : null,
+                        'name' => $queue['name'],
+                        'description' => $queue['description'] ?? null,
+                        'status' => $queue['status'] ?? 'closed',
+                        'max_capacity' => !empty($queue['max_capacity']) ? (int)$queue['max_capacity'] : null,
+                    ];
+                }, $queues),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to discover establishment', [
                 'establishment_id' => $id,
                 'error' => $e->getMessage(),
             ], $request->requestId);

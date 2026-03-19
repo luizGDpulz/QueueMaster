@@ -7,17 +7,61 @@ use QueueMaster\Core\Response;
 use QueueMaster\Models\Queue;
 use QueueMaster\Services\ContextAccessService;
 use QueueMaster\Services\QueueReportsService;
+use QueueMaster\Services\ReportsService;
 use QueueMaster\Utils\Logger;
 
 class ReportsController
 {
     private ContextAccessService $accessService;
     private QueueReportsService $reportsService;
+    private ReportsService $generalReportsService;
 
     public function __construct()
     {
         $this->accessService = new ContextAccessService();
         $this->reportsService = new QueueReportsService($this->accessService);
+        $this->generalReportsService = new ReportsService($this->accessService);
+    }
+
+    public function reports(Request $request): void
+    {
+        try {
+            if (!$this->accessService->canViewGeneralReports($request->user)) {
+                Response::forbidden('Voce nao tem acesso aos relatorios', $request->requestId);
+                return;
+            }
+
+            $payload = $this->generalReportsService->build($request->user, $request->getQuery() ?? []);
+            Response::success($payload);
+        } catch (\Exception $e) {
+            Logger::error('Failed to build general reports', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user['id'] ?? null,
+            ], $request->requestId);
+
+            Response::serverError('Failed to retrieve reports', $request->requestId);
+        }
+    }
+
+    public function reportFilters(Request $request): void
+    {
+        try {
+            if (!$this->accessService->canViewGeneralReports($request->user)) {
+                Response::forbidden('Voce nao tem acesso aos relatorios', $request->requestId);
+                return;
+            }
+
+            Response::success([
+                'filters' => $this->generalReportsService->getFilterMetadata($request->user),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to load general report filters', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user['id'] ?? null,
+            ], $request->requestId);
+
+            Response::serverError('Failed to retrieve report filters', $request->requestId);
+        }
     }
 
     public function queueReports(Request $request): void

@@ -239,27 +239,6 @@ class InvitationsController
                 'message' => $data['message'] ?? null,
             ]);
 
-            foreach (array_unique($managerRecipients) as $recipientId) {
-                Notification::create([
-                    'user_id' => (int)$recipientId,
-                    'type' => 'join_request',
-                    'title' => 'Nova solicitação profissional',
-                    'body' => $this->buildInvitationBody($request->user['name'] ?? 'Um usuário', $business['name'] ?? 'o negócio', $establishment['name'] ?? null, false),
-                    'data' => [
-                        'invitation_id' => $invitationId,
-                        'business_id' => $businessId,
-                        'business_name' => $business['name'] ?? null,
-                        'establishment_id' => (int)$establishment['id'],
-                        'establishment_name' => $establishment['name'] ?? null,
-                        'requester_id' => $actorId,
-                        'requester_name' => $request->user['name'] ?? null,
-                        'deep_link' => '/app/businesses/' . $businessId . '?tab=professionals&view=invitations',
-                    ],
-                    'channel' => 'in_app',
-                    'sent_at' => date('Y-m-d H:i:s'),
-                ]);
-            }
-
             AuditService::logFromRequest($request, 'request_professional_link', 'business', (string)$businessId, (int)$establishment['id'], $businessId, [
                 'requester_user_id' => $actorId,
                 'establishment_id' => (int)$establishment['id'],

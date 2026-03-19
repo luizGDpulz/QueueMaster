@@ -222,6 +222,20 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
+                // GET /api/v1/establishments/search — Search active establishments for discovery
+                $router->get('/search', function ($request) {
+                    $controller = new EstablishmentController();
+                    $controller->search($request);
+                }
+                );
+
+                // GET /api/v1/establishments/{id}/discover — Read-only discovery detail
+                $router->get('/{id}/discover', function ($request) {
+                    $controller = new EstablishmentController();
+                    $controller->discover($request, (int)$request->getParam('id'));
+                }
+                );
+
                 // GET /api/v1/establishments/{id} — Get single establishment
                 $router->get('/{id}', function ($request) {
                     $controller = new EstablishmentController();
@@ -316,6 +330,20 @@ $router->group('/api/v1', function ($router) {
             // ========================================================================
 
             $router->group('/reports', function ($router) {
+
+            // GET /api/v1/reports/filters — Metadata for unified reports filters
+            $router->get('/filters', function ($request) {
+                    $controller = new ReportsController();
+                    $controller->reportFilters($request);
+                }
+                    , [new RoleMiddleware(['client', 'professional', 'manager', 'admin'])]);
+
+                // GET /api/v1/reports — Unified reports for queues and appointments
+                $router->get('', function ($request) {
+                    $controller = new ReportsController();
+                    $controller->reports($request);
+                }
+                    , [new RoleMiddleware(['client', 'professional', 'manager', 'admin'])]);
 
             // GET /api/v1/reports/queues/filters — Metadata for queue reports filters
             $router->get('/queues/filters', function ($request) {
@@ -778,10 +806,31 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
+                // GET /api/v1/notifications/preferences — Get notification preferences
+                $router->get('/preferences', function ($request) {
+                    $controller = new NotificationsController();
+                    $controller->getPreferences($request);
+                }
+                );
+
+                // PUT /api/v1/notifications/preferences — Update notification preferences
+                $router->put('/preferences', function ($request) {
+                    $controller = new NotificationsController();
+                    $controller->updatePreferences($request);
+                }
+                );
+
                 // POST /api/v1/notifications/mark-all-read — Mark all as read
                 $router->post('/mark-all-read', function ($request) {
                     $controller = new NotificationsController();
                     $controller->markAllRead($request);
+                }
+                );
+
+                // POST /api/v1/notifications/fcm-token — Save or update device token
+                $router->post('/fcm-token', function ($request) {
+                    $controller = new NotificationsController();
+                    $controller->saveFcmToken($request);
                 }
                 );
 
@@ -826,6 +875,13 @@ $router->group('/api/v1', function ($router) {
                 $router->get('/search', function ($request) {
                     $controller = new BusinessController();
                     $controller->search($request);
+                }
+                );
+
+                // GET /api/v1/businesses/{id}/discover — Read-only discovery detail
+                $router->get('/{id}/discover', function ($request) {
+                    $controller = new BusinessController();
+                    $controller->discover($request, (int)$request->getParam('id'));
                 }
                 );
 

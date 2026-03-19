@@ -17,7 +17,9 @@
   "dependencies": {
     "@quasar/extras": "^1.16.4",
     "axios": "^1.2.1",
+    "jspdf": "^3.0.4",
     "pinia": "^3.0.1",
+    "qrcode": "^1.5.4",
     "lodash-es": "^4.17.21",
     "quasar": "^2.16.0",
     "vue": "^3.5.22",

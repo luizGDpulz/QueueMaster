@@ -33,7 +33,7 @@
         >
           <q-tab name="info" icon="info" label="Informações" no-caps />
           <q-tab name="establishments" icon="store" label="Estabelecimentos" no-caps />
-          <q-tab name="professionals" icon="badge" label="Profissionais" no-caps />
+          <q-tab v-if="showProfessionalsTab" name="professionals" icon="badge" label="Profissionais" no-caps />
         </q-tabs>
 
         <q-separator />
@@ -122,23 +122,28 @@
               </div>
               <div class="panel-header-actions" v-if="canManage">
                 <q-btn
+                  v-if="invitationView"
                   flat
-                  round
-                  dense
-                  icon="mail"
-                  class="invitation-toggle-btn"
+                  icon="arrow_back"
+                  label="Voltar para profissionais"
+                  no-caps
                   @click="toggleInvitationView"
-                >
-                  <q-badge v-if="pendingInvitationCount > 0" color="negative" floating rounded>{{ pendingInvitationCount }}</q-badge>
-                  <q-tooltip>{{ invitationView ? 'Voltar aos profissionais' : 'Ver solicitações e convites' }}</q-tooltip>
-                </q-btn>
+                />
+                <q-btn
+                  v-else
+                  flat
+                  icon="mail"
+                  :label="pendingInvitationCount > 0 ? `Solicitações (${pendingInvitationCount})` : 'Solicitações e convites'"
+                  no-caps
+                  @click="toggleInvitationView"
+                />
                 <q-btn
                   color="primary"
-                  :icon="invitationView ? 'group' : 'person_add'"
-                  :label="invitationView ? 'Profissionais' : 'Convidar por email'"
+                  icon="person_add"
+                  label="Convidar por email"
                   no-caps
                   size="sm"
-                  @click="invitationView ? toggleInvitationView() : openInviteDialog()"
+                  @click="openInviteDialog()"
                 />
               </div>
             </div>
@@ -346,6 +351,7 @@ export default defineComponent({
     const mainTab = ref(route.query.tab === 'professionals' ? 'professionals' : 'info')
     const invitationView = ref(route.query.view === 'invitations')
     const business = ref(null)
+    const isDiscoverMode = ref(false)
     const currentUserRole = ref(null)
     const establishments = ref([])
     const businessUsers = ref([])
@@ -371,7 +377,8 @@ export default defineComponent({
     const inviteAlreadyLinked = ref(false)
     const inviteSearchError = ref('')
 
-    const canManage = computed(() => ['admin', 'manager'].includes(currentUserRole.value))
+    const canManage = computed(() => !isDiscoverMode.value && ['admin', 'manager'].includes(currentUserRole.value))
+    const showProfessionalsTab = computed(() => !isDiscoverMode.value)
     const professionalMembers = computed(() => {
       return businessUsers.value
         .filter(user => (user.business_role || user.role) === 'professional')
@@ -428,8 +435,13 @@ export default defineComponent({
         const response = await api.get(`/businesses/${route.params.id}`)
         if (response.data?.success) {
           business.value = response.data.data?.business || response.data.data
+          isDiscoverMode.value = false
         }
       } catch (err) {
+        if (err.response?.status === 403) {
+          await fetchDiscoverBusiness()
+          return
+        }
         console.error('Erro ao buscar negócio:', err)
         $q.notify({ type: 'negative', message: 'Erro ao carregar negócio' })
         goBack()
@@ -438,7 +450,26 @@ export default defineComponent({
       }
     }
 
+    const fetchDiscoverBusiness = async () => {
+      try {
+        const response = await api.get(`/businesses/${route.params.id}/discover`)
+        if (response.data?.success) {
+          business.value = response.data.data?.business || null
+          establishments.value = response.data.data?.establishments || []
+          isDiscoverMode.value = true
+          if (mainTab.value === 'professionals') {
+            mainTab.value = 'info'
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar descoberta do negócio:', err)
+        $q.notify({ type: 'negative', message: 'Negócio não encontrado' })
+        goBack()
+      }
+    }
+
     const fetchEstablishments = async () => {
+      if (isDiscoverMode.value) return
       loadingEstablishments.value = true
       try {
         const response = await api.get(`/businesses/${route.params.id}/establishments`)
@@ -691,7 +722,7 @@ export default defineComponent({
         await fetchInvitations()
       }
 
-      if (mainTab.value === 'professionals') {
+      if (showProfessionalsTab.value && mainTab.value === 'professionals') {
         await fetchBusinessUsers()
       }
 
@@ -711,6 +742,7 @@ export default defineComponent({
       loadingInvitations,
       saving,
       canManage,
+      showProfessionalsTab,
       establishments,
       businessUsers,
       professionalMembers,

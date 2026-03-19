@@ -407,7 +407,7 @@
                           v-if="log.payload"
                           :name="expandedLogId === log.id ? 'expand_less' : 'expand_more'"
                           size="18px"
-                          color="grey-6"
+                          class="dimmed-icon"
                         />
                       </div>
                     </td>
@@ -426,7 +426,7 @@
                             <div v-for="change in getLogChanges(log)" :key="change.field" class="change-item">
                               <span class="change-field">{{ change.label }}</span>
                               <span class="change-from">{{ formatFieldValue(change.from) }}</span>
-                              <q-icon name="arrow_forward" size="14px" color="grey-6" class="change-arrow" />
+                              <q-icon name="arrow_forward" size="14px" class="change-arrow dimmed-icon" />
                               <span class="change-to">{{ formatFieldValue(change.to) }}</span>
                             </div>
                           </div>
@@ -474,7 +474,6 @@
               color="primary"
               active-design="unelevated"
               active-color="primary"
-              active-text-color="white"
               @update:model-value="fetchLogs"
             />
           </div>
@@ -1698,6 +1697,10 @@ export default defineComponent({
 
 .change-arrow {
   flex-shrink: 0;
+}
+
+.dimmed-icon {
+  color: var(--qm-text-muted);
 }
 
 .change-to {

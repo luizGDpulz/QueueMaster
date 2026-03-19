@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <q-page class="detail-page">
     <!-- Header (same pattern as EstablishmentDetailPage) -->
     <div class="page-header">
@@ -21,7 +21,7 @@
           v-if="queue.status === 'open' && statistics?.total_waiting > 0"
           color="primary"
           icon="campaign"
-          label="Chamar PrÃ³ximo"
+          label="Chamar Próximo"
           no-caps
           :loading="callingNext"
           @click="callNext"
@@ -30,7 +30,7 @@
       <div class="header-bottom">
         <p class="page-subtitle" v-if="queue">
           {{ queue?.establishment_name || '' }}
-          <template v-if="queue?.service_name"> Â· {{ queue.service_name }}</template>
+          <template v-if="queue?.service_name"> · {{ queue.service_name }}</template>
         </p>
       </div>
     </div>
@@ -46,20 +46,20 @@
       <!-- =============== REGULAR USER VIEW =============== -->
       <template v-if="isRegularUser">
         <div class="soft-card q-mb-lg">
-          <h2 class="section-title">InformaÃ§Ãµes da Fila</h2>
+          <h2 class="section-title">Informações da Fila</h2>
           <div class="detail-grid">
             <div class="detail-item">
               <span class="detail-label">Pessoas Aguardando</span>
               <span class="detail-value detail-value-lg">{{ statistics?.total_waiting || 0 }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Tempo MÃ©dio de Espera</span>
+              <span class="detail-label">Tempo Médio de Espera</span>
               <span class="detail-value">{{ statistics?.average_wait_time_minutes || 0 }} min</span>
             </div>
           </div>
         <div v-if="userEntry" class="highlight-box q-mt-md">
           <q-icon name="person" size="20px" />
-          <span>VocÃª estÃ¡ na posiÃ§Ã£o <strong>{{ userEntry.position }}</strong></span>
+          <span>Você está na posição <strong>{{ userEntry.position }}</strong></span>
           <span class="text-muted">(~{{ userEntry.estimated_wait_minutes || '?' }} min)</span>
         </div>
       </div>
@@ -75,8 +75,8 @@
                 <span class="list-item-meta">
                   <template v-if="entry.professional_name">Com {{ entry.professional_name }}</template>
                   <template v-if="entry.serving_since_minutes >= 0">
-                    <span v-if="entry.professional_name"> Â· </span>
-                    hÃ¡ {{ formatWaitTime(entry.serving_since_minutes) }}
+                    <span v-if="entry.professional_name"> · </span>
+                    há {{ formatWaitTime(entry.serving_since_minutes) }}
                   </template>
                 </span>
               </div>
@@ -102,9 +102,9 @@
 
         <div v-if="queue.status === 'open' && !userEntry" class="soft-card">
           <h2 class="section-title">Entrar na Fila</h2>
-          <p class="text-muted q-mb-md">Insira o cÃ³digo de acesso fornecido pelo estabelecimento:</p>
+          <p class="text-muted q-mb-md">Insira o código de acesso fornecido pelo estabelecimento:</p>
           <div class="join-form">
-            <q-input v-model="accessCode" outlined dense placeholder="CÃ³digo de acesso" class="code-input" @keyup.enter="joinWithCode">
+            <q-input v-model="accessCode" outlined dense placeholder="Código de acesso" class="code-input" @keyup.enter="joinWithCode">
               <template v-slot:prepend><q-icon name="vpn_key" /></template>
             </q-input>
             <q-btn color="primary" label="Entrar" no-caps :loading="joining" @click="joinWithCode" />
@@ -126,11 +126,11 @@
           </div>
           <div class="stat-box soft-card">
             <span class="stat-number">{{ statistics?.total_completed_today || 0 }}</span>
-            <span class="stat-text">ConcluÃ­dos hoje</span>
+            <span class="stat-text">Concluídos hoje</span>
           </div>
           <div class="stat-box soft-card">
             <span class="stat-number">{{ statistics?.average_wait_time_minutes || 0 }} min</span>
-            <span class="stat-text">Tempo mÃ©dio</span>
+            <span class="stat-text">Tempo médio</span>
           </div>
         </div>
 
@@ -139,10 +139,10 @@
           <q-tabs v-model="mainTab" dense class="main-tabs" active-color="primary" indicator-color="primary" align="left" narrow-indicator>
             <q-tab name="flow" icon="swap_vert" label="Fluxo" no-caps />
             <q-tab name="professionals" icon="badge" label="Profissionais" no-caps />
-            <q-tab name="info" icon="info" label="InformaÃ§Ãµes" no-caps />
-            <q-tab name="services" icon="miscellaneous_services" label="ServiÃ§os" no-caps />
-            <q-tab name="tokens" icon="qr_code_2" label="CÃ³digos" no-caps />
-            <q-tab name="reports" icon="analytics" label="RelatÃ³rios" no-caps />
+            <q-tab name="info" icon="info" label="Informações" no-caps />
+            <q-tab name="services" icon="miscellaneous_services" label="Serviços" no-caps />
+            <q-tab name="tokens" icon="qr_code_2" label="Códigos" no-caps />
+            <q-tab name="reports" icon="analytics" label="Relatórios" no-caps />
           </q-tabs>
 
           <q-separator />
@@ -173,7 +173,7 @@
                 </q-tab>
                 <q-tab name="completed" no-caps>
                   <div class="tab-label-row">
-                    <span>ConcluÃ­dos</span>
+                    <span>Concluídos</span>
                     <StatusPill v-if="completedEntries.length" :label="String(completedEntries.length)" variant="positive" />
                   </div>
                 </q-tab>
@@ -220,7 +220,7 @@
                         <div class="entry-info">
                           <div class="entry-name-row">
                             <span class="entry-name">{{ entry.user_name }}</span>
-                            <StatusPill v-if="entry.priority >= 2" label="Muito PrioritÃ¡rio" variant="negative" />
+                            <StatusPill v-if="entry.priority >= 2" label="Muito Prioritário" variant="negative" />
                             <StatusPill v-else-if="entry.priority === 1" label="Prioridade" variant="orange" />
                           </div>
                           <span class="entry-meta">
@@ -259,8 +259,8 @@
                           </div>
                           <span class="entry-meta">
                             <q-icon name="timer" size="12px" class="q-mr-xs" />
-                            Em atendimento hÃ¡ {{ formatWaitTime(entry.serving_since_minutes) }}
-                            <template v-if="entry.professional_name"> Â· por {{ entry.professional_name }}</template>
+                            Em atendimento há {{ formatWaitTime(entry.serving_since_minutes) }}
+                            <template v-if="entry.professional_name"> · por {{ entry.professional_name }}</template>
                           </span>
                         </div>
                       </div>
@@ -279,20 +279,20 @@
                       toggle-color="primary"
                       :options="[
                         { label: 'Hoje', value: 'today' },
-                        { label: 'PerÃ­odo', value: 'custom' },
+                        { label: 'Período', value: 'custom' },
                       ]"
                       class="completed-toggle"
                       @update:model-value="onCompletedPeriodChange"
                     />
                     <div v-if="completedPeriod === 'custom'" class="completed-dates">
                       <q-input v-model="completedFrom" outlined dense type="date" label="De" @update:model-value="fetchData" />
-                      <q-input v-model="completedTo" outlined dense type="date" label="AtÃ©" @update:model-value="fetchData" />
+                      <q-input v-model="completedTo" outlined dense type="date" label="Até" @update:model-value="fetchData" />
                     </div>
                   </div>
 
                   <div v-if="completedEntries.length === 0" class="empty-state-sm">
                     <q-icon name="check_circle" size="48px" />
-                    <p>Nenhum atendimento concluÃ­do{{ completedPeriod === 'today' ? ' hoje' : '' }}</p>
+                    <p>Nenhum atendimento concluído{{ completedPeriod === 'today' ? ' hoje' : '' }}</p>
                   </div>
                   <div v-else class="entry-list">
                     <div v-for="entry in completedEntries" :key="entry.id" class="entry-row">
@@ -303,7 +303,7 @@
                         <div class="entry-info">
                           <div class="entry-name-row">
                             <span class="entry-name">{{ entry.user_name }}</span>
-                            <StatusPill :label="entry.status === 'no_show' ? 'NÃ£o compareceu' : 'ConcluÃ­do'" :variant="entry.status === 'no_show' ? 'negative' : 'positive'" />
+                            <StatusPill :label="entry.status === 'no_show' ? 'Não compareceu' : 'Concluído'" :variant="entry.status === 'no_show' ? 'negative' : 'positive'" />
                           </div>
                           <span class="entry-meta">
                             <q-icon name="event" size="12px" class="q-mr-xs" />
@@ -357,7 +357,7 @@
                       <span class="list-item-name">{{ prof.user_name }}</span>
                       <span class="list-item-meta">
                         {{ prof.user_email }}
-                        Â· <StatusPill :label="prof.is_active ? 'Ativo' : 'Inativo'" :variant="prof.is_active ? 'positive' : 'grey'" />
+                        · <StatusPill :label="prof.is_active ? 'Ativo' : 'Inativo'" :variant="prof.is_active ? 'positive' : 'grey'" />
                       </span>
                     </div>
                   </div>
@@ -367,13 +367,13 @@
             </q-tab-panel>
 
             <!-- ================================================================ -->
-            <!-- TAB: INFORMAÃ‡Ã•ES (editable) -->
+            <!-- TAB: INFORMAÇÕES (editable) -->
             <!-- ================================================================ -->
             <q-tab-panel name="info" class="tab-panel-padded">
               <div class="panel-header">
                 <div class="panel-header-text">
                   <h3>Dados da Fila</h3>
-                  <p>Gerencie as informaÃ§Ãµes da fila</p>
+                  <p>Gerencie as informações da fila</p>
                 </div>
                 <div class="panel-header-actions" v-if="canManage">
                   <template v-if="infoEditing">
@@ -400,16 +400,16 @@
                   <span class="detail-value">{{ queue.establishment_name || '-' }}</span>
                 </div>
                 <div class="detail-item">
-                  <span class="detail-label">ServiÃ§o Vinculado</span>
+                  <span class="detail-label">Serviço Vinculado</span>
                   <span class="detail-value">{{ queue.service_name || 'Nenhum' }}</span>
                 </div>
                 <div class="detail-item">
-                  <span class="detail-label">Capacidade MÃ¡xima</span>
+                  <span class="detail-label">Capacidade Máxima</span>
                   <q-input v-if="infoEditing" v-model.number="infoForm.max_capacity" outlined dense type="number" placeholder="Ilimitada" />
                   <span v-else class="detail-value">{{ queue.max_capacity || 'Ilimitada' }}</span>
                 </div>
                 <div class="detail-item full-width">
-                  <span class="detail-label">DescriÃ§Ã£o</span>
+                  <span class="detail-label">Descrição</span>
                   <q-input v-if="infoEditing" v-model="infoForm.description" outlined dense type="textarea" autogrow />
                   <span v-else class="detail-value">{{ queue.description || 'Nenhuma' }}</span>
                 </div>
@@ -421,13 +421,13 @@
             </q-tab-panel>
 
             <!-- ================================================================ -->
-            <!-- TAB: SERVIÃ‡OS -->
+            <!-- TAB: SERVIÇOS -->
             <!-- ================================================================ -->
             <q-tab-panel name="services" class="tab-panel-padded">
               <div class="panel-header">
                 <div class="panel-header-text">
-                  <h3>ServiÃ§os</h3>
-                  <p>ServiÃ§os vinculados a esta fila</p>
+                  <h3>Serviços</h3>
+                  <p>Serviços vinculados a esta fila</p>
                 </div>
                 <q-btn v-if="canManage" color="primary" icon="add" label="Adicionar" no-caps @click="openAddServiceDialog" />
               </div>
@@ -435,7 +435,7 @@
               <div v-if="svcLoading" class="loading-state-sm"><q-spinner-dots color="primary" size="24px" /></div>
               <div v-else-if="queueServices.length === 0" class="empty-state-sm">
                 <q-icon name="miscellaneous_services" size="48px" />
-                <p>Nenhum serviÃ§o vinculado a esta fila</p>
+                <p>Nenhum serviço vinculado a esta fila</p>
               </div>
               <div v-else class="services-grid">
                 <div
@@ -452,7 +452,7 @@
                     <span class="service-card__name">{{ svc.name }}</span>
                     <span class="service-card__meta">
                       {{ svc.duration_minutes }} min
-                      <template v-if="svc.price"> Â· R$ {{ Number(svc.price).toFixed(2) }}</template>
+                      <template v-if="svc.price"> · R$ {{ Number(svc.price).toFixed(2) }}</template>
                     </span>
                     <span v-if="svc.description" class="service-card__desc">{{ svc.description }}</span>
                   </div>
@@ -462,21 +462,21 @@
             </q-tab-panel>
 
             <!-- ================================================================ -->
-            <!-- TAB: CÃ“DIGOS DE ACESSO -->
+            <!-- TAB: CÓDIGOS DE ACESSO -->
             <!-- ================================================================ -->
             <q-tab-panel name="tokens" class="tab-panel-padded">
               <div class="panel-header">
                 <div class="panel-header-text">
-                  <h3>CÃ³digos de Acesso</h3>
-                  <p>Crie e gerencie cÃ³digos para que clientes entrem na fila</p>
+                  <h3>Códigos de Acesso</h3>
+                  <p>Crie e gerencie códigos para que clientes entrem na fila</p>
                 </div>
-                <q-btn color="primary" icon="add" label="Novo CÃ³digo" no-caps @click="openCreateCode" />
+                <q-btn color="primary" icon="add" label="Novo Código" no-caps @click="openCreateCode" />
               </div>
 
               <div v-if="codesLoading" class="loading-state-sm"><q-spinner-dots color="primary" size="24px" /></div>
               <div v-else-if="accessCodes.length === 0" class="empty-state-sm">
                 <q-icon name="qr_code_2" size="48px" />
-                <p>Nenhum cÃ³digo de acesso criado</p>
+                <p>Nenhum código de acesso criado</p>
               </div>
               <div v-else class="list-items">
                 <div
@@ -493,33 +493,33 @@
                       <span class="list-item-name code-mono">{{ code.code }}</span>
                       <span class="list-item-meta">
                         <StatusPill :label="code.is_active ? 'Ativo' : 'Inativo'" :variant="code.is_active ? 'positive' : 'grey'" />
-                        Â· Usos: {{ code.uses || 0 }}{{ code.max_uses ? '/' + code.max_uses : ' (ilimitado)' }}
-                        <template v-if="code.expires_at"> Â· Expira: {{ formatDate(code.expires_at) }}</template>
-                        <template v-else> Â· Sem expiraÃ§Ã£o</template>
+                        · Usos: {{ code.uses || 0 }}{{ code.max_uses ? '/' + code.max_uses : ' (ilimitado)' }}
+                        <template v-if="code.expires_at"> · Expira: {{ formatDate(code.expires_at) }}</template>
+                        <template v-else> · Sem expiração</template>
                       </span>
                     </div>
                   </div>
                   <div class="list-item-side">
-                    <q-btn flat round dense icon="content_copy" size="sm" @click.stop="copyToClipboard(code.code)"><q-tooltip>Copiar cÃ³digo</q-tooltip></q-btn>
-                    <q-btn flat round dense icon="more_vert" size="sm" @click.stop="openCodeMenu($event, code)"><q-tooltip>OpÃ§Ãµes</q-tooltip></q-btn>
+                    <q-btn flat round dense icon="content_copy" size="sm" @click.stop="copyToClipboard(code.code)"><q-tooltip>Copiar código</q-tooltip></q-btn>
+                    <q-btn flat round dense icon="more_vert" size="sm" @click.stop="openCodeMenu($event, code)"><q-tooltip>Opções</q-tooltip></q-btn>
                   </div>
                 </div>
               </div>
             </q-tab-panel>
 
             <!-- ================================================================ -->
-            <!-- TAB: RELATÃ“RIOS -->
+            <!-- TAB: RELATÓRIOS -->
             <!-- ================================================================ -->
             <q-tab-panel name="reports" class="tab-panel-padded">
               <div class="panel-header">
                 <div class="panel-header-text">
-                  <h3>RelatÃ³rios</h3>
-                  <p>Indicadores e mÃ©tricas de performance da fila</p>
+                  <h3>Relatórios</h3>
+                  <p>Indicadores e métricas de performance da fila</p>
                 </div>
                 <div class="panel-header-actions">
                   <q-select v-model="reportPeriod" :options="periodOptions" emit-value map-options dense outlined style="min-width:140px;" @update:model-value="fetchReports" />
                   <q-btn flat dense icon="refresh" @click="fetchReports" :loading="reportsLoading" />
-                  <q-btn outline color="primary" icon="open_in_new" label="RelatÃ³rio Completo" no-caps @click="openGlobalReports" />
+                  <q-btn outline color="primary" icon="open_in_new" label="Relatório Completo" no-caps @click="openGlobalReports" />
                 </div>
               </div>
 
@@ -530,23 +530,23 @@
                 <div class="report-grid q-mb-lg">
                   <div class="report-card"><div class="report-val">{{ reportData.summary.total_entries }}</div><div class="report-lbl">Total de Entradas</div></div>
                   <div class="report-card report-card--success"><div class="report-val">{{ reportData.summary.total_completed }}</div><div class="report-lbl">Atendidos</div></div>
-                  <div class="report-card report-card--danger"><div class="report-val">{{ reportData.summary.total_no_show }}</div><div class="report-lbl">NÃ£o Compareceram</div></div>
+                  <div class="report-card report-card--danger"><div class="report-val">{{ reportData.summary.total_no_show }}</div><div class="report-lbl">Não Compareceram</div></div>
                   <div class="report-card report-card--warning"><div class="report-val">{{ reportData.summary.total_cancelled }}</div><div class="report-lbl">Cancelados</div></div>
                   <div class="report-card report-card--info"><div class="report-val">{{ reportData.summary.completion_rate }}%</div><div class="report-lbl">Comparecimento</div></div>
-                  <div class="report-card"><div class="report-val">{{ reportData.summary.avg_wait_minutes }} min</div><div class="report-lbl">Espera MÃ©dia</div></div>
-                  <div class="report-card"><div class="report-val">{{ reportData.summary.avg_service_minutes }} min</div><div class="report-lbl">Atendimento MÃ©dio</div></div>
-                  <div class="report-card"><div class="report-val">{{ reportData.summary.min_wait_minutes }}-{{ reportData.summary.max_wait_minutes }} min</div><div class="report-lbl">Espera MÃ­n-MÃ¡x</div></div>
+                  <div class="report-card"><div class="report-val">{{ reportData.summary.avg_wait_minutes }} min</div><div class="report-lbl">Espera Média</div></div>
+                  <div class="report-card"><div class="report-val">{{ reportData.summary.avg_service_minutes }} min</div><div class="report-lbl">Atendimento Médio</div></div>
+                  <div class="report-card"><div class="report-val">{{ reportData.summary.min_wait_minutes }}-{{ reportData.summary.max_wait_minutes }} min</div><div class="report-lbl">Espera Mín-Máx</div></div>
                 </div>
 
                 <!-- Attendance chart (bar) -->
-                <div class="section-header q-mb-md"><h3 class="section-title">PresenÃ§a por Dia</h3></div>
-                <div v-if="reportData.daily_breakdown.length === 0" class="empty-state-sm q-mb-lg"><p>Sem dados para o perÃ­odo</p></div>
+                <div class="section-header q-mb-md"><h3 class="section-title">Presença por Dia</h3></div>
+                <div v-if="reportData.daily_breakdown.length === 0" class="empty-state-sm q-mb-lg"><p>Sem dados para o período</p></div>
                 <div v-else class="chart-container q-mb-xl">
                   <div class="bar-chart">
                     <div v-for="day in chartDailyData" :key="day.date" class="bar-chart__col">
                       <div class="bar-chart__bars">
                         <div class="bar-chart__bar bar-chart__bar--completed" :style="{ height: day.completedPct + '%' }" :title="'Atendidos: ' + day.completed"><span v-if="day.completed > 0" class="bar-chart__val">{{ day.completed }}</span></div>
-                        <div class="bar-chart__bar bar-chart__bar--noshow" :style="{ height: day.noshowPct + '%' }" :title="'NÃ£o comp.: ' + day.no_show"><span v-if="day.no_show > 0" class="bar-chart__val">{{ day.no_show }}</span></div>
+                        <div class="bar-chart__bar bar-chart__bar--noshow" :style="{ height: day.noshowPct + '%' }" :title="'Não comp.: ' + day.no_show"><span v-if="day.no_show > 0" class="bar-chart__val">{{ day.no_show }}</span></div>
                         <div class="bar-chart__bar bar-chart__bar--cancelled" :style="{ height: day.cancelledPct + '%' }" :title="'Cancelados: ' + day.cancelled"><span v-if="day.cancelled > 0" class="bar-chart__val">{{ day.cancelled }}</span></div>
                       </div>
                       <span class="bar-chart__lbl">{{ day.label }}</span>
@@ -554,13 +554,13 @@
                   </div>
                   <div class="chart-legend">
                     <span class="chart-legend__item"><span class="chart-legend__dot chart-legend__dot--completed"></span>Atendidos</span>
-                    <span class="chart-legend__item"><span class="chart-legend__dot chart-legend__dot--noshow"></span>NÃ£o comp.</span>
+                    <span class="chart-legend__item"><span class="chart-legend__dot chart-legend__dot--noshow"></span>Não comp.</span>
                     <span class="chart-legend__item"><span class="chart-legend__dot chart-legend__dot--cancelled"></span>Cancelados</span>
                   </div>
                 </div>
 
                 <!-- Wait time chart -->
-                <div class="section-header q-mb-md"><h3 class="section-title">Tempo MÃ©dio de Espera</h3></div>
+                <div class="section-header q-mb-md"><h3 class="section-title">Tempo Médio de Espera</h3></div>
                 <div v-if="reportData.daily_breakdown.length === 0" class="empty-state-sm q-mb-lg"><p>Sem dados</p></div>
                 <div v-else class="chart-container q-mb-xl">
                   <div class="line-chart">
@@ -575,7 +575,7 @@
                 </div>
 
                 <!-- Hourly distribution -->
-                <div class="section-header q-mb-md"><h3 class="section-title">DistribuiÃ§Ã£o por HorÃ¡rio</h3></div>
+                <div class="section-header q-mb-md"><h3 class="section-title">Distribuição por Horário</h3></div>
                 <div v-if="reportData.hourly_distribution.length === 0" class="empty-state-sm"><p>Sem dados</p></div>
                 <div v-else class="hourly-chart">
                   <div v-for="h in formattedHourlyData" :key="h.hour" class="hourly-col">
@@ -590,7 +590,7 @@
                 <div class="pie-charts-row q-mt-xl">
                   <!-- Status distribution pie chart -->
                   <div class="pie-chart-block">
-                    <div class="section-header q-mb-md"><h3 class="section-title">DistribuiÃ§Ã£o por Status</h3></div>
+                    <div class="section-header q-mb-md"><h3 class="section-title">Distribuição por Status</h3></div>
                     <div v-if="statusPieData.length === 0" class="empty-state-sm"><p>Sem dados</p></div>
                     <div v-else class="pie-chart-wrapper">
                       <svg viewBox="0 0 200 200" class="pie-chart-svg">
@@ -608,7 +608,7 @@
 
                   <!-- Priority distribution pie chart -->
                   <div class="pie-chart-block">
-                    <div class="section-header q-mb-md"><h3 class="section-title">DistribuiÃ§Ã£o por Prioridade</h3></div>
+                    <div class="section-header q-mb-md"><h3 class="section-title">Distribuição por Prioridade</h3></div>
                     <div v-if="priorityPieData.length === 0" class="empty-state-sm"><p>Sem dados</p></div>
                     <div v-else class="pie-chart-wrapper">
                       <svg viewBox="0 0 200 200" class="pie-chart-svg">
@@ -628,7 +628,7 @@
 
               <div v-else class="empty-state-sm">
                 <q-icon name="analytics" size="48px" />
-                <p>Clique em atualizar para carregar relatÃ³rios</p>
+                <p>Clique em atualizar para carregar relatórios</p>
               </div>
             </q-tab-panel>
 
@@ -688,12 +688,12 @@
     <q-dialog v-model="showUnlinkServiceDialog" persistent>
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <div class="text-h6">Desvincular ServiÃ§o</div>
+          <div class="text-h6">Desvincular Serviço</div>
           <q-btn flat round dense icon="close" @click="closeUnlinkServiceDialog" />
         </q-card-section>
         <q-card-section>
           <p class="text-muted">
-            Desvincular "{{ serviceActionTarget?.name }}" apenas desta fila? O cadastro do serviÃ§o serÃ¡ mantido no estabelecimento.
+            Desvincular "{{ serviceActionTarget?.name }}" apenas desta fila? O cadastro do serviço será mantido no estabelecimento.
           </p>
         </q-card-section>
         <q-card-actions align="right" class="dialog-actions">
@@ -706,7 +706,7 @@
     <q-dialog v-model="showDeleteServiceDialog" persistent>
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <div class="text-h6">Excluir ServiÃ§o</div>
+          <div class="text-h6">Excluir Serviço</div>
           <q-btn flat round dense icon="close" @click="closeDeleteServiceDialog" />
         </q-card-section>
         <q-card-section>
@@ -732,12 +732,12 @@
     <q-dialog v-model="showDeleteCodeDialog" persistent>
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <div class="text-h6">Excluir CÃ³digo</div>
+          <div class="text-h6">Excluir Código</div>
           <q-btn flat round dense icon="close" @click="closeDeleteCodeDialog" />
         </q-card-section>
         <q-card-section>
           <p class="text-muted">
-            Tem certeza que deseja excluir o cÃ³digo {{ codeDeleteTarget?.code || 'selecionado' }}?
+            Tem certeza que deseja excluir o código {{ codeDeleteTarget?.code || 'selecionado' }}?
           </p>
         </q-card-section>
         <q-card-actions align="right" class="dialog-actions">
@@ -774,7 +774,7 @@
         </q-card-section>
         <q-card-section>
           <p class="text-muted q-mb-md">{{ notesDescription }}</p>
-          <q-input v-model="notesText" label="ObservaÃ§Ã£o (opcional)" outlined dense type="textarea" autogrow />
+          <q-input v-model="notesText" label="Observação (opcional)" outlined dense type="textarea" autogrow />
         </q-card-section>
         <q-card-actions align="right" class="dialog-actions">
           <q-btn flat label="Cancelar" no-caps @click="showNotesDialog = false" />
@@ -787,24 +787,24 @@
     <q-dialog v-model="showCodeDialog" persistent>
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <div class="text-h6">{{ isEditingCode ? 'Editar CÃ³digo' : 'Novo CÃ³digo de Acesso' }}</div>
+          <div class="text-h6">{{ isEditingCode ? 'Editar Código' : 'Novo Código de Acesso' }}</div>
           <q-btn flat round dense icon="close" @click="showCodeDialog = false" />
         </q-card-section>
         <q-card-section>
           <div v-if="!isEditingCode" class="code-type-picker q-mb-md">
-            <q-btn-toggle v-model="codeForm.type" no-caps spread rounded toggle-color="primary" :options="[{ label: 'Com ExpiraÃ§Ã£o', value: 'timed' },{ label: 'Com Limite de Uso', value: 'limited' },{ label: 'Ilimitado', value: 'unlimited' }]" />
+            <q-btn-toggle v-model="codeForm.type" no-caps spread rounded toggle-color="primary" :options="[{ label: 'Com Expiração', value: 'timed' },{ label: 'Com Limite de Uso', value: 'limited' },{ label: 'Ilimitado', value: 'unlimited' }]" />
           </div>
-          <q-input v-if="codeForm.type === 'timed' || isEditingCode" v-model="codeForm.expires_at" label="Data/Hora de ExpiraÃ§Ã£o" outlined dense type="datetime-local" class="q-mb-md" :hint="isEditingCode ? 'Vazio = sem expiraÃ§Ã£o' : ''" />
+          <q-input v-if="codeForm.type === 'timed' || isEditingCode" v-model="codeForm.expires_at" label="Data/Hora de Expiração" outlined dense type="datetime-local" class="q-mb-md" :hint="isEditingCode ? 'Vazio = sem expiração' : ''" />
           <q-input v-if="codeForm.type === 'limited' || isEditingCode" v-model.number="codeForm.max_uses" label="Limite de Usos" outlined dense type="number" class="q-mb-md" :hint="isEditingCode ? 'Vazio = ilimitado' : ''" />
-          <q-toggle v-if="isEditingCode" v-model="codeForm.is_active" label="CÃ³digo Ativo" class="q-mb-md" />
+          <q-toggle v-if="isEditingCode" v-model="codeForm.is_active" label="Código Ativo" class="q-mb-md" />
           <div v-if="isEditingCode && codeForm.code" class="code-preview q-mb-md">
-            <span class="code-preview-label">CÃ³digo:</span>
+            <span class="code-preview-label">Código:</span>
             <span class="code-preview-value">{{ codeForm.code }}</span>
           </div>
         </q-card-section>
         <q-card-actions align="right" class="dialog-actions">
           <q-btn flat label="Cancelar" no-caps @click="showCodeDialog = false" />
-          <q-btn color="primary" :label="isEditingCode ? 'Salvar' : 'Gerar CÃ³digo'" no-caps :loading="savingCode" @click="saveCode" />
+          <q-btn color="primary" :label="isEditingCode ? 'Salvar' : 'Gerar Código'" no-caps :loading="savingCode" @click="saveCode" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -813,15 +813,73 @@
     <q-dialog v-model="showGeneratedCodeDialog">
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <div class="text-h6">CÃ³digo Gerado</div>
+          <div class="text-h6">Código Gerado</div>
           <q-btn flat round dense icon="close" @click="showGeneratedCodeDialog = false" />
         </q-card-section>
         <q-card-section class="text-center" style="padding: 2rem;">
-          <p class="text-muted q-mb-md" style="font-size:0.875rem;">Compartilhe este cÃ³digo para que clientes entrem na fila:</p>
+          <p class="text-muted q-mb-md" style="font-size:0.875rem;">Compartilhe este código para que clientes entrem na fila:</p>
           <div class="access-code-display"><span class="access-code-text">{{ generatedCodeValue }}</span></div>
-          <q-btn outline color="primary" icon="content_copy" label="Copiar CÃ³digo" no-caps class="q-mt-md" @click="copyToClipboard(generatedCodeValue)" />
+          <q-btn outline color="primary" icon="content_copy" label="Copiar Código" no-caps class="q-mt-md" @click="copyToClipboard(generatedCodeValue)" />
           <p v-if="generatedCodeExpiry" class="text-muted q-mt-md" style="font-size:0.75rem;">Expira em: {{ generatedCodeExpiry }}</p>
         </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showQrCodeDialog">
+      <q-card class="dialog-card qr-code-dialog">
+        <q-card-section class="dialog-header">
+          <div class="text-h6">QR Code do código</div>
+          <q-btn flat round dense icon="close" :disable="exportingQr" @click="closeQrCodeDialog" />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <div class="qr-code-preview">
+            <div v-if="qrCodeLoading" class="loading-state-sm">
+              <q-spinner-dots color="primary" size="32px" />
+            </div>
+            <div v-else class="qr-code-frame">
+              <img v-if="qrCodeImage" :src="qrCodeImage" alt="QR Code do código de acesso" class="qr-code-image" />
+            </div>
+          </div>
+
+          <div v-if="qrCodeTarget" class="qr-code-meta">
+            <div class="code-preview">
+              <span class="code-preview-label">Código:</span>
+              <span class="code-preview-value">{{ qrCodeTarget.code }}</span>
+            </div>
+            <div class="qr-code-link">{{ qrCodeLink }}</div>
+            <p v-if="qrCodeTarget.expires_at" class="text-muted q-mb-none">
+              Expira em: {{ formatDate(qrCodeTarget.expires_at) }}
+            </p>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right" class="dialog-actions">
+          <q-btn flat label="Fechar" no-caps :disable="exportingQr" @click="closeQrCodeDialog" />
+          <q-btn-dropdown
+            color="primary"
+            icon="download"
+            label="Exportar"
+            no-caps
+            :loading="exportingQr"
+            :disable="qrCodeLoading || !qrCodeImage"
+          >
+            <q-list dense>
+              <q-item clickable v-close-popup @click="exportQrCode('png')">
+                <q-item-section avatar><q-icon name="image" /></q-item-section>
+                <q-item-section>
+                  <q-item-label>Imagem PNG</q-item-label>
+                  <q-item-label caption>Ideal para totem, arte ou compartilhamento</q-item-label>
+                </q-item-section>
+              </q-item>
+              <q-item clickable v-close-popup @click="exportQrCode('pdf')">
+                <q-item-section avatar><q-icon name="picture_as_pdf" /></q-item-section>
+                <q-item-section>
+                  <q-item-label>Arquivo PDF</q-item-label>
+                  <q-item-label caption>Melhor para impressão e distribuição</q-item-label>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-btn-dropdown>
+        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -849,7 +907,7 @@
               </div>
             </div>
             <div class="add-person-profile__details">
-              <div v-if="foundUser.role" class="add-person-profile__row"><q-icon name="badge" size="16px" /><span>{{ { admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', user: 'UsuÃ¡rio', client: 'Cliente' }[foundUser.role] || foundUser.role }}</span></div>
+              <div v-if="foundUser.role" class="add-person-profile__row"><q-icon name="badge" size="16px" /><span>{{ { admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', user: 'Usuário', client: 'Cliente' }[foundUser.role] || foundUser.role }}</span></div>
               <div v-if="foundUser.phone" class="add-person-profile__row"><q-icon name="phone" size="16px" /><span>{{ foundUser.phone }}</span></div>
             </div>
             <q-separator class="q-my-md" />
@@ -859,7 +917,7 @@
             </div>
             <div class="add-person-field">
               <label class="add-person-field__label">Prioridade</label>
-              <q-toggle v-model="addPersonPriority" label="Atendimento prioritÃ¡rio" dense />
+              <q-toggle v-model="addPersonPriority" label="Atendimento prioritário" dense />
             </div>
           </div>
         </q-card-section>
@@ -914,7 +972,7 @@
     <q-dialog v-model="showAddServiceDialog" persistent>
       <q-card class="dialog-card" style="min-width: 460px;">
         <q-card-section class="dialog-header">
-          <div class="text-h6">Adicionar ServiÃ§o</div>
+          <div class="text-h6">Adicionar Serviço</div>
           <q-btn flat round dense icon="close" @click="showAddServiceDialog = false" />
         </q-card-section>
         <q-card-section>
@@ -934,7 +992,7 @@
           <template v-if="svcDialogMode === 'select'">
             <div v-if="availableEstServices.length === 0" class="empty-state-sm">
               <q-icon name="check_circle" size="36px" />
-              <p>Todos os serviÃ§os jÃ¡ estÃ£o vinculados</p>
+              <p>Todos os serviços já estão vinculados</p>
             </div>
             <div v-else class="list-items" style="max-height: 320px; overflow-y: auto;">
               <div
@@ -959,24 +1017,24 @@
                     <span class="list-item-name">{{ svc.name }}</span>
                     <span class="list-item-meta">
                       {{ svc.duration_minutes }} min
-                      <template v-if="svc.price"> Â· R$ {{ Number(svc.price).toFixed(2) }}</template>
+                      <template v-if="svc.price"> · R$ {{ Number(svc.price).toFixed(2) }}</template>
                     </span>
                   </div>
                 </div>
               </div>
             </div>
             <div v-if="selectedServiceIds.length > 0" class="text-caption text-grey-6 q-mt-sm">
-              {{ selectedServiceIds.length }} serviÃ§o(s) selecionado(s)
+              {{ selectedServiceIds.length }} serviço(s) selecionado(s)
             </div>
           </template>
 
           <!-- Create new service -->
           <template v-else>
-            <q-input v-model="svcForm.name" label="Nome do ServiÃ§o *" outlined dense class="q-mb-md" />
-            <q-input v-model="svcForm.description" label="DescriÃ§Ã£o" outlined dense type="textarea" autogrow class="q-mb-md" />
+            <q-input v-model="svcForm.name" label="Nome do Serviço *" outlined dense class="q-mb-md" />
+            <q-input v-model="svcForm.description" label="Descrição" outlined dense type="textarea" autogrow class="q-mb-md" />
             <div class="row q-col-gutter-md q-mb-md">
-              <div class="col-6"><q-input v-model.number="svcForm.duration" label="DuraÃ§Ã£o (min) *" outlined dense type="number" /></div>
-              <div class="col-6"><q-input v-model.number="svcForm.price" label="PreÃ§o (R$)" outlined dense type="number" step="0.01" /></div>
+              <div class="col-6"><q-input v-model.number="svcForm.duration" label="Duração (min) *" outlined dense type="number" /></div>
+              <div class="col-6"><q-input v-model.number="svcForm.price" label="Preço (R$)" outlined dense type="number" step="0.01" /></div>
             </div>
             <q-input v-model="svcForm.icon" label="Icone (Material Icon)" outlined dense class="q-mb-md" hint="Ex: medical_services, cut, spa">
               <template v-slot:prepend><q-icon :name="svcForm.icon || 'work_outline'" size="20px" /></template>
@@ -1000,7 +1058,7 @@
     <q-dialog v-model="showEditServiceDialog" persistent>
       <q-card class="dialog-card" style="min-width: 460px;">
         <q-card-section class="dialog-header">
-          <div class="text-h6">Editar ServiÃ§o</div>
+          <div class="text-h6">Editar Serviço</div>
           <q-btn flat round dense icon="close" @click="closeEditServiceDialog" />
         </q-card-section>
         <q-card-section>
@@ -1008,11 +1066,11 @@
             <q-spinner-dots color="primary" size="24px" />
           </div>
           <template v-else>
-            <q-input v-model="editServiceForm.name" label="Nome do ServiÃ§o *" outlined dense class="q-mb-md" />
-            <q-input v-model="editServiceForm.description" label="DescriÃ§Ã£o" outlined dense type="textarea" autogrow class="q-mb-md" />
+            <q-input v-model="editServiceForm.name" label="Nome do Serviço *" outlined dense class="q-mb-md" />
+            <q-input v-model="editServiceForm.description" label="Descrição" outlined dense type="textarea" autogrow class="q-mb-md" />
             <div class="row q-col-gutter-md q-mb-md">
-              <div class="col-6"><q-input v-model.number="editServiceForm.duration" label="DuraÃ§Ã£o (min) *" outlined dense type="number" /></div>
-              <div class="col-6"><q-input v-model.number="editServiceForm.price" label="PreÃ§o (R$)" outlined dense type="number" step="0.01" /></div>
+              <div class="col-6"><q-input v-model.number="editServiceForm.duration" label="Duração (min) *" outlined dense type="number" /></div>
+              <div class="col-6"><q-input v-model.number="editServiceForm.price" label="Preço (R$)" outlined dense type="number" step="0.01" /></div>
             </div>
             <q-input v-model="editServiceForm.icon" label="Icone" outlined dense class="q-mb-md">
               <template v-slot:prepend><q-icon :name="editServiceForm.icon || 'work_outline'" size="20px" /></template>
@@ -1044,6 +1102,8 @@ import { defineComponent, ref, computed, onMounted, onUnmounted, watch } from 'v
 import { useRoute, useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
+import { jsPDF } from 'jspdf'
+import QRCode from 'qrcode'
 import ContextMenu from 'src/components/ui/ContextMenu.vue'
 import StatusPill from 'src/components/ui/StatusPill.vue'
 import UserProfilePreview from 'src/components/ui/UserProfilePreview.vue'
@@ -1250,8 +1310,8 @@ export default defineComponent({
         const users = data.data?.users || data.data || []
         const match = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
         if (match) foundUser.value = match
-        else searchEmailError.value = 'Nenhum usuÃ¡rio encontrado com esse e-mail'
-      } catch { searchEmailError.value = 'Erro ao buscar usuÃ¡rio' }
+        else searchEmailError.value = 'Nenhum usuário encontrado com esse e-mail'
+      } catch { searchEmailError.value = 'Erro ao buscar usuário' }
       finally { searchingUser.value = false }
     }
 
@@ -1287,7 +1347,7 @@ export default defineComponent({
     }
     const cancelInfoEdit = () => { infoEditing.value = false }
     const saveInfoEdit = async () => {
-      if (!infoForm.value.name) { $q.notify({ type: 'warning', message: 'Nome Ã© obrigatÃ³rio' }); return }
+      if (!infoForm.value.name) { $q.notify({ type: 'warning', message: 'Nome é obrigatório' }); return }
       saving.value = true
       try {
         await api.put(`/queues/${queueId.value}`, infoForm.value)
@@ -1462,14 +1522,14 @@ export default defineComponent({
     const serviceUsageQueues = computed(() => loadedServiceUsage.value?.linked_queues || [])
     const serviceUsageLabel = computed(() => {
       const count = Number(loadedServiceUsage.value?.linked_queue_count || 0)
-      if (!count) return 'Sem vÃ­nculos ativos em filas.'
+      if (!count) return 'Sem vínculos ativos em filas.'
       if (count === 1) return 'Vinculado a 1 fila.'
       return `Vinculado a ${count} filas.`
     })
     const serviceDeleteImpactLabel = computed(() => {
       const count = Number(serviceActionUsage.value?.linked_queue_count || 0)
-      if (!count) return 'Ele nÃ£o possui outros vÃ­nculos ativos em filas.'
-      return `Ele estÃ¡ vinculado a ${count} fila(s) e serÃ¡ removido delas tambÃ©m.`
+      if (!count) return 'Ele não possui outros vínculos ativos em filas.'
+      return `Ele está vinculado a ${count} fila(s) e será removido delas também.`
     })
 
     const fetchQueueServices = async () => {
@@ -1479,7 +1539,7 @@ export default defineComponent({
         const { data } = await api.get(`/queues/${queueId.value}/services`)
         if (data?.success) queueServices.value = data.data?.services || []
       } catch (err) {
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao carregar serviÃ§os da fila' })
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao carregar serviços da fila' })
       } finally {
         svcLoading.value = false
       }
@@ -1547,7 +1607,7 @@ export default defineComponent({
         } else {
           // Create new + link
           if (!svcForm.value.name || !svcForm.value.duration) {
-            $q.notify({ type: 'warning', message: 'Nome e duraÃ§Ã£o sÃ£o obrigatÃ³rios' })
+            $q.notify({ type: 'warning', message: 'Nome e duração são obrigatórios' })
             savingSvc.value = false
             return
           }
@@ -1560,12 +1620,12 @@ export default defineComponent({
             price: svcForm.value.price,
             icon: svcForm.value.icon || null,
           })
-          $q.notify({ type: 'positive', message: 'ServiÃ§o criado e adicionado Ã  fila' })
+          $q.notify({ type: 'positive', message: 'Serviço criado e adicionado à fila' })
         }
         showAddServiceDialog.value = false
         await refreshServiceState()
       } catch (err) {
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao adicionar serviÃ§o' })
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao adicionar serviço' })
       } finally { savingSvc.value = false }
     }
 
@@ -1592,7 +1652,7 @@ export default defineComponent({
           linked_queues: service.linked_queues || [],
         }
       } catch (err) {
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao carregar serviÃ§o' })
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao carregar serviço' })
         closeEditServiceDialog()
       } finally {
         serviceDialogLoading.value = false
@@ -1602,7 +1662,7 @@ export default defineComponent({
     const saveServiceEdit = async () => {
       if (!editingServiceId.value) return
       if (!editServiceForm.value.name || !editServiceForm.value.duration) {
-        $q.notify({ type: 'warning', message: 'Nome e duraÃ§Ã£o sÃ£o obrigatÃ³rios' })
+        $q.notify({ type: 'warning', message: 'Nome e duração são obrigatórios' })
         return
       }
 
@@ -1616,11 +1676,11 @@ export default defineComponent({
           icon: editServiceForm.value.icon || null,
           establishment_id: queue.value?.establishment_id,
         })
-        $q.notify({ type: 'positive', message: 'ServiÃ§o atualizado' })
+        $q.notify({ type: 'positive', message: 'Serviço atualizado' })
         closeEditServiceDialog()
         await refreshServiceState()
       } catch (err) {
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar serviÃ§o' })
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar serviço' })
       } finally {
         savingServiceEdit.value = false
       }
@@ -1629,7 +1689,7 @@ export default defineComponent({
     const serviceMenuSubtitle = computed(() => {
       if (!serviceMenuTarget.value) return ''
       const duration = Number(serviceMenuTarget.value.duration_minutes || 0)
-      const price = serviceMenuTarget.value.price ? ` Â· R$ ${Number(serviceMenuTarget.value.price).toFixed(2)}` : ''
+      const price = serviceMenuTarget.value.price ? ` · R$ ${Number(serviceMenuTarget.value.price).toFixed(2)}` : ''
       return `${duration} min${price}`
     })
 
@@ -1637,10 +1697,10 @@ export default defineComponent({
       if (!serviceMenuTarget.value) return []
       const svc = serviceMenuTarget.value
       return [
-        { key: 'edit', icon: 'edit', label: 'Editar serviÃ§o', action: () => openEditServiceDialog(svc) },
+        { key: 'edit', icon: 'edit', label: 'Editar serviço', action: () => openEditServiceDialog(svc) },
         { separator: true },
         { key: 'unlink', icon: 'link_off', label: 'Desvincular da fila', danger: true, action: () => unlinkQueueService(svc) },
-        { key: 'delete', icon: 'delete', label: 'Excluir serviÃ§o', danger: true, action: () => promptDeleteService(svc) },
+        { key: 'delete', icon: 'delete', label: 'Excluir serviço', danger: true, action: () => promptDeleteService(svc) },
       ]
     })
 
@@ -1663,14 +1723,14 @@ export default defineComponent({
       unlinkingService.value = true
       try {
         await api.delete(`/queues/${queueId.value}/services/${serviceActionTarget.value.service_id}`)
-        $q.notify({ type: 'positive', message: 'ServiÃ§o desvinculado da fila' })
+        $q.notify({ type: 'positive', message: 'Serviço desvinculado da fila' })
         if (editingServiceId.value === serviceActionTarget.value.service_id) {
           closeEditServiceDialog()
         }
         closeUnlinkServiceDialog(true)
         await refreshServiceState()
       } catch (err) {
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao desvincular serviÃ§o' })
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao desvincular serviço' })
       } finally {
         unlinkingService.value = false
       }
@@ -1691,7 +1751,7 @@ export default defineComponent({
           }
         })
         .catch((err) => {
-          $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao carregar serviÃ§o' })
+          $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao carregar serviço' })
           closeDeleteServiceDialog()
         })
         .finally(() => {
@@ -1705,14 +1765,14 @@ export default defineComponent({
       deletingSvc.value = true
       try {
         await api.delete(`/services/${serviceActionTarget.value.service_id}`)
-        $q.notify({ type: 'positive', message: 'ServiÃ§o excluÃ­do' })
+        $q.notify({ type: 'positive', message: 'Serviço excluído' })
         if (editingServiceId.value === serviceActionTarget.value.service_id) {
           closeEditServiceDialog()
         }
         closeDeleteServiceDialog(true)
         await refreshServiceState()
       } catch (err) {
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao excluir serviÃ§o' })
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao excluir serviço' })
       } finally {
         deletingSvc.value = false
       }
@@ -1722,9 +1782,15 @@ export default defineComponent({
     const showNotesDialog = ref(false)
     const showCodeDialog = ref(false)
     const showGeneratedCodeDialog = ref(false)
+    const showQrCodeDialog = ref(false)
     const showDeleteCodeDialog = ref(false)
     const codeDeleteTarget = ref(null)
     const deletingCode = ref(false)
+    const qrCodeTarget = ref(null)
+    const qrCodeImage = ref('')
+    const qrCodeLink = ref('')
+    const qrCodeLoading = ref(false)
+    const exportingQr = ref(false)
 
     // Notes dialog
     const notesTitle = ref('')
@@ -1748,9 +1814,9 @@ export default defineComponent({
     const reportData = ref(null)
     const periodOptions = [
       { label: 'Hoje', value: 'today' },
-      { label: 'Ãšltimos 7 dias', value: '7d' },
-      { label: 'Ãšltimos 30 dias', value: '30d' },
-      { label: 'Ãšltimos 90 dias', value: '90d' },
+      { label: 'Últimos 7 dias', value: '7d' },
+      { label: 'Últimos 30 dias', value: '30d' },
+      { label: 'Últimos 90 dias', value: '90d' },
     ]
 
     // -- User profile preview --
@@ -1774,15 +1840,15 @@ export default defineComponent({
     const entryMenuSubtitle = computed(() => {
       if (!entryMenuEntry.value) return ''
       const e = entryMenuEntry.value
-      if (entryMenuType.value === 'waiting') return `Aguardando hÃ¡ ${formatWaitTime(e.waiting_since_minutes)}`
-      if (entryMenuType.value === 'serving') return `Em atendimento hÃ¡ ${formatWaitTime(e.serving_since_minutes)}`
-      return e.status === 'no_show' ? 'NÃ£o compareceu' : 'ConcluÃ­do'
+      if (entryMenuType.value === 'waiting') return `Aguardando há ${formatWaitTime(e.waiting_since_minutes)}`
+      if (entryMenuType.value === 'serving') return `Em atendimento há ${formatWaitTime(e.serving_since_minutes)}`
+      return e.status === 'no_show' ? 'Não compareceu' : 'Concluído'
     })
 
     const priorityLabels = [
       { key: 'p0', label: 'Normal', value: 0, icon: 'remove' },
-      { key: 'p1', label: 'PrioritÃ¡rio', value: 1, icon: 'priority_high' },
-      { key: 'p2', label: 'Muito PrioritÃ¡rio', value: 2, icon: 'warning' },
+      { key: 'p1', label: 'Prioritário', value: 1, icon: 'priority_high' },
+      { key: 'p2', label: 'Muito Prioritário', value: 2, icon: 'warning' },
     ]
 
     const entryMenuItems = computed(() => {
@@ -1828,9 +1894,9 @@ export default defineComponent({
           profileItem,
           { separator: true },
           { key: 'done', icon: 'check_circle', label: 'Concluir atendimento', action: () => updateEntryStatus(id, 'done') },
-          { key: 'no_show', icon: 'person_off', label: 'NÃ£o compareceu', action: () => openNotesDialog(id, 'no_show') },
+          { key: 'no_show', icon: 'person_off', label: 'Não compareceu', action: () => openNotesDialog(id, 'no_show') },
           { separator: true },
-          { key: 'return', icon: 'undo', label: 'Retornar Ã  fila', action: () => updateEntryStatus(id, 'waiting') },
+          { key: 'return', icon: 'undo', label: 'Retornar à fila', action: () => updateEntryStatus(id, 'waiting') },
           { separator: true },
           { key: 'remove', icon: 'cancel', label: 'Cancelar atendimento', danger: true, disabled: isEntryRemoving(id), action: () => confirmRemoveEntry(id, entry.user_name) },
         ]
@@ -1894,14 +1960,15 @@ export default defineComponent({
     const codeMenuTarget = ref(null)
     const codeMenuSubtitle = computed(() => {
       if (!codeMenuTarget.value) return ''
-      return codeMenuTarget.value.is_active ? 'CÃ³digo ativo' : 'CÃ³digo inativo'
+      return codeMenuTarget.value.is_active ? 'Código ativo' : 'Código inativo'
     })
 
     const codeMenuItems = computed(() => {
       if (!codeMenuTarget.value) return []
       const c = codeMenuTarget.value
       return [
-        { key: 'copy', icon: 'content_copy', label: 'Copiar cÃ³digo', action: () => copyToClipboard(c.code) },
+        { key: 'copy', icon: 'content_copy', label: 'Copiar código', action: () => copyToClipboard(c.code) },
+        { key: 'qr', icon: 'qr_code_2', label: 'Visualizar QR Code', action: () => openQrCodeDialog(c) },
         { key: 'edit', icon: 'edit', label: 'Editar', action: () => openEditCode(c) },
         { separator: true },
         c.is_active
@@ -1979,7 +2046,7 @@ export default defineComponent({
       try {
         const { data } = await api.get(`/queues/${queueId.value}/reports`, { params: { period: reportPeriod.value } })
         if (data?.success) reportData.value = data.data
-      } catch { $q.notify({ type: 'negative', message: 'Erro ao carregar relatÃ³rios' }) }
+      } catch { $q.notify({ type: 'negative', message: 'Erro ao carregar relatórios' }) }
       finally { reportsLoading.value = false }
     }
 
@@ -2053,7 +2120,7 @@ export default defineComponent({
           resetEntryUiState([normalizedEntryId])
           closeRemoveEntryDialog(true)
           await fetchData()
-          $q.notify({ type: 'info', message: 'A fila jÃ¡ havia sido atualizada. A tela foi sincronizada.' })
+          $q.notify({ type: 'info', message: 'A fila já havia sido atualizada. A tela foi sincronizada.' })
           return
         }
         $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao remover' })
@@ -2093,7 +2160,7 @@ export default defineComponent({
           resetEntryUiState(ids)
           closeBatchRemoveDialog(true)
           await fetchData()
-          $q.notify({ type: 'info', message: 'A fila jÃ¡ havia sido atualizada. A tela foi sincronizada.' })
+          $q.notify({ type: 'info', message: 'A fila já havia sido atualizada. A tela foi sincronizada.' })
           return
         }
         $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao remover' })
@@ -2160,7 +2227,7 @@ export default defineComponent({
     // Notes dialog
     const openNotesDialog = (entryId, status) => {
       const cfg = {
-        no_show: { title: 'NÃ£o Compareceu', desc: 'Registrar que a pessoa nÃ£o compareceu ao atendimento.', color: 'negative', action: 'Registrar' },
+        no_show: { title: 'Não Compareceu', desc: 'Registrar que a pessoa não compareceu ao atendimento.', color: 'negative', action: 'Registrar' },
       }[status] || { title: 'Alterar Status', desc: '', color: 'primary', action: 'Confirmar' }
       notesTitle.value = cfg.title
       notesDescription.value = cfg.desc
@@ -2180,24 +2247,24 @@ export default defineComponent({
         const { data } = await api.post(`/queues/${queueId.value}/call-next`, payload)
         if (data?.success && data?.data?.called) {
           const c = data.data.called
-          $q.notify({ type: 'positive', message: `Chamando: ${c.user_name || c.guest_name || 'PrÃ³ximo'}`, timeout: 5000 })
+          $q.notify({ type: 'positive', message: `Chamando: ${c.user_name || c.guest_name || 'Próximo'}`, timeout: 5000 })
         } else {
           $q.notify({ type: 'info', message: data?.data?.message || 'Fila vazia' })
         }
         fetchData()
-      } catch (err) { $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao chamar prÃ³ximo' }) }
+      } catch (err) { $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao chamar próximo' }) }
       finally { callingNext.value = false }
     }
 
     const joinWithCode = async () => {
-      if (!accessCode.value.trim()) { $q.notify({ type: 'warning', message: 'Insira o cÃ³digo de acesso' }); return }
+      if (!accessCode.value.trim()) { $q.notify({ type: 'warning', message: 'Insira o código de acesso' }); return }
       joining.value = true
       try {
         await api.post(`/queues/${queueId.value}/join`, { access_code: accessCode.value.trim() })
-        $q.notify({ type: 'positive', message: 'VocÃª entrou na fila com sucesso!' })
+        $q.notify({ type: 'positive', message: 'Você entrou na fila com sucesso!' })
         accessCode.value = ''
         fetchData()
-      } catch (err) { $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'CÃ³digo invÃ¡lido ou erro' }) }
+      } catch (err) { $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Código inválido ou erro' }) }
       finally { joining.value = false }
     }
 
@@ -2221,7 +2288,7 @@ export default defineComponent({
       try {
         if (isEditingCode.value) {
           await api.put(`/queues/${queueId.value}/access-codes/${editingCodeId.value}`, { expires_at: codeForm.value.expires_at || null, max_uses: codeForm.value.max_uses || null, is_active: codeForm.value.is_active })
-          $q.notify({ type: 'positive', message: 'CÃ³digo atualizado' })
+          $q.notify({ type: 'positive', message: 'Código atualizado' })
         } else {
           const payload = {}
           if (codeForm.value.type === 'timed' && codeForm.value.expires_at) payload.expires_at = codeForm.value.expires_at
@@ -2233,20 +2300,20 @@ export default defineComponent({
             generatedCodeExpiry.value = obj?.expires_at ? formatDate(obj.expires_at) : ''
             showGeneratedCodeDialog.value = true
           }
-          $q.notify({ type: 'positive', message: 'CÃ³digo gerado' })
+          $q.notify({ type: 'positive', message: 'Código gerado' })
         }
         showCodeDialog.value = false
         fetchAccessCodes()
-      } catch (err) { $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar cÃ³digo' }) }
+      } catch (err) { $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar código' }) }
       finally { savingCode.value = false }
     }
 
     const toggleCodeActive = async (code, active) => {
       try {
         await api.put(`/queues/${queueId.value}/access-codes/${code.id}`, { is_active: active })
-        $q.notify({ type: 'positive', message: active ? 'CÃ³digo ativado' : 'CÃ³digo desativado' })
+        $q.notify({ type: 'positive', message: active ? 'Código ativado' : 'Código desativado' })
         fetchAccessCodes()
-      } catch { $q.notify({ type: 'negative', message: 'Erro ao atualizar cÃ³digo' }) }
+      } catch { $q.notify({ type: 'negative', message: 'Erro ao atualizar código' }) }
     }
 
     const closeDeleteCodeDialog = (force = false) => {
@@ -2266,11 +2333,11 @@ export default defineComponent({
       deletingCode.value = true
       try {
         await api.delete(`/queues/${queueId.value}/access-codes/${codeDeleteTarget.value.id}`)
-        $q.notify({ type: 'positive', message: 'CÃ³digo excluÃ­do' })
+        $q.notify({ type: 'positive', message: 'Código excluído' })
         closeDeleteCodeDialog(true)
         fetchAccessCodes()
       } catch {
-        $q.notify({ type: 'negative', message: 'Erro ao excluir cÃ³digo' })
+        $q.notify({ type: 'negative', message: 'Erro ao excluir código' })
       } finally {
         deletingCode.value = false
       }
@@ -2279,7 +2346,117 @@ export default defineComponent({
     const copyToClipboard = (text) => {
       navigator.clipboard.writeText(text)
         .then(() => $q.notify({ type: 'positive', message: 'Copiado!', timeout: 1500 }))
-        .catch(() => $q.notify({ type: 'warning', message: 'NÃ£o foi possÃ­vel copiar' }))
+        .catch(() => $q.notify({ type: 'warning', message: 'Não foi possível copiar' }))
+    }
+
+    const sanitizeFileName = (value) => {
+      return (value || 'fila')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9-_]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .toLowerCase() || 'fila'
+    }
+
+    const getPublicAppBaseUrl = () => {
+      const configuredBase = import.meta.env.VITE_PUBLIC_APP_URL?.trim()
+      if (configuredBase) {
+        return configuredBase.replace(/\/$/, '')
+      }
+
+      if (typeof window !== 'undefined' && window.location?.origin) {
+        return window.location.origin.replace(/\/$/, '')
+      }
+
+      return ''
+    }
+
+    const buildAccessCodeLink = (code) => {
+      const params = new URLSearchParams({
+        queue_id: String(queueId.value),
+        access_code: String(code.code || ''),
+      })
+
+      return `${getPublicAppBaseUrl()}/join/queue?${params.toString()}`
+    }
+
+    const generateQrCodeImage = async (code) => {
+      qrCodeTarget.value = code
+      qrCodeLink.value = buildAccessCodeLink(code)
+      qrCodeLoading.value = true
+
+      try {
+        qrCodeImage.value = await QRCode.toDataURL(qrCodeLink.value, {
+          errorCorrectionLevel: 'H',
+          margin: 2,
+          width: 360,
+          color: {
+            dark: '#0f172a',
+            light: '#FFFFFFFF',
+          },
+        })
+      } finally {
+        qrCodeLoading.value = false
+      }
+    }
+
+    const openQrCodeDialog = async (code) => {
+      codeMenuOpen.value = false
+      showQrCodeDialog.value = true
+      await generateQrCodeImage(code)
+    }
+
+    const closeQrCodeDialog = () => {
+      if (exportingQr.value) return
+      showQrCodeDialog.value = false
+    }
+
+    const exportQrCode = async (format) => {
+      if (!qrCodeTarget.value) return
+
+      exportingQr.value = true
+      try {
+        if (!qrCodeImage.value) {
+          await generateQrCodeImage(qrCodeTarget.value)
+        }
+
+        const fileBase = `${sanitizeFileName(queue.value?.name)}-${sanitizeFileName(qrCodeTarget.value.code)}-qr`
+
+        if (format === 'png') {
+          const link = document.createElement('a')
+          link.href = qrCodeImage.value
+          link.download = `${fileBase}.png`
+          document.body.appendChild(link)
+          link.click()
+          link.remove()
+          $q.notify({ type: 'positive', message: 'QR Code exportado em PNG' })
+          return
+        }
+
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+        const qrSize = 90
+        const x = (210 - qrSize) / 2
+
+        pdf.setFontSize(18)
+        pdf.text(queue.value?.name || 'Fila', 105, 20, { align: 'center' })
+        pdf.setFontSize(12)
+        pdf.text(`Código de acesso: ${qrCodeTarget.value.code}`, 105, 29, { align: 'center' })
+        pdf.addImage(qrCodeImage.value, 'PNG', x, 38, qrSize, qrSize, undefined, 'FAST')
+        pdf.setFontSize(10)
+        const lines = pdf.splitTextToSize(qrCodeLink.value, 170)
+        pdf.text(lines, 20, 136)
+        if (qrCodeTarget.value.expires_at) {
+          pdf.text(`Expira em: ${formatDate(qrCodeTarget.value.expires_at)}`, 20, 152)
+        }
+        pdf.save(`${fileBase}.pdf`)
+        $q.notify({ type: 'positive', message: 'QR Code exportado em PDF' })
+      } catch (err) {
+        console.error('Erro ao exportar QR Code:', err)
+        $q.notify({ type: 'negative', message: 'Não foi possível exportar o QR Code' })
+      } finally {
+        exportingQr.value = false
+      }
     }
 
     // -- Reports helpers --
@@ -2338,7 +2515,7 @@ export default defineComponent({
       const s = reportData.value.summary
       const items = [
         { label: 'Atendidos', value: s.total_completed || 0, color: '#22c55e' },
-        { label: 'NÃ£o Comp.', value: s.total_no_show || 0, color: '#ef4444' },
+        { label: 'Não Comp.', value: s.total_no_show || 0, color: '#ef4444' },
         { label: 'Cancelados', value: s.total_cancelled || 0, color: '#f59e0b' },
         { label: 'Aguardando', value: s.total_waiting || 0, color: '#3b82f6' },
         { label: 'Atendendo', value: s.total_serving || 0, color: '#8b5cf6' },
@@ -2357,7 +2534,7 @@ export default defineComponent({
 
     const priorityPieData = computed(() => {
       if (!reportData.value?.priority_distribution) return []
-      const priorityLabels = { 0: 'Normal', 1: 'PrioritÃ¡rio', 2: 'Alta Prioridade' }
+      const priorityLabels = { 0: 'Normal', 1: 'Prioritário', 2: 'Alta Prioridade' }
       const priorityColors = { 0: '#64748b', 1: '#f59e0b', 2: '#ef4444' }
       const items = reportData.value.priority_distribution
         .map(d => ({
@@ -2461,7 +2638,7 @@ export default defineComponent({
       showDeleteServiceDialog, closeDeleteServiceDialog, serviceActionTarget, serviceActionLoading, serviceDeleteImpactLabel,
       unlinkQueueService, promptDeleteService, confirmDeleteService,
       // Dialogs
-      showNotesDialog, showCodeDialog, showGeneratedCodeDialog,
+      showNotesDialog, showCodeDialog, showGeneratedCodeDialog, showQrCodeDialog,
       showDeleteCodeDialog, codeDeleteTarget, deletingCode, closeDeleteCodeDialog, confirmDeleteCode,
       showRemoveEntryDialog, removeEntryTarget, removeEntryDialogLoading, closeRemoveEntryDialog,
       showBatchRemoveDialog, batchRemoveTargetIds, closeBatchRemoveDialog, confirmBatchRemoveSelected,
@@ -2477,8 +2654,8 @@ export default defineComponent({
       profilePreviewOpen, profilePreviewUserId, profilePreviewPos,
       // Access codes
       accessCodes, accessCode, isEditingCode, codeForm,
-      generatedCodeValue, generatedCodeExpiry,
-      openCreateCode, openEditCode, saveCode, copyToClipboard, deleteCode,
+      generatedCodeValue, generatedCodeExpiry, qrCodeTarget, qrCodeImage, qrCodeLink, qrCodeLoading, exportingQr,
+      openCreateCode, openEditCode, saveCode, copyToClipboard, deleteCode, openQrCodeDialog, closeQrCodeDialog, exportQrCode,
       // Reports
       reportPeriod, reportData, periodOptions, formattedHourlyData, fetchReports, openGlobalReports,
       chartDailyData, waitTimePoints, waitTimePointsArr,
@@ -2749,6 +2926,49 @@ export default defineComponent({
 .code-preview { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; background: var(--qm-bg-secondary); border-radius: 8px; }
 .code-preview-label { font-size: 0.75rem; color: var(--qm-text-muted); font-weight: 600; }
 .code-preview-value { font-family: 'Consolas', 'Monaco', monospace; font-size: 1.125rem; font-weight: 700; letter-spacing: 3px; color: var(--qm-text-primary); }
+
+.qr-code-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.qr-code-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  padding: 1rem;
+  border-radius: 16px;
+  background: var(--qm-bg-secondary);
+}
+
+.qr-code-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.qr-code-image {
+  display: block;
+  width: min(100%, 280px);
+  height: auto;
+}
+
+.qr-code-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.qr-code-link {
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  background: var(--qm-bg-secondary);
+  color: var(--qm-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  word-break: break-all;
+}
 
 // -- Charts --
 .chart-container { padding: 0 0.5rem; }
