@@ -36,10 +36,14 @@ Sistema completo (API + Web App) para gerenciar **filas de espera** e **agendame
 
 ```
 QueueMaster/
-├── api/       # Backend PHP (API RESTful + JWT RS256)
-├── web/       # Frontend Quasar/Vue 3 (SPA)
-├── docs/      # Documentação
-└── public/    # Entry point unificado
+├── api/                # Backend PHP (API RESTful + JWT RS256)
+├── web/                # Frontend Quasar/Vue 3 (SPA)
+├── mobile/             # App mobile / experimentos futuros
+├── public/             # Entry point unificado
+├── docker/             # Assets Docker e compose de dev
+├── scripts/            # Automações e deploy
+├── docs/               # Documentação
+└── docker-compose.yml  # Compose principal de produção
 ```
 
 ---
@@ -105,6 +109,7 @@ O QueueMaster usa **Google OAuth 2.0** como único método de login:
 | [📘 API Documentation](docs/API_DOCUMENTATION.md) | Referência de endpoints |
 | [🔄 Refresh Token Guide](docs/REFRESH_TOKEN_GUIDE.md) | Rotação de tokens |
 | [🧪 Postman Guide](docs/POSTMAN_GUIDE.md) | Como testar a API |
+| [🗂️ File Tree](docs/structure/FILETREE.md) | Visão organizada da estrutura do repositório |
 | [🏗️ Architecture](docs/ARCHITECTURE_REFACTORING.md) | Decisões arquiteturais |
 
 ---

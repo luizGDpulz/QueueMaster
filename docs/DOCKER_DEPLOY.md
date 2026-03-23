@@ -77,8 +77,8 @@ cd QueueMaster
 ## 3. Executar o Setup
 
 ```bash
-chmod +x deploy.sh
-./deploy.sh
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
 ```
 
 ### Passo 3.1 → Opção 1: Setup Inicial
@@ -145,11 +145,11 @@ No [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
 | **API Status** | `https://app.meusite.com/api/v1/status` |
 | **Swagger** | `https://app.meusite.com/swagger/` |
 
-Via script: `./deploy.sh` → Opção 9 (Status)
+Via script: `./scripts/deploy.sh` → Opção 9 (Status)
 
 ## 7. Operações do Dia a Dia
 
-Todas via `./deploy.sh`:
+Todas via `./scripts/deploy.sh`:
 
 | Opção | Ação |
 |-------|------|
@@ -166,7 +166,7 @@ Todas via `./deploy.sh`:
 ```bash
 cd QueueMaster
 git pull origin main
-./deploy.sh  # → Opção 12 (Rebuild)
+./scripts/deploy.sh  # → Opção 12 (Rebuild)
 # Se houver novas migrations: → Opção 6
 ```
 
@@ -188,20 +188,20 @@ Na Oracle Cloud Console: **VCN → Security Lists → Ingress Rules** para porta
 
 ### Containers não iniciam
 ```bash
-./deploy.sh  # → Opção 5 (Logs) → App
+./scripts/deploy.sh  # → Opção 5 (Logs) → App
 ```
 
 ### API retorna erro 500
 ```bash
 docker compose logs app --tail=100
-./deploy.sh  # → Opção 6 → Migrations up
+./scripts/deploy.sh  # → Opção 6 → Migrations up
 ```
 
 ### Frontend mostra página em branco
 ```bash
 # Verificar se o build do Quasar foi gerado
 docker compose exec app ls -la /var/www/web/dist/spa/
-# Rebuild: ./deploy.sh → Opção 12
+# Rebuild: ./scripts/deploy.sh → Opção 12
 ```
 
 ### Login com Google não funciona
@@ -214,16 +214,17 @@ docker compose exec app ls -la /var/www/web/dist/spa/
 ```
 QueueMaster/
 ├── docker-compose.yml          ← Produção (2 containers)
-├── docker-compose.dev.yml      ← Dev local (DB + phpMyAdmin)
-├── deploy.sh                   ← Script de deploy interativo
 ├── .env                        ← Configurações (gerado pelo setup)
-├── .env.deploy.example         ← Template de referência
 ├── docker/
 │   ├── api/
 │   │   ├── Dockerfile          ← Multi-stage: Node build + PHP/Apache
 │   │   └── apache.conf         ← VirtualHost config
+│   ├── docker-compose.dev.yml  ← Dev local (DB + phpMyAdmin)
 │   └── mariadb/
 │       └── init.sql            ← DB initialization
+├── scripts/
+│   ├── deploy.sh               ← Script de deploy interativo
+│   └── .env.deploy.example     ← Template de referência
 └── backups/                    ← Backups do banco
 ```
 
@@ -232,7 +233,7 @@ QueueMaster/
 | Ambiente | Como usar |
 |----------|-----------|
 | **Dev (XAMPP)** | Apache local + `api/.env` + `quasar dev` |
-| **Dev (Docker DB)** | `docker compose -f docker-compose.dev.yml up` |
-| **Produção** | `./deploy.sh` → Build & Deploy |
+| **Dev (Docker DB)** | `docker compose -f docker/docker-compose.dev.yml up` |
+| **Produção** | `./scripts/deploy.sh` → Build & Deploy |
 
 Os arquivos `api/.env` e `web/queuemaster/.env` do dev local **não são tocados**.

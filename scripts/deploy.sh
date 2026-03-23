@@ -5,7 +5,7 @@
 # Interactive script to setup, deploy, and manage the QueueMaster application
 # using Docker containers (MariaDB + PHP/Apache API + Nginx Frontend).
 #
-# Usage: ./deploy.sh
+# Usage: ./scripts/deploy.sh
 # ============================================================================
 
 set -euo pipefail
@@ -14,12 +14,13 @@ set -euo pipefail
 # Constants
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/.env"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="$REPO_ROOT/.env"
 ENV_EXAMPLE="$SCRIPT_DIR/.env.deploy.example"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+COMPOSE_FILE="$REPO_ROOT/docker-compose.yml"
 APP_CONTAINER="queuemaster_app"
 DB_CONTAINER="queuemaster_mariadb"
-BACKUP_DIR="$SCRIPT_DIR/backups"
+BACKUP_DIR="$REPO_ROOT/backups"
 
 # ---------------------------------------------------------------------------
 # Colors
@@ -69,7 +70,10 @@ check_docker() {
 
 check_env() {
     if [[ ! -f "$ENV_FILE" ]]; then
-        print_warn "Arquivo .env não encontrado."
+        print_warn "Arquivo .env não encontrado em $ENV_FILE."
+        if [[ -f "$ENV_EXAMPLE" ]]; then
+            print_info "Template de referência: $ENV_EXAMPLE"
+        fi
         print_info "Execute a opção 1 (Setup Inicial) primeiro."
         echo ""
         return 1
@@ -434,7 +438,7 @@ do_seeds() {
 # ---------------------------------------------------------------------------
 do_generate_keys_internal() {
     # Generate keys locally (bind mount handles the container)
-    local keys_dir="$SCRIPT_DIR/api/keys"
+    local keys_dir="$REPO_ROOT/api/keys"
     mkdir -p "$keys_dir"
     
     print_info "Gerando novas chaves RSA..."
