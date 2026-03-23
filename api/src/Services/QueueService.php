@@ -78,10 +78,11 @@ class QueueService
      * @param int $queueId Queue ID
      * @param int|null $userId User ID (null for anonymous)
      * @param int $priority Priority level (0 = normal, higher = priority)
+     * @param string $status Initial status ('waiting' or 'serving')
      * @return array Queue entry data
      * @throws \Exception
      */
-    public function join(int $queueId, ?int $userId = null, int $priority = 0): array
+    public function join(int $queueId, ?int $userId = null, int $priority = 0, string $status = 'waiting'): array
     {
         try {
             $this->db->beginTransaction();
@@ -113,11 +114,14 @@ class QueueService
             $nextPosition = ((int)$positionResult[0]['max_position']) + 1;
 
             // Insert queue entry
+            $calledAt = $status === 'serving' ? date('Y-m-d H:i:s') : null;
+            $servedAt = $status === 'serving' ? date('Y-m-d H:i:s') : null;
+
             $insertSql = "
-                INSERT INTO queue_entries (queue_id, user_id, position, status, priority, created_at)
-                VALUES (?, ?, ?, 'waiting', ?, NOW())
+                INSERT INTO queue_entries (queue_id, user_id, position, status, priority, created_at, called_at, served_at)
+                VALUES (?, ?, ?, ?, ?, NOW(), ?, ?)
             ";
-            $this->db->execute($insertSql, [$queueId, $userId, $nextPosition, $priority]);
+            $this->db->execute($insertSql, [$queueId, $userId, $nextPosition, $status, $priority, $calledAt, $servedAt]);
 
             $entryId = (int)$this->db->lastInsertId();
 
@@ -240,11 +244,12 @@ class QueueService
             }
 
             // Step 2: No priority appointment, select next from queue
+            // Order by priority DESC (higher priority first), then position ASC (earlier position first)
             $entrySql = "
                 SELECT * FROM queue_entries
                 WHERE queue_id = ?
                   AND status = 'waiting'
-                ORDER BY priority DESC, created_at ASC
+                ORDER BY priority DESC, position ASC
                 LIMIT 1
                 FOR UPDATE
             ";
@@ -315,13 +320,20 @@ class QueueService
                 throw new \Exception('Unauthorized');
             }
 
-            if (!in_array($entry['status'], ['waiting', 'called'])) {
-                throw new \Exception('Cannot cancel entry in current status');
-            }
+        if (!in_array($entry['status'], ['waiting', 'called', 'serving'])) {
+            throw new \Exception('Cannot cancel entry in current status');
+        }
 
-            // Update status
-            $sql = "UPDATE queue_entries SET status = 'cancelled' WHERE id = ?";
-            $this->db->execute($sql, [$entryId]);
+        // Update status
+        $sql = "
+            UPDATE queue_entries
+            SET status = 'cancelled',
+                completed_at = NOW(),
+                called_at = COALESCE(called_at, CASE WHEN status IN ('called', 'serving') THEN NOW() ELSE NULL END),
+                served_at = COALESCE(served_at, CASE WHEN status = 'serving' THEN NOW() ELSE NULL END)
+            WHERE id = ?
+        ";
+        $this->db->execute($sql, [$entryId]);
 
             // Publish event
             $this->publishEvent('queue.left', [

@@ -52,7 +52,7 @@ class DashboardController
                     q.status,
                     COUNT(CASE WHEN qe.status = 'waiting' THEN 1 END) as waiting_count,
                     COUNT(CASE WHEN qe.status = 'called' THEN 1 END) as called_count,
-                    COUNT(CASE WHEN qe.status = 'served' THEN 1 END) as served_count
+                    COUNT(CASE WHEN qe.status = 'done' THEN 1 END) as served_count
                 FROM queues q
                 LEFT JOIN queue_entries qe ON qe.queue_id = q.id
                 $whereClause
@@ -64,7 +64,7 @@ class DashboardController
             // Get today's totals
             $todayTotalsSql = "
                 SELECT 
-                    COUNT(CASE WHEN qe.status = 'served' THEN 1 END) as served_today,
+                    COUNT(CASE WHEN qe.status = 'done' THEN 1 END) as served_today,
                     COUNT(CASE WHEN qe.status = 'no_show' THEN 1 END) as no_show_today,
                     COUNT(CASE WHEN qe.status = 'waiting' THEN 1 END) as currently_waiting
                 FROM queue_entries qe
@@ -138,11 +138,13 @@ class DashboardController
                     a.*,
                     u.name as user_name,
                     u.email as user_email,
-                    p.name as professional_name,
+                    COALESCE(p.name, pu.name) as professional_name,
+                    pu.email as professional_email,
                     s.name as service_name
                 FROM appointments a
                 LEFT JOIN users u ON u.id = a.user_id
-                LEFT JOIN users p ON p.id = a.professional_id
+                LEFT JOIN professionals p ON p.id = a.professional_id
+                LEFT JOIN users pu ON pu.id = p.user_id
                 LEFT JOIN services s ON s.id = a.service_id
                 $whereClause
                 ORDER BY a.start_at ASC
@@ -203,7 +205,7 @@ class DashboardController
             }
 
             // Update status
-            $updateSql = "UPDATE queue_entries SET status = 'served', served_at = NOW() WHERE id = ?";
+            $updateSql = "UPDATE queue_entries SET status = 'done', served_at = NOW(), completed_at = NOW() WHERE id = ?";
             $db->execute($updateSql, [$entryId]);
 
             Logger::info('Queue entry marked as served', [

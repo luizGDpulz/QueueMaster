@@ -1,2268 +1,1651 @@
-openapi: 3.0.3
+﻿openapi: 3.0.3
 info:
   title: QueueMaster API
+  version: 1.1.0
   description: |
-    **Production-oriented hybrid queue and appointment management RESTful API**
-    
-    ## Overview
-    QueueMaster é uma API completa para gerenciamento de filas e agendamentos, 
-    ideal para estabelecimentos que precisam controlar fluxo de clientes.
-    
-    ## Autenticação (Google OAuth)
-    A API utiliza **Google OAuth 2.0** para autenticação:
-    
-    1. **Frontend**: Usuário faz login com Google e recebe um `id_token`
-    2. **Backend**: O `id_token` é enviado para `POST /auth/google`
-    3. **Resposta**: API retorna `access_token` (JWT RS256) e `refresh_token`
-    
-    ### Como testar no Swagger:
-    1. Faça login no frontend (http://localhost:9000)
-    2. Abra o DevTools (F12) → Application → Local Storage
-    3. Copie o valor de `access_token`
-    4. Clique em "Authorize" acima e cole o token
-    
-    ### Headers de autenticação:
-    ```
-    Authorization: Bearer {access_token}
-    ```
-    
-    ## Rate Limiting
-    - Global: 100 requisições por minuto
-    - Auth Google: 10 requisições por minuto
-    
-    ## Códigos de Status
-    | Código | Descrição |
-    |--------|-----------|
-    | 200 | Sucesso |
-    | 201 | Criado com sucesso |
-    | 400 | Requisição inválida |
-    | 401 | Não autenticado |
-    | 403 | Acesso negado |
-    | 404 | Recurso não encontrado |
-    | 409 | Conflito |
-    | 422 | Erro de validação |
-    | 429 | Rate limit excedido |
-    | 500 | Erro interno do servidor |
-    
-  version: 1.0.0
-  contact:
-    name: QueueMaster Support
-    email: support@queuemaster.com
-  license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
-
+    Documentacao alinhada com as rotas atualmente expostas pela API.
 servers:
-  - url: http://localhost/api/v1
-    description: Local Development (XAMPP)
-  - url: http://localhost:8080/api/v1
-    description: PHP Built-in Server
-  - url: https://api.queuemaster.com/api/v1
-    description: Production Server
-
+  - url: http://localhost
+    description: XAMPP local
+  - url: http://localhost:8080
+    description: Servidor PHP embutido
+  - url: https://api.queuemaster.com
+    description: Producao
+security:
+  - bearerAuth: []
 tags:
-  - name: Auth
-    description: Autenticação e gerenciamento de sessão
-  - name: Users
-    description: Gerenciamento de usuários
-  - name: Establishments
-    description: Gerenciamento de estabelecimentos
-  - name: Services
-    description: Serviços oferecidos pelos estabelecimentos
-  - name: Professionals
-    description: Profissionais dos estabelecimentos
-  - name: Queues
-    description: Gerenciamento de filas
-  - name: Appointments
-    description: Agendamentos
-  - name: Dashboard
-    description: Painel administrativo
-  - name: Notifications
-    description: Sistema de notificações
-  - name: Streams
-    description: Server-Sent Events (SSE) para atualizações em tempo real
   - name: Health
-    description: Status da API
+  - name: Auth
+  - name: Users
+  - name: Businesses
+  - name: Invitations
+  - name: Establishments
+  - name: Services
+  - name: Professionals
+  - name: Appointments
+  - name: Queues
+  - name: Reports
+  - name: Dashboard
+  - name: Notifications
   - name: Admin
-    description: Endpoints administrativos (plans, subscriptions, audit-logs)
-
+  - name: Streams
 paths:
-  # ============================================================================
-  # Health Check
-  # ============================================================================
-  /status:
+  /health:
     get:
-      tags:
-        - Health
-      summary: Status da API
-      description: Retorna informações sobre o status da API e endpoints disponíveis
-      operationId: getStatus
+      tags: [Health]
+      summary: Health check publico
+      security: []
       responses:
         '200':
-          description: API está funcionando
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                        example: "QueueMaster API is running"
-                      version:
-                        type: string
-                        example: "1.0.0"
-                      timestamp:
-                        type: string
-                        format: date-time
-                      environment:
-                        type: string
-                        example: "production"
-                      endpoints:
-                        type: object
-
-  # ============================================================================
-  # Authentication (Google OAuth)
-  # ============================================================================
-  /auth/google:
+          $ref: '#/components/responses/Ok'
+  /api/v1/status:
+    get:
+      tags: [Health]
+      summary: Status autenticado da API
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/auth/google:
     post:
-      tags:
-        - Auth
+      tags: [Auth]
       summary: Autenticar com Google OAuth
-      description: |
-        Autentica o usuário usando um ID Token do Google.
-        
-        **Fluxo:**
-        1. Frontend obtém `id_token` do Google Identity Services
-        2. Frontend envia o token para este endpoint
-        3. Backend valida com Google e cria/atualiza usuário
-        4. Retorna access_token (JWT) e refresh_token
-        
-        **Primeiro Admin:**
-        Configure `SUPER_ADMIN_EMAIL` no `.env` antes do primeiro login.
-        O usuário com esse email será automaticamente admin.
-        
-        **Rate Limit:** 10 requisições por minuto
-      operationId: authGoogle
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GoogleAuthRequest'
-            example:
-              id_token: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+      security: []
       responses:
         '200':
-          description: Autenticação realizada com sucesso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-              example:
-                success: true
-                data:
-                  user:
-                    id: 1
-                    name: "João Silva"
-                    email: "joao@gmail.com"
-                    avatar_url: "https://lh3.googleusercontent.com/..."
-                    role: "client"
-                    email_verified: true
-                  access_token: "eyJhbGciOiJSUzI1NiJ9..."
-                  refresh_token: "rt_abc123..."
-                  token_type: "Bearer"
-                  expires_in: 900
-                  is_new_user: false
-        '401':
-          description: Token inválido ou expirado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                success: false
-                error:
-                  code: "UNAUTHORIZED"
-                  message: "Invalid Google token"
-        '403':
-          description: Email não verificado pelo Google
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Ok'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-
-  /auth/refresh:
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/auth/refresh:
     post:
-      tags:
-        - Auth
+      tags: [Auth]
       summary: Renovar access token
-      description: |
-        Renova o access token usando o refresh token.
-        Implementa rotação de tokens para maior segurança.
-        
-        **Rate Limit:** 20 requisições por minuto
-      operationId: refreshToken
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - refresh_token
-              properties:
-                refresh_token:
-                  type: string
-                  description: Refresh token obtido no login
-            example:
-              refresh_token: "rt_abc123..."
+      security: []
       responses:
         '200':
-          description: Token renovado com sucesso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/Ok'
         '422':
           $ref: '#/components/responses/ValidationError'
-
-  /auth/me:
+  /api/v1/auth/me:
     get:
-      tags:
-        - Auth
-      summary: Obter perfil do usuário atual
-      description: Retorna os dados do usuário autenticado
-      operationId: getCurrentUser
-      security:
-        - bearerAuth: []
+      tags: [Auth]
+      summary: Perfil do usuario autenticado
       responses:
         '200':
-          description: Perfil do usuário
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
-  /auth/logout:
+  /api/v1/auth/logout:
     post:
-      tags:
-        - Auth
-      summary: Logout do usuário
-      description: Invalida o refresh token atual
-      operationId: logout
-      security:
-        - bearerAuth: []
+      tags: [Auth]
+      summary: Encerrar sessao
       responses:
         '200':
-          description: Logout realizado com sucesso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
-  # ============================================================================
-  # Users
-  # ============================================================================
-  /users:
+  /api/v1/auth/dev-token:
     get:
-      tags:
-        - Users
-      summary: Listar usuários
-      description: Lista todos os usuários (apenas admin)
-      operationId: listUsers
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - name: role
-          in: query
-          description: Filtrar por role
-          schema:
-            type: string
-            enum: [client, attendant, admin]
+      tags: [Auth]
+      summary: Gerar token de desenvolvimento para Swagger
       responses:
         '200':
-          description: Lista de usuários
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedUsers'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: Listar usuarios
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
-      tags:
-        - Users
-      summary: Criar usuário
-      description: Cria um novo usuário (apenas admin)
-      operationId: createUser
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateUserRequest'
+      tags: [Users]
+      summary: Criar usuario
       responses:
         '201':
-          description: Usuário criado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserResponse'
+          $ref: '#/components/responses/Created'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
-
-  /users/{id}:
+  /api/v1/users/{id}:
     get:
-      tags:
-        - Users
-      summary: Obter usuário
-      description: Retorna dados de um usuário específico
-      operationId: getUser
-      security:
-        - bearerAuth: []
+      tags: [Users]
+      summary: Obter usuario por ID
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Dados do usuário
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
+        '403':
+          $ref: '#/components/responses/Forbidden'
     put:
-      tags:
-        - Users
-      summary: Atualizar usuário
-      description: Atualiza dados de um usuário
-      operationId: updateUser
-      security:
-        - bearerAuth: []
+      tags: [Users]
+      summary: Atualizar usuario
       parameters:
         - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateUserRequest'
       responses:
         '200':
-          description: Usuário atualizado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
-
     delete:
-      tags:
-        - Users
-      summary: Deletar usuário
-      description: Remove um usuário (apenas admin)
-      operationId: deleteUser
-      security:
-        - bearerAuth: []
+      tags: [Users]
+      summary: Excluir usuario
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Usuário removido
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/users/{id}/queue-entries:
+    get:
+      tags: [Users]
+      summary: Listar entradas de fila do usuario
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/users/{id}/appointments:
+    get:
+      tags: [Users]
+      summary: Listar agendamentos do usuario
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/users/{id}/avatar:
+    get:
+      tags: [Users]
+      summary: Obter avatar do usuario
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/businesses:
+    get:
+      tags: [Businesses]
+      summary: Listar negocios acessiveis
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Businesses]
+      summary: Criar negocio
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /users/{id}/queue-entries:
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/businesses/search:
     get:
-      tags:
-        - Users
-      summary: Listar entradas na fila do usuário
-      description: Retorna as entradas na fila do usuário
-      operationId: getUserQueueEntries
-      security:
-        - bearerAuth: []
+      tags: [Businesses]
+      summary: Buscar negocios ativos
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/businesses/{id}:
+    get:
+      tags: [Businesses]
+      summary: Obter negocio por ID
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Lista de entradas na fila
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/QueueEntry'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /users/{id}/appointments:
-    get:
-      tags:
-        - Users
-      summary: Listar agendamentos do usuário
-      description: Retorna os agendamentos do usuário
-      operationId: getUserAppointments
-      security:
-        - bearerAuth: []
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags: [Businesses]
+      summary: Atualizar negocio
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Lista de agendamentos
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedAppointments'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  # ============================================================================
-  # Establishments
-  # ============================================================================
-  /establishments:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/businesses/{id}/discover-establishments:
     get:
-      tags:
-        - Establishments
+      tags: [Businesses]
+      summary: Descobrir estabelecimentos ativos do negocio
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/businesses/{id}/establishments:
+    get:
+      tags: [Businesses]
+      summary: Listar estabelecimentos do negocio
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Businesses]
+      summary: Criar estabelecimento em um negocio
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/businesses/{id}/users:
+    get:
+      tags: [Businesses]
+      summary: Listar usuarios do negocio
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Businesses]
+      summary: Adicionar usuario ao negocio
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/businesses/{id}/users/{userId}:
+    delete:
+      tags: [Businesses]
+      summary: Remover usuario do negocio
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/businesses/{id}/invitations:
+    get:
+      tags: [Invitations]
+      summary: Listar convites do negocio
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Invitations]
+      summary: Convidar usuario para o negocio
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/businesses/{id}/invitation-target:
+    get:
+      tags: [Invitations]
+      summary: Pre-visualizar destinatario do convite por email
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/businesses/{id}/join-request:
+    post:
+      tags: [Invitations]
+      summary: Solicitar vinculo profissional com um negocio
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/invitations:
+    get:
+      tags: [Invitations]
+      summary: Listar meus convites
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/invitations/{id}/accept:
+    post:
+      tags: [Invitations]
+      summary: Aceitar convite
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/invitations/{id}/reject:
+    post:
+      tags: [Invitations]
+      summary: Recusar convite
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/invitations/{id}/cancel:
+    post:
+      tags: [Invitations]
+      summary: Cancelar convite
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/establishments:
+    get:
+      tags: [Establishments]
       summary: Listar estabelecimentos
-      description: Lista todos os estabelecimentos
-      operationId: listEstablishments
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - name: search
-          in: query
-          description: Buscar por nome
-          schema:
-            type: string
       responses:
         '200':
-          description: Lista de estabelecimentos
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedEstablishments'
-
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
     post:
-      tags:
-        - Establishments
+      tags: [Establishments]
       summary: Criar estabelecimento
-      description: Cria um novo estabelecimento (apenas admin)
-      operationId: createEstablishment
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateEstablishmentRequest'
       responses:
         '201':
-          description: Estabelecimento criado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EstablishmentResponse'
+          $ref: '#/components/responses/Created'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
-
-  /establishments/{id}:
+  /api/v1/establishments/{id}:
     get:
-      tags:
-        - Establishments
+      tags: [Establishments]
       summary: Obter estabelecimento
-      description: Retorna dados de um estabelecimento
-      operationId: getEstablishment
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Dados do estabelecimento
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EstablishmentResponse'
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
     put:
-      tags:
-        - Establishments
+      tags: [Establishments]
       summary: Atualizar estabelecimento
-      description: Atualiza um estabelecimento (apenas admin)
-      operationId: updateEstablishment
-      security:
-        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateEstablishmentRequest'
       responses:
         '200':
-          description: Estabelecimento atualizado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EstablishmentResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
-      tags:
-        - Establishments
-      summary: Deletar estabelecimento
-      description: Remove um estabelecimento (apenas admin)
-      operationId: deleteEstablishment
-      security:
-        - bearerAuth: []
+      tags: [Establishments]
+      summary: Excluir estabelecimento
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Estabelecimento removido
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /establishments/{id}/services:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/establishments/{id}/services:
     get:
-      tags:
-        - Establishments
-      summary: Listar serviços do estabelecimento
-      description: Retorna os serviços oferecidos pelo estabelecimento
-      operationId: getEstablishmentServices
+      tags: [Establishments]
+      summary: Listar servicos do estabelecimento
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Lista de serviços
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Service'
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /establishments/{id}/professionals:
+  /api/v1/establishments/{id}/professionals:
     get:
-      tags:
-        - Establishments
+      tags: [Establishments]
       summary: Listar profissionais do estabelecimento
-      description: Retorna os profissionais do estabelecimento
-      operationId: getEstablishmentProfessionals
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Lista de profissionais
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Professional'
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  # ============================================================================
-  # Services
-  # ============================================================================
-  /services:
+  /api/v1/services:
     get:
-      tags:
-        - Services
-      summary: Listar serviços
-      description: Lista todos os serviços
-      operationId: listServices
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - name: establishment_id
-          in: query
-          description: Filtrar por estabelecimento
-          schema:
-            type: integer
+      tags: [Services]
+      summary: Listar servicos
       responses:
         '200':
-          description: Lista de serviços
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedServices'
-
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
     post:
-      tags:
-        - Services
-      summary: Criar serviço
-      description: Cria um novo serviço (apenas admin)
-      operationId: createService
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateServiceRequest'
+      tags: [Services]
+      summary: Criar servico
       responses:
         '201':
-          description: Serviço criado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServiceResponse'
+          $ref: '#/components/responses/Created'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
-
-  /services/{id}:
+  /api/v1/services/{id}:
     get:
-      tags:
-        - Services
-      summary: Obter serviço
-      description: Retorna dados de um serviço
-      operationId: getService
+      tags: [Services]
+      summary: Obter servico
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Dados do serviço
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServiceResponse'
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
     put:
-      tags:
-        - Services
-      summary: Atualizar serviço
-      description: Atualiza um serviço (apenas admin)
-      operationId: updateService
-      security:
-        - bearerAuth: []
+      tags: [Services]
+      summary: Atualizar servico
       parameters:
         - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateServiceRequest'
       responses:
         '200':
-          description: Serviço atualizado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServiceResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
-      tags:
-        - Services
-      summary: Deletar serviço
-      description: Remove um serviço (apenas admin)
-      operationId: deleteService
-      security:
-        - bearerAuth: []
+      tags: [Services]
+      summary: Excluir servico
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Serviço removido
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  # ============================================================================
-  # Professionals
-  # ============================================================================
-  /professionals:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/professionals:
     get:
-      tags:
-        - Professionals
+      tags: [Professionals]
       summary: Listar profissionais
-      description: Lista todos os profissionais
-      operationId: listProfessionals
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - name: establishment_id
-          in: query
-          description: Filtrar por estabelecimento
-          schema:
-            type: integer
       responses:
         '200':
-          description: Lista de profissionais
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedProfessionals'
-
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
     post:
-      tags:
-        - Professionals
+      tags: [Professionals]
       summary: Criar profissional
-      description: Cria um novo profissional (apenas admin)
-      operationId: createProfessional
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateProfessionalRequest'
       responses:
         '201':
-          description: Profissional criado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProfessionalResponse'
+          $ref: '#/components/responses/Created'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
-
-  /professionals/{id}:
+  /api/v1/professionals/{id}:
     get:
-      tags:
-        - Professionals
+      tags: [Professionals]
       summary: Obter profissional
-      description: Retorna dados de um profissional
-      operationId: getProfessional
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Dados do profissional
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProfessionalResponse'
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
     put:
-      tags:
-        - Professionals
+      tags: [Professionals]
       summary: Atualizar profissional
-      description: Atualiza um profissional (apenas admin)
-      operationId: updateProfessional
-      security:
-        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateProfessionalRequest'
       responses:
         '200':
-          description: Profissional atualizado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProfessionalResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
-      tags:
-        - Professionals
-      summary: Deletar profissional
-      description: Remove um profissional (apenas admin)
-      operationId: deleteProfessional
-      security:
-        - bearerAuth: []
+      tags: [Professionals]
+      summary: Excluir profissional
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Profissional removido
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /professionals/{id}/appointments:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/professionals/{id}/appointments:
     get:
-      tags:
-        - Professionals
+      tags: [Professionals]
       summary: Listar agendamentos do profissional
-      description: Retorna os agendamentos do profissional
-      operationId: getProfessionalAppointments
       parameters:
         - $ref: '#/components/parameters/IdParam'
-        - name: date
-          in: query
-          description: Filtrar por data (YYYY-MM-DD)
-          schema:
-            type: string
-            format: date
       responses:
         '200':
-          description: Lista de agendamentos
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedAppointments'
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  # ============================================================================
-  # Queues
-  # ============================================================================
-  /queues:
+  /api/v1/appointments:
     get:
-      tags:
-        - Queues
-      summary: Listar filas
-      description: Lista todas as filas
-      operationId: listQueues
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - name: establishment_id
-          in: query
-          description: Filtrar por estabelecimento
-          schema:
-            type: integer
-        - name: status
-          in: query
-          description: Filtrar por status
-          schema:
-            type: string
-            enum: [active, paused, closed]
-      responses:
-        '200':
-          description: Lista de filas
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedQueues'
-
-    post:
-      tags:
-        - Queues
-      summary: Criar fila
-      description: Cria uma nova fila (apenas admin)
-      operationId: createQueue
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateQueueRequest'
-      responses:
-        '201':
-          description: Fila criada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QueueResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
-  /queues/{id}:
-    get:
-      tags:
-        - Queues
-      summary: Obter fila
-      description: Retorna dados de uma fila
-      operationId: getQueue
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
-      responses:
-        '200':
-          description: Dados da fila
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QueueResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    put:
-      tags:
-        - Queues
-      summary: Atualizar fila
-      description: Atualiza uma fila (apenas admin)
-      operationId: updateQueue
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateQueueRequest'
-      responses:
-        '200':
-          description: Fila atualizada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QueueResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
-    delete:
-      tags:
-        - Queues
-      summary: Deletar fila
-      description: Remove uma fila (apenas admin)
-      operationId: deleteQueue
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
-      responses:
-        '200':
-          description: Fila removida
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /queues/{id}/status:
-    get:
-      tags:
-        - Queues
-      summary: Status da fila
-      description: Retorna o status atual da fila com informações em tempo real
-      operationId: getQueueStatus
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
-      responses:
-        '200':
-          description: Status da fila
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      queue_id:
-                        type: integer
-                      name:
-                        type: string
-                      status:
-                        type: string
-                        enum: [active, paused, closed]
-                      total_waiting:
-                        type: integer
-                      estimated_wait_time:
-                        type: integer
-                        description: Tempo estimado em minutos
-                      current_position:
-                        type: integer
-                        nullable: true
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /queues/{id}/join:
-    post:
-      tags:
-        - Queues
-      summary: Entrar na fila
-      description: |
-        Adiciona o usuário autenticado à fila.
-        
-        **Rate Limit:** 10 requisições por minuto
-      operationId: joinQueue
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                priority:
-                  type: boolean
-                  default: false
-                  description: Atendimento prioritário
-                notes:
-                  type: string
-                  description: Observações
-      responses:
-        '201':
-          description: Entrou na fila com sucesso
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/QueueEntry'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          description: Usuário já está na fila
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-
-  /queues/{id}/leave:
-    post:
-      tags:
-        - Queues
-      summary: Sair da fila
-      description: Remove o usuário autenticado da fila
-      operationId: leaveQueue
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
-      responses:
-        '200':
-          description: Saiu da fila com sucesso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /queues/{id}/call-next:
-    post:
-      tags:
-        - Queues
-      summary: Chamar próximo
-      description: Chama o próximo da fila (atendente ou admin)
-      operationId: callNext
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
-      responses:
-        '200':
-          description: Próximo chamado com sucesso
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/QueueEntry'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          description: Fila vazia ou não encontrada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  # ============================================================================
-  # Appointments
-  # ============================================================================
-  /appointments:
-    get:
-      tags:
-        - Appointments
+      tags: [Appointments]
       summary: Listar agendamentos
-      description: Lista os agendamentos do usuário autenticado
-      operationId: listAppointments
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - name: status
-          in: query
-          description: Filtrar por status
-          schema:
-            type: string
-            enum: [scheduled, confirmed, in_progress, completed, cancelled, no_show]
-        - name: date_from
-          in: query
-          description: Data inicial (YYYY-MM-DD)
-          schema:
-            type: string
-            format: date
-        - name: date_to
-          in: query
-          description: Data final (YYYY-MM-DD)
-          schema:
-            type: string
-            format: date
       responses:
         '200':
-          description: Lista de agendamentos
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedAppointments'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
     post:
-      tags:
-        - Appointments
+      tags: [Appointments]
       summary: Criar agendamento
-      description: |
-        Cria um novo agendamento.
-        
-        **Rate Limit:** 20 requisições por minuto
-      operationId: createAppointment
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateAppointmentRequest'
       responses:
         '201':
-          description: Agendamento criado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentResponse'
+          $ref: '#/components/responses/Created'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          description: Conflito de horário
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-
-  /appointments/available-slots:
+  /api/v1/appointments/{id}:
     get:
-      tags:
-        - Appointments
-      summary: Horários disponíveis
-      description: Retorna horários disponíveis para agendamento
-      operationId: getAvailableSlots
-      parameters:
-        - name: professional_id
-          in: query
-          required: true
-          description: ID do profissional
-          schema:
-            type: integer
-        - name: service_id
-          in: query
-          required: true
-          description: ID do serviço
-          schema:
-            type: integer
-        - name: date
-          in: query
-          required: true
-          description: Data (YYYY-MM-DD)
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: Lista de horários disponíveis
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      date:
-                        type: string
-                        format: date
-                      professional_id:
-                        type: integer
-                      service_id:
-                        type: integer
-                      slots:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            start_time:
-                              type: string
-                              format: time
-                            end_time:
-                              type: string
-                              format: time
-                            available:
-                              type: boolean
-
-  /appointments/{id}:
-    get:
-      tags:
-        - Appointments
+      tags: [Appointments]
       summary: Obter agendamento
-      description: Retorna dados de um agendamento
-      operationId: getAppointment
-      security:
-        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Dados do agendamento
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
     put:
-      tags:
-        - Appointments
+      tags: [Appointments]
       summary: Atualizar agendamento
-      description: Atualiza um agendamento
-      operationId: updateAppointment
-      security:
-        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateAppointmentRequest'
       responses:
         '200':
-          description: Agendamento atualizado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
-
     delete:
-      tags:
-        - Appointments
-      summary: Cancelar agendamento
-      description: Cancela um agendamento
-      operationId: cancelAppointment
-      security:
-        - bearerAuth: []
+      tags: [Appointments]
+      summary: Excluir agendamento
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Agendamento cancelado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /appointments/{id}/checkin:
+  /api/v1/appointments/{id}/checkin:
     post:
-      tags:
-        - Appointments
-      summary: Check-in do agendamento
-      description: Realiza o check-in para o agendamento
-      operationId: checkInAppointment
-      security:
-        - bearerAuth: []
+      tags: [Appointments]
+      summary: Realizar check-in do agendamento
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Check-in realizado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Check-in já realizado ou fora do horário
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /appointments/{id}/complete:
+          $ref: '#/components/responses/Conflict'
+  /api/v1/appointments/{id}/complete:
     post:
-      tags:
-        - Appointments
-      summary: Concluir agendamento
-      description: Marca o agendamento como concluído (atendente ou admin)
-      operationId: completeAppointment
-      security:
-        - bearerAuth: []
+      tags: [Appointments]
+      summary: Marcar agendamento como concluido
       parameters:
         - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                notes:
-                  type: string
-                  description: Observações do atendimento
       responses:
         '200':
-          description: Agendamento concluído
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /appointments/{id}/no-show:
+  /api/v1/appointments/{id}/no-show:
     post:
-      tags:
-        - Appointments
-      summary: Marcar como não compareceu
-      description: Marca o agendamento como não compareceu (atendente ou admin)
-      operationId: noShowAppointment
-      security:
-        - bearerAuth: []
+      tags: [Appointments]
+      summary: Marcar agendamento como nao compareceu
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Marcado como não compareceu
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  # ============================================================================
-  # Dashboard
-  # ============================================================================
-  /dashboard/queue-overview:
+  /api/v1/appointments/available-slots:
     get:
-      tags:
-        - Dashboard
-      summary: Visão geral das filas
-      description: Retorna estatísticas das filas (atendente ou admin)
-      operationId: getDashboardQueueOverview
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: establishment_id
-          in: query
-          description: Filtrar por estabelecimento
-          schema:
-            type: integer
+      tags: [Appointments]
+      summary: Consultar horarios disponiveis
       responses:
         '200':
-          description: Estatísticas das filas
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      total_queues:
-                        type: integer
-                      active_queues:
-                        type: integer
-                      total_waiting:
-                        type: integer
-                      total_served_today:
-                        type: integer
-                      average_wait_time:
-                        type: number
-                        description: Tempo médio de espera em minutos
-                      queues:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: integer
-                            name:
-                              type: string
-                            waiting:
-                              type: integer
-                            serving:
-                              type: integer
-                            completed:
-                              type: integer
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/queues:
+    get:
+      tags: [Queues]
+      summary: Listar filas
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Queues]
+      summary: Criar fila
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-
-  /dashboard/appointments-list:
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/queues/{id}:
     get:
-      tags:
-        - Dashboard
-      summary: Lista de agendamentos do dia
-      description: Retorna agendamentos do dia (atendente ou admin)
-      operationId: getDashboardAppointmentsList
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: date
-          in: query
-          description: Data (YYYY-MM-DD), padrão é hoje
-          schema:
-            type: string
-            format: date
-        - name: establishment_id
-          in: query
-          description: Filtrar por estabelecimento
-          schema:
-            type: integer
-        - name: professional_id
-          in: query
-          description: Filtrar por profissional
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Lista de agendamentos
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      date:
-                        type: string
-                        format: date
-                      total:
-                        type: integer
-                      confirmed:
-                        type: integer
-                      completed:
-                        type: integer
-                      cancelled:
-                        type: integer
-                      appointments:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Appointment'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  # ============================================================================
-  # Notifications
-  # ============================================================================
-  /notifications:
-    get:
-      tags:
-        - Notifications
-      summary: Listar notificações
-      description: Lista as notificações do usuário autenticado
-      operationId: listNotifications
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - name: unread
-          in: query
-          description: Apenas não lidas
-          schema:
-            type: boolean
-      responses:
-        '200':
-          description: Lista de notificações
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedNotifications'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /notifications/{id}:
-    get:
-      tags:
-        - Notifications
-      summary: Obter notificação
-      description: Retorna dados de uma notificação
-      operationId: getNotification
-      security:
-        - bearerAuth: []
+      tags: [Queues]
+      summary: Obter fila
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Dados da notificação
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
+    put:
+      tags: [Queues]
+      summary: Atualizar fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
-      tags:
-        - Notifications
-      summary: Deletar notificação
-      description: Remove uma notificação
-      operationId: deleteNotification
-      security:
-        - bearerAuth: []
+      tags: [Queues]
+      summary: Excluir fila
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Notificação removida
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /notifications/{id}/read:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/status:
+    get:
+      tags: [Queues]
+      summary: Obter status detalhado da fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/queues/{id}/join:
     post:
-      tags:
-        - Notifications
-      summary: Marcar como lida
-      description: Marca a notificação como lida
-      operationId: markNotificationRead
-      security:
-        - bearerAuth: []
+      tags: [Queues]
+      summary: Entrar na fila
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
-        '200':
-          description: Notificação marcada como lida
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationResponse'
+        '201':
+          $ref: '#/components/responses/Created'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  # ============================================================================
-  # SSE Streams
-  # ============================================================================
-  /streams/queue/{id}:
-    get:
-      tags:
-        - Streams
-      summary: Stream de atualizações da fila
-      description: |
-        Conexão Server-Sent Events para receber atualizações em tempo real da fila.
-        
-        **Eventos:**
-        - `queue_update`: Atualização do status da fila
-        - `position_update`: Atualização da posição do usuário
-        - `called`: Usuário foi chamado
-      operationId: queueStream
-      security:
-        - bearerAuth: []
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/queues/{id}/leave:
+    post:
+      tags: [Queues]
+      summary: Sair da fila
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Stream SSE
-          content:
-            text/event-stream:
-              schema:
-                type: string
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /streams/appointments:
-    get:
-      tags:
-        - Streams
-      summary: Stream de agendamentos
-      description: |
-        Conexão Server-Sent Events para receber atualizações dos agendamentos.
-        
-        **Eventos:**
-        - `appointment_update`: Atualização do agendamento
-        - `reminder`: Lembrete de agendamento
-      operationId: appointmentsStream
-      security:
-        - bearerAuth: []
+  /api/v1/queues/{id}/call-next:
+    post:
+      tags: [Queues]
+      summary: Chamar proximo da fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Stream SSE
-          content:
-            text/event-stream:
-              schema:
-                type: string
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
-  /streams/notifications:
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/generate-code:
+    post:
+      tags: [Queues]
+      summary: Gerar codigo de acesso da fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/access-codes:
     get:
-      tags:
-        - Streams
-      summary: Stream de notificações
-      description: |
-        Conexão Server-Sent Events para receber notificações em tempo real.
-        
-        **Eventos:**
-        - `notification`: Nova notificação
-      operationId: notificationsStream
-      security:
-        - bearerAuth: []
+      tags: [Queues]
+      summary: Listar codigos de acesso da fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Stream SSE
-          content:
-            text/event-stream:
-              schema:
-                type: string
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
-  # ============================================================================
-  # Admin - Plans
-  # ============================================================================
-  /admin/plans:
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/access-codes/{codeId}:
     get:
-      tags:
-        - Admin
+      tags: [Queues]
+      summary: Obter codigo de acesso por ID
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/CodeIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags: [Queues]
+      summary: Atualizar codigo de acesso
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/CodeIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Queues]
+      summary: Excluir codigo de acesso
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/CodeIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/access-codes/{codeId}/deactivate:
+    post:
+      tags: [Queues]
+      summary: Desativar codigo de acesso
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/CodeIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/batch-remove:
+    post:
+      tags: [Queues]
+      summary: Remover varias entradas da fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/entries/{entryId}/status:
+    put:
+      tags: [Queues]
+      summary: Atualizar status de uma entrada de fila
+      parameters:
+        - $ref: '#/components/parameters/EntryIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/entries/{entryId}/position:
+    put:
+      tags: [Queues]
+      summary: Reordenar entrada de fila
+      parameters:
+        - $ref: '#/components/parameters/EntryIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/entries/{entryId}/priority:
+    put:
+      tags: [Queues]
+      summary: Atualizar prioridade da entrada
+      parameters:
+        - $ref: '#/components/parameters/EntryIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/entries/{entryId}:
+    delete:
+      tags: [Queues]
+      summary: Remover uma entrada da fila
+      parameters:
+        - $ref: '#/components/parameters/EntryIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/reports:
+    get:
+      tags: [Reports]
+      summary: Relatorio analitico de uma fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/reports/queues/filters:
+    get:
+      tags: [Reports]
+      summary: Metadados de filtros do relatorio de filas
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/reports/queues:
+    get:
+      tags: [Reports]
+      summary: Relatorio global de filas
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/professionals:
+    get:
+      tags: [Queues]
+      summary: Listar profissionais disponiveis para a fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/queue-professionals:
+    get:
+      tags: [Queues]
+      summary: Listar profissionais vinculados a fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Queues]
+      summary: Vincular profissional a fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/queue-professionals/{profId}:
+    put:
+      tags: [Queues]
+      summary: Atualizar vinculo de profissional na fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/ProfIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Queues]
+      summary: Remover profissional da fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/ProfIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/queues/{id}/services:
+    get:
+      tags: [Queues]
+      summary: Listar servicos vinculados a fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Queues]
+      summary: Vincular servicos a fila ou criar novo servico
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/queues/{id}/services/{serviceId}:
+    delete:
+      tags: [Queues]
+      summary: Desvincular servico da fila
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/ServiceIdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/dashboard/queue-overview:
+    get:
+      tags: [Dashboard]
+      summary: Visao geral das filas
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/dashboard/appointments-list:
+    get:
+      tags: [Dashboard]
+      summary: Lista diaria de agendamentos
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/notifications:
+    get:
+      tags: [Notifications]
+      summary: Listar notificacoes do usuario
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Contar notificacoes nao lidas
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/notifications/mark-all-read:
+    post:
+      tags: [Notifications]
+      summary: Marcar todas as notificacoes como lidas
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/notifications/fcm-token:
+    post:
+      tags: [Notifications]
+      summary: Salvar ou atualizar token FCM do dispositivo
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/notifications/{id}:
+    get:
+      tags: [Notifications]
+      summary: Obter notificacao
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Notifications]
+      summary: Excluir notificacao
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/notifications/{id}/read:
+    post:
+      tags: [Notifications]
+      summary: Marcar notificacao como lida
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: Listar logs de auditoria
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/audit-logs/filters:
+    get:
+      tags: [Admin]
+      summary: Listar opcoes de filtros dos logs de auditoria
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/subscriptions:
+    get:
+      tags: [Admin]
+      summary: Listar assinaturas
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Admin]
+      summary: Criar assinatura
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/admin/subscriptions/{id}:
+    get:
+      tags: [Admin]
+      summary: Obter assinatura
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags: [Admin]
+      summary: Atualizar assinatura
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Admin]
+      summary: Excluir assinatura
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/plans:
+    get:
+      tags: [Admin]
       summary: Listar planos
-      description: Retorna todos os planos SaaS disponíveis
-      operationId: listPlans
-      security:
-        - bearerAuth: []
       responses:
         '200':
-          description: Lista de planos
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      plans:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Plan'
-                      total:
-                        type: integer
+          $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
-      tags:
-        - Admin
-      summary: Criar plano (admin only)
-      operationId: createPlan
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreatePlanRequest'
+      tags: [Admin]
+      summary: Criar plano
       responses:
         '201':
-          description: Plano criado
+          $ref: '#/components/responses/Created'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-
-  /admin/plans/{id}:
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/admin/plans/{id}:
     get:
-      tags:
-        - Admin
-      summary: Obter plano por ID
-      operationId: getPlan
-      security:
-        - bearerAuth: []
+      tags: [Admin]
+      summary: Obter plano
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Plano encontrado
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     put:
-      tags:
-        - Admin
-      summary: Atualizar plano (admin only)
-      operationId: updatePlan
-      security:
-        - bearerAuth: []
+      tags: [Admin]
+      summary: Atualizar plano
       parameters:
         - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdatePlanRequest'
       responses:
         '200':
-          description: Plano atualizado
-        '403':
-          $ref: '#/components/responses/Forbidden'
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
-      tags:
-        - Admin
-      summary: Deletar plano (admin only)
-      operationId: deletePlan
-      security:
-        - bearerAuth: []
+      tags: [Admin]
+      summary: Excluir plano
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Plano deletado
-        '403':
-          $ref: '#/components/responses/Forbidden'
+          $ref: '#/components/responses/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Plano possui subscriptions ativas
-
-  # ============================================================================
-  # Admin - Subscriptions
-  # ============================================================================
-  /admin/subscriptions:
-    get:
-      tags:
-        - Admin
-      summary: Listar subscriptions
-      operationId: listSubscriptions
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Lista de subscriptions
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      subscriptions:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/BusinessSubscription'
-                      total:
-                        type: integer
-    post:
-      tags:
-        - Admin
-      summary: Criar subscription (admin only)
-      operationId: createSubscription
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateSubscriptionRequest'
-      responses:
-        '201':
-          description: Subscription criada
+          $ref: '#/components/responses/Conflict'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /admin/subscriptions/{id}:
+  /api/v1/streams/queue/{id}:
     get:
-      tags:
-        - Admin
-      summary: Obter subscription por ID
-      operationId: getSubscription
-      security:
-        - bearerAuth: []
+      tags: [Streams]
+      summary: Stream SSE de atualizacoes da fila
       parameters:
         - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
-          description: Subscription encontrada
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      tags:
-        - Admin
-      summary: Atualizar subscription (admin only)
-      operationId: updateSubscription
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateSubscriptionRequest'
-      responses:
-        '200':
-          description: Subscription atualizada
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags:
-        - Admin
-      summary: Deletar subscription (admin only)
-      operationId: deleteSubscription
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
-      responses:
-        '200':
-          description: Subscription deletada
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ============================================================================
-  # Queue Access Codes
-  # ============================================================================
-  /queues/{id}/access-codes:
+          description: Stream SSE
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/streams/appointments:
     get:
-      tags:
-        - Queues
-      summary: Listar access codes de uma fila
-      operationId: listQueueAccessCodes
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdParam'
+      tags: [Streams]
+      summary: Stream SSE de agendamentos
       responses:
         '200':
-          description: Lista de access codes
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      access_codes:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/QueueAccessCode'
-                      total:
-                        type: integer
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /queues/{queueId}/access-codes/{codeId}:
+          description: Stream SSE
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/streams/notifications:
     get:
-      tags:
-        - Queues
-      summary: Obter access code por ID
-      operationId: getQueueAccessCode
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: queueId
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: codeId
-          in: path
-          required: true
-          schema:
-            type: integer
+      tags: [Streams]
+      summary: Stream SSE de notificacoes
       responses:
         '200':
-          description: Access code encontrado
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags:
-        - Queues
-      summary: Deletar access code
-      operationId: deleteQueueAccessCode
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: queueId
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: codeId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Access code deletado
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /queues/{queueId}/access-codes/{codeId}/deactivate:
-    post:
-      tags:
-        - Queues
-      summary: Desativar access code
-      operationId: deactivateQueueAccessCode
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: queueId
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: codeId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Access code desativado
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-# ============================================================================
-# Components
-# ============================================================================
+          description: Stream SSE
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: |
-        JWT Token obtido no login ou registro.
-        
-        Formato: `Bearer {access_token}`
-
   parameters:
     IdParam:
-      name: id
       in: path
+      name: id
       required: true
-      description: ID do recurso
       schema:
         type: integer
-        minimum: 1
-
-    PageParam:
-      name: page
-      in: query
-      description: Número da página
+    UserIdParam:
+      in: path
+      name: userId
+      required: true
       schema:
         type: integer
-        minimum: 1
-        default: 1
-
-    LimitParam:
-      name: limit
-      in: query
-      description: Itens por página
+    ServiceIdParam:
+      in: path
+      name: serviceId
+      required: true
       schema:
         type: integer
-        minimum: 1
-        maximum: 100
-        default: 20
-
+    EntryIdParam:
+      in: path
+      name: entryId
+      required: true
+      schema:
+        type: integer
+    CodeIdParam:
+      in: path
+      name: codeId
+      required: true
+      schema:
+        type: integer
+    ProfIdParam:
+      in: path
+      name: profId
+      required: true
+      schema:
+        type: integer
   responses:
-    Unauthorized:
-      description: Não autenticado
+    Ok:
+      description: Sucesso
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            success: false
-            error:
-              code: 401
-              message: "Token não fornecido ou inválido"
-
+            $ref: '#/components/schemas/SuccessEnvelope'
+    Created:
+      description: Recurso criado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SuccessEnvelope'
+    BadRequest:
+      description: Requisicao invalida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: Nao autenticado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
     Forbidden:
       description: Acesso negado
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            success: false
-            error:
-              code: 403
-              message: "Você não tem permissão para acessar este recurso"
-
+            $ref: '#/components/schemas/ErrorEnvelope'
     NotFound:
-      description: Recurso não encontrado
+      description: Recurso nao encontrado
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            success: false
-            error:
-              code: 404
-              message: "Recurso não encontrado"
-
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Conflict:
+      description: Conflito de estado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
     ValidationError:
-      description: Erro de validação
+      description: Erro de validacao
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              success:
-                type: boolean
-                example: false
-              error:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 422
-                  message:
-                    type: string
-                    example: "Erro de validação"
-                  errors:
-                    type: object
-                    additionalProperties:
-                      type: array
-                      items:
-                        type: string
-
+            $ref: '#/components/schemas/ErrorEnvelope'
     TooManyRequests:
-      description: Rate limit excedido
+      description: Limite de taxa excedido
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            success: false
-            error:
-              code: 429
-              message: "Muitas requisições. Tente novamente em 60 segundos"
-
+            $ref: '#/components/schemas/ErrorEnvelope'
   schemas:
-    # ============================================================================
-    # Base Schemas
-    # ============================================================================
-    SuccessResponse:
+    SuccessEnvelope:
       type: object
       properties:
         success:
@@ -2270,11 +1653,11 @@ components:
           example: true
         data:
           type: object
-          properties:
-            message:
-              type: string
-
-    ErrorResponse:
+          additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+    ErrorEnvelope:
       type: object
       properties:
         success:
@@ -2284,1011 +1667,11 @@ components:
           type: object
           properties:
             code:
-              type: integer
+              type: string
             message:
               type: string
             request_id:
               type: string
-
-    PaginationMeta:
-      type: object
-      properties:
-        current_page:
-          type: integer
-        per_page:
-          type: integer
-        total:
-          type: integer
-        total_pages:
-          type: integer
-
-    # ============================================================================
-    # Auth Schemas
-    # ============================================================================
-    GoogleAuthRequest:
-      type: object
-      required:
-        - id_token
-      properties:
-        id_token:
-          type: string
-          description: |
-            Google ID Token obtido via Google Identity Services.
-            Este token é gerado quando o usuário faz login com Google no frontend.
-          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhY2NvdW50cy5nb29nbGUuY29tIi..."
-
-    AuthResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            user:
-              $ref: '#/components/schemas/User'
-            access_token:
-              type: string
-              description: JWT access token (RS256, 15 min)
-            refresh_token:
-              type: string
-              description: Refresh token para renovação (30 dias)
-            token_type:
-              type: string
-              example: "Bearer"
-            expires_in:
-              type: integer
-              description: Tempo de expiração em segundos
-              example: 900
-            is_new_user:
-              type: boolean
-              description: True se é o primeiro login do usuário
-
-    # ============================================================================
-    # User Schemas
-    # ============================================================================
-    User:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        email:
-          type: string
-          format: email
-        avatar_url:
-          type: string
-          format: uri
-          description: URL da foto de perfil do Google
-        email_verified:
-          type: boolean
-          description: Email verificado pelo Google
-        phone:
-          type: string
-          nullable: true
-        role:
-          type: string
-          enum: [client, attendant, admin]
-        is_active:
-          type: boolean
-        last_login_at:
-          type: string
-          format: date-time
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-          nullable: true
-
-    UserResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: '#/components/schemas/User'
-
-    CreateUserRequest:
-      type: object
-      description: |
-        Usuários são criados automaticamente via Google OAuth.
-        Este schema é para atualização de perfil por admin.
-      properties:
-        name:
-          type: string
-          minLength: 2
-          maxLength: 150
-        email:
-          type: string
-          format: email
-        phone:
-          type: string
-          maxLength: 20
-        role:
-          type: string
-          enum: [client, attendant, admin]
-          description: Apenas admin pode alterar role
-        is_active:
-          type: boolean
-          description: Desativar usuário sem deletar
-
-    PaginatedUsers:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/User'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    # ============================================================================
-    # Establishment Schemas
-    # ============================================================================
-    Establishment:
-      type: object
-      properties:
-        id:
-          type: integer
-        owner_id:
-          type: integer
-          nullable: true
-          description: ID do usuário dono do estabelecimento
-        name:
-          type: string
-        slug:
-          type: string
-          description: URL-friendly identifier
-        description:
-          type: string
-        address:
-          type: string
-        phone:
-          type: string
-        email:
-          type: string
-          format: email
-        logo_url:
-          type: string
-          format: uri
-        timezone:
-          type: string
-          example: "America/Sao_Paulo"
-        opens_at:
-          type: string
-          format: time
-          example: "08:00:00"
-        closes_at:
-          type: string
-          format: time
-          example: "18:00:00"
-        is_active:
-          type: boolean
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-          nullable: true
-
-    EstablishmentResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: '#/components/schemas/Establishment'
-
-    CreateEstablishmentRequest:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          maxLength: 255
-        slug:
-          type: string
-          maxLength: 100
-          description: URL-friendly identifier (auto-generated if not provided)
-        description:
-          type: string
-        address:
-          type: string
-          maxLength: 255
-        phone:
-          type: string
-          maxLength: 20
-        email:
-          type: string
-          format: email
-        logo_url:
-          type: string
-          format: uri
-        timezone:
-          type: string
-          default: "America/Sao_Paulo"
-        opens_at:
-          type: string
-          format: time
-        closes_at:
-          type: string
-          format: time
-
-    UpdateEstablishmentRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 255
-        slug:
-          type: string
-          maxLength: 100
-        description:
-          type: string
-        address:
-          type: string
-        phone:
-          type: string
-        email:
-          type: string
-          format: email
-        logo_url:
-          type: string
-          format: uri
-        timezone:
-          type: string
-        opens_at:
-          type: string
-          format: time
-        closes_at:
-          type: string
-          format: time
-        is_active:
-          type: boolean
-
-    PaginatedEstablishments:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Establishment'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    # ============================================================================
-    # Service Schemas
-    # ============================================================================
-    Service:
-      type: object
-      properties:
-        id:
-          type: integer
-        establishment_id:
-          type: integer
-        name:
-          type: string
-        description:
-          type: string
-        duration_minutes:
-          type: integer
-          description: Duração em minutos
-        price:
-          type: number
-          format: float
-        sort_order:
-          type: integer
-          description: Ordem de exibição
-        is_active:
-          type: boolean
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    ServiceResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: '#/components/schemas/Service'
-
-    CreateServiceRequest:
-      type: object
-      required:
-        - establishment_id
-        - name
-        - duration_minutes
-      properties:
-        establishment_id:
-          type: integer
-        name:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-        duration_minutes:
-          type: integer
-          minimum: 5
-        price:
-          type: number
-          format: float
-        sort_order:
-          type: integer
-          default: 0
-
-    UpdateServiceRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-        duration_minutes:
-          type: integer
-          minimum: 5
-        price:
-          type: number
-          format: float
-        sort_order:
-          type: integer
-        is_active:
-          type: boolean
-
-    PaginatedServices:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Service'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    # ============================================================================
-    # Professional Schemas
-    # ============================================================================
-    Professional:
-      type: object
-      properties:
-        id:
-          type: integer
-        user_id:
-          type: integer
-        establishment_id:
-          type: integer
-        name:
-          type: string
-        email:
-          type: string
-          format: email
-        phone:
-          type: string
-        specialty:
-          type: string
-        bio:
-          type: string
-        avatar_url:
-          type: string
-          format: uri
-        is_active:
-          type: boolean
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    ProfessionalResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: '#/components/schemas/Professional'
-
-    CreateProfessionalRequest:
-      type: object
-      required:
-        - establishment_id
-        - name
-      properties:
-        user_id:
-          type: integer
-          description: ID do usuário associado (opcional)
-        establishment_id:
-          type: integer
-        name:
-          type: string
-          maxLength: 150
-        email:
-          type: string
-          format: email
-        phone:
-          type: string
-          maxLength: 20
-        specialty:
-          type: string
-        bio:
-          type: string
-        avatar_url:
-          type: string
-          format: uri
-
-    UpdateProfessionalRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 150
-        email:
-          type: string
-          format: email
-        phone:
-          type: string
-        specialty:
-          type: string
-        bio:
-          type: string
-        avatar_url:
-          type: string
-          format: uri
-        is_active:
-          type: boolean
-
-    PaginatedProfessionals:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Professional'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    # ============================================================================
-    # Queue Schemas
-    # ============================================================================
-    Queue:
-      type: object
-      properties:
-        id:
-          type: integer
-        establishment_id:
-          type: integer
-        name:
-          type: string
-        description:
-          type: string
-        status:
-          type: string
-          enum: [active, paused, closed]
-        max_capacity:
-          type: integer
-        average_service_time:
-          type: integer
-          description: Tempo médio em minutos
-        current_ticket:
-          type: integer
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    QueueResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: '#/components/schemas/Queue'
-
-    CreateQueueRequest:
-      type: object
-      required:
-        - establishment_id
-        - name
-      properties:
-        establishment_id:
-          type: integer
-        name:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-        max_capacity:
-          type: integer
-          minimum: 1
-        average_service_time:
-          type: integer
-          minimum: 1
-          description: Tempo médio em minutos
-
-    UpdateQueueRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-        status:
-          type: string
-          enum: [active, paused, closed]
-        max_capacity:
-          type: integer
-          minimum: 1
-        average_service_time:
-          type: integer
-          minimum: 1
-
-    PaginatedQueues:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Queue'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    QueueEntry:
-      type: object
-      properties:
-        id:
-          type: integer
-        queue_id:
-          type: integer
-        user_id:
-          type: integer
-        ticket_number:
-          type: string
-        position:
-          type: integer
-        status:
-          type: string
-          enum: [waiting, called, serving, completed, cancelled, no_show]
-        priority:
-          type: boolean
-        notes:
-          type: string
-        estimated_wait_time:
-          type: integer
-          description: Tempo estimado em minutos
-        called_at:
-          type: string
-          format: date-time
-          nullable: true
-        served_at:
-          type: string
-          format: date-time
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-
-    # ============================================================================
-    # Appointment Schemas
-    # ============================================================================
-    Appointment:
-      type: object
-      properties:
-        id:
-          type: integer
-        user_id:
-          type: integer
-        professional_id:
-          type: integer
-        service_id:
-          type: integer
-        establishment_id:
-          type: integer
-        scheduled_date:
-          type: string
-          format: date
-        scheduled_time:
-          type: string
-          format: time
-        end_time:
-          type: string
-          format: time
-        status:
-          type: string
-          enum: [scheduled, confirmed, in_progress, completed, cancelled, no_show]
-        notes:
-          type: string
-        cancellation_reason:
-          type: string
-          description: Motivo do cancelamento (quando aplicável)
-        checked_in_at:
-          type: string
-          format: date-time
-          nullable: true
-        completed_at:
-          type: string
-          format: date-time
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    AppointmentResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: '#/components/schemas/Appointment'
-
-    CreateAppointmentRequest:
-      type: object
-      required:
-        - professional_id
-        - service_id
-        - scheduled_date
-        - scheduled_time
-      properties:
-        professional_id:
-          type: integer
-        service_id:
-          type: integer
-        scheduled_date:
-          type: string
-          format: date
-          description: "Formato: YYYY-MM-DD"
-        scheduled_time:
-          type: string
-          format: time
-          description: "Formato: HH:MM"
-        notes:
-          type: string
-
-    UpdateAppointmentRequest:
-      type: object
-      properties:
-        scheduled_date:
-          type: string
-          format: date
-        scheduled_time:
-          type: string
-          format: time
-        status:
-          type: string
-          enum: [scheduled, confirmed, in_progress, completed, cancelled, no_show]
-        notes:
-          type: string
-        cancellation_reason:
-          type: string
-          description: Obrigatório quando status = cancelled
-
-    CancelAppointmentRequest:
-      type: object
-      properties:
-        cancellation_reason:
-          type: string
-          description: Motivo do cancelamento
-
-    PaginatedAppointments:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Appointment'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    # ============================================================================
-    # Notification Schemas
-    # ============================================================================
-    Notification:
-      type: object
-      properties:
-        id:
-          type: integer
-        user_id:
-          type: integer
-        type:
-          type: string
-          enum: [queue_called, queue_position, appointment_reminder, appointment_update, system]
-        title:
-          type: string
-        message:
-          type: string
-        data:
-          type: object
-          description: Dados adicionais
-        is_read:
-          type: boolean
-        read_at:
-          type: string
-          format: date-time
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-
-    NotificationResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: '#/components/schemas/Notification'
-
-    PaginatedNotifications:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Notification'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    # ============================================================================
-    # Professional Service (N:N Pivot) Schemas
-    # ============================================================================
-    ProfessionalService:
-      type: object
-      properties:
-        professional_id:
-          type: integer
-        service_id:
-          type: integer
-        created_at:
-          type: string
-          format: date-time
-      description: Relacionamento N:N entre profissionais e serviços
-
-    LinkProfessionalServiceRequest:
-      type: object
-      required:
-        - professional_id
-        - service_id
-      properties:
-        professional_id:
-          type: integer
-        service_id:
-          type: integer
-
-    # ============================================================================
-    # Establishment User (Staff) Schemas
-    # ============================================================================
-    EstablishmentUser:
-      type: object
-      properties:
-        establishment_id:
-          type: integer
-        user_id:
-          type: integer
-        role:
-          type: string
-          enum: [owner, manager, attendant]
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      description: Staff/equipe de um estabelecimento
-
-    AddStaffRequest:
-      type: object
-      required:
-        - user_id
-        - role
-      properties:
-        user_id:
-          type: integer
-        role:
-          type: string
-          enum: [owner, manager, attendant]
-
-    UpdateStaffRoleRequest:
-      type: object
-      required:
-        - role
-      properties:
-        role:
-          type: string
-          enum: [owner, manager, attendant]
-
-    # ============================================================================
-    # Plan Schemas
-    # ============================================================================
-    Plan:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        max_businesses:
-          type: integer
-          nullable: true
-        max_establishments_per_business:
-          type: integer
-          nullable: true
-        max_professionals_per_establishment:
-          type: integer
-          nullable: true
-        max_managers:
-          type: integer
-          nullable: true
-        is_active:
-          type: boolean
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    CreatePlanRequest:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          minLength: 2
-          maxLength: 100
-        is_active:
-          type: boolean
-          default: true
-        max_businesses:
-          type: integer
-          nullable: true
-        max_establishments_per_business:
-          type: integer
-          nullable: true
-        max_professionals_per_establishment:
-          type: integer
-          nullable: true
-        max_managers:
-          type: integer
-          nullable: true
-
-    UpdatePlanRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        is_active:
-          type: boolean
-        max_businesses:
-          type: integer
-          nullable: true
-        max_establishments_per_business:
-          type: integer
-          nullable: true
-        max_professionals_per_establishment:
-          type: integer
-          nullable: true
-        max_managers:
-          type: integer
-          nullable: true
-
-    # ============================================================================
-    # Business Subscription Schemas
-    # ============================================================================
-    BusinessSubscription:
-      type: object
-      properties:
-        id:
-          type: integer
-        business_id:
-          type: integer
-        plan_id:
-          type: integer
-        status:
-          type: string
-          enum: [active, cancelled, expired, past_due]
-        starts_at:
-          type: string
-          format: date-time
-        ends_at:
-          type: string
-          format: date-time
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    CreateSubscriptionRequest:
-      type: object
-      required:
-        - business_id
-        - plan_id
-      properties:
-        business_id:
-          type: integer
-        plan_id:
-          type: integer
-        status:
-          type: string
-          enum: [active, cancelled, expired, past_due]
-          default: active
-        starts_at:
-          type: string
-          format: date-time
-        ends_at:
-          type: string
-          format: date-time
-
-    UpdateSubscriptionRequest:
-      type: object
-      properties:
-        plan_id:
-          type: integer
-        status:
-          type: string
-          enum: [active, cancelled, expired, past_due]
-        starts_at:
-          type: string
-          format: date-time
-        ends_at:
-          type: string
-          format: date-time
-          nullable: true
-
-    # ============================================================================
-    # Queue Access Code Schemas
-    # ============================================================================
-    QueueAccessCode:
-      type: object
-      properties:
-        id:
-          type: integer
-        queue_id:
-          type: integer
-        code:
-          type: string
-        is_active:
-          type: boolean
-        uses:
-          type: integer
-        max_uses:
-          type: integer
-          nullable: true
-        expires_at:
-          type: string
-          format: date-time
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
+            details:
+              type: object
+              additionalProperties: true

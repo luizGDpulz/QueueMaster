@@ -1,15 +1,17 @@
 <?php
 /**
- * Token Cleanup Script
+ * Cleanup Script - Tokens & Logs
  * 
- * Removes expired refresh tokens from database.
+ * 1. Removes expired/old-revoked refresh tokens from database
+ * 2. Deletes old application log files (default: older than 30 days)
+ * 
  * Run this periodically via cron job or Windows Task Scheduler.
  * 
  * Usage:
  *   php scripts/cleanup_tokens.php
  * 
  * Cron example (daily at 3:00 AM):
- *   0 3 * * * /usr/bin/php /var/www/api/scripts/cleanup_tokens.php >> /var/log/token_cleanup.log 2>&1
+ *   0 3 * * * /usr/bin/php /var/www/api/scripts/cleanup_tokens.php >> /var/log/cleanup.log 2>&1
  * 
  * Windows Task Scheduler:
  *   Program: C:\xampp\php\php.exe
@@ -29,8 +31,13 @@ $dotenv->load();
 use QueueMaster\Core\Database;
 use QueueMaster\Middleware\TokenMiddleware;
 
-echo "=== Token Cleanup Script ===\n";
+echo "=== Cleanup Script ===\n";
 echo "Started: " . date('Y-m-d H:i:s') . "\n\n";
+
+// =========================================================================
+// 1. Token Cleanup
+// =========================================================================
+echo "--- Token Cleanup ---\n";
 
 try {
     $db = Database::getInstance();
@@ -54,18 +61,62 @@ try {
     
     // Count tokens after cleanup
     $afterCount = $db->query("SELECT COUNT(*) as count FROM refresh_tokens")[0]['count'] ?? 0;
-    echo "\nTokens after cleanup: $afterCount\n";
+    echo "Tokens after cleanup: $afterCount\n";
     
-    // Log summary
     $totalDeleted = $deletedExpired + $deletedRevoked;
-    echo "\n=== Summary ===\n";
-    echo "Total tokens deleted: $totalDeleted\n";
-    echo "Completed: " . date('Y-m-d H:i:s') . "\n";
-    
-    exit(0);
+    echo "Total tokens deleted: $totalDeleted\n\n";
 
 } catch (\Exception $e) {
-    echo "ERROR: " . $e->getMessage() . "\n";
-    echo "File: " . $e->getFile() . ":" . $e->getLine() . "\n";
-    exit(1);
+    echo "ERROR (tokens): " . $e->getMessage() . "\n";
+    echo "File: " . $e->getFile() . ":" . $e->getLine() . "\n\n";
 }
+
+// =========================================================================
+// 2. Log File Cleanup
+// =========================================================================
+echo "--- Log Cleanup ---\n";
+
+$logPath = $_ENV['LOG_PATH'] ?? __DIR__ . '/../logs';
+$logRetentionDays = (int)($_ENV['LOG_RETENTION_DAYS'] ?? 30);
+
+if (!is_dir($logPath)) {
+    echo "Log directory not found: $logPath\n";
+} else {
+    $cutoffDate = new DateTime("-{$logRetentionDays} days");
+    $deletedLogs = 0;
+    $freedBytes = 0;
+
+    $files = glob($logPath . '/app-*.log');
+    echo "Total log files: " . count($files) . "\n";
+    echo "Retention: {$logRetentionDays} days (deleting before " . $cutoffDate->format('Y-m-d') . ")\n\n";
+
+    foreach ($files as $file) {
+        // Extract date from filename (app-YYYY-MM-DD.log)
+        if (preg_match('/app-(\d{4}-\d{2}-\d{2})\.log$/', basename($file), $matches)) {
+            try {
+                $fileDate = new DateTime($matches[1]);
+                if ($fileDate < $cutoffDate) {
+                    $size = filesize($file);
+                    if (unlink($file)) {
+                        $deletedLogs++;
+                        $freedBytes += $size;
+                        echo "  Deleted: " . basename($file) . " (" . round($size / 1024, 1) . " KB)\n";
+                    }
+                }
+            } catch (\Exception $e) {
+                // Skip files with invalid date format
+            }
+        }
+    }
+
+    if ($deletedLogs === 0) {
+        echo "  No old log files to delete.\n";
+    } else {
+        echo "\nDeleted $deletedLogs log files (" . round($freedBytes / 1024, 1) . " KB freed)\n";
+    }
+}
+
+echo "\n=== Cleanup Complete ===\n";
+echo "Finished: " . date('Y-m-d H:i:s') . "\n";
+
+exit(0);

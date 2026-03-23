@@ -170,7 +170,7 @@ class QueueEntry
             ->where('queue_id', '=', $queueId)
             ->where('status', '=', 'waiting')
             ->orderBy('priority', 'DESC')
-            ->orderBy('created_at', 'ASC')
+            ->orderBy('position', 'ASC')
             ->get();
     }
 

@@ -147,8 +147,43 @@ class Notification
         $qb = new QueryBuilder();
         return $qb->select(self::$table)
             ->where('user_id', '=', $userId)
-            ->where('read_at', 'IS', null)
+            ->whereNull('read_at')
             ->update(['read_at' => date('Y-m-d H:i:s')]);
+    }
+
+    /**
+     * Paginate notifications for a user.
+     *
+     * @return array{notifications: array, total: int, page: int, per_page: int, total_pages: int}
+     */
+    public static function paginateByUser(int $userId, int $page = 1, int $perPage = 20): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $baseQuery = (new QueryBuilder())
+            ->select(self::$table)
+            ->where('user_id', '=', $userId);
+
+        $total = $baseQuery->count();
+
+        $notifications = (new QueryBuilder())
+            ->select(self::$table)
+            ->where('user_id', '=', $userId)
+            ->orderBy('sent_at', 'DESC')
+            ->orderBy('created_at', 'DESC')
+            ->limit($perPage)
+            ->offset($offset)
+            ->get();
+
+        return [
+            'notifications' => $notifications,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => max(1, (int)ceil($total / $perPage)),
+        ];
     }
 
     /**
@@ -197,12 +232,11 @@ class Notification
      */
     public static function getUnreadCount(int $userId): int
     {
-        $db = Database::getInstance();
-        $sql = "SELECT COUNT(*) as count FROM " . self::$table . " 
-                WHERE user_id = ? AND read_at IS NULL";
-        $result = $db->query($sql, [$userId]);
-        
-        return (int)($result[0]['count'] ?? 0);
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where('user_id', '=', $userId)
+            ->whereNull('read_at')
+            ->count();
     }
 
     /**

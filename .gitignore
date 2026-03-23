@@ -26,6 +26,7 @@ api/keys/
 # PHPUnit
 .phpunit.result.cache
 phpunit.xml
+api/coverage/
 
 # Logs
 *.log
@@ -89,3 +90,6 @@ backups/
 
 # MariaDB local data
 docker/mariadb/data/
+
+# Codex local data
+.codex/

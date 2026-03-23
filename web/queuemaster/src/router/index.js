@@ -83,6 +83,27 @@ export default defineRouter(function (/* { store, ssrContext } */) {
       }
     }
     
+    const requiredRoles = Array.isArray(to.meta?.roles) ? to.meta.roles : null
+
+    if (requiredRoles) {
+      const rawUser = localStorage.getItem('user')
+      if (!rawUser) {
+        next('/login')
+        return
+      }
+
+      try {
+        const user = JSON.parse(rawUser)
+        if (!requiredRoles.includes(user?.role)) {
+          next('/app')
+          return
+        }
+      } catch {
+        next('/login')
+        return
+      }
+    }
+
     next()
   })
 

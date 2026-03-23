@@ -12,6 +12,7 @@ use QueueMaster\Models\EstablishmentUser;
 use QueueMaster\Models\Service;
 use QueueMaster\Models\Professional;
 use QueueMaster\Services\AuditService;
+use QueueMaster\Services\ContextAccessService;
 
 /**
  * EstablishmentController - Establishment Management Endpoints
@@ -20,6 +21,13 @@ use QueueMaster\Services\AuditService;
  */
 class EstablishmentController
 {
+    private ContextAccessService $accessService;
+
+    public function __construct()
+    {
+        $this->accessService = new ContextAccessService();
+    }
+
     /**
      * GET /api/v1/establishments
      * 
@@ -28,8 +36,7 @@ class EstablishmentController
     public function list(Request $request): void
     {
         try {
-            // Get all establishments using Model
-            $establishments = Establishment::all([], 'name', 'ASC');
+            $establishments = $this->accessService->getAccessibleEstablishments($request->user);
 
             Response::success([
                 'establishments' => $establishments,
@@ -43,6 +50,82 @@ class EstablishmentController
             ], $request->requestId);
 
             Response::serverError('Failed to retrieve establishments', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/establishments/search
+     *
+     * Search active establishments for discovery.
+     */
+    public function search(Request $request): void
+    {
+        try {
+            $query = trim((string)$request->getQuery('q', ''));
+            $limit = min(max((int)$request->getQuery('limit', 20), 1), 50);
+
+            $params = [];
+            $searchSql = '';
+            if ($query !== '') {
+                $searchSql = ' AND (e.name LIKE ? OR e.address LIKE ? OR b.name LIKE ?)';
+                $like = '%' . $query . '%';
+                $params = [$like, $like, $like];
+            }
+
+            $db = Database::getInstance();
+            $establishments = $db->query(
+                "
+                SELECT
+                    e.id,
+                    e.business_id,
+                    e.name,
+                    e.slug,
+                    e.description,
+                    e.address,
+                    e.phone,
+                    e.email,
+                    e.timezone,
+                    e.opens_at,
+                    e.closes_at,
+                    e.is_active,
+                    b.name AS business_name
+                FROM establishments e
+                INNER JOIN businesses b ON b.id = e.business_id
+                WHERE e.is_active = 1
+                  AND b.is_active = 1
+                  $searchSql
+                ORDER BY b.name ASC, e.name ASC
+                LIMIT $limit
+                ",
+                $params
+            );
+
+            Response::success([
+                'establishments' => array_map(static function (array $establishment): array {
+                    return [
+                        'id' => (int)$establishment['id'],
+                        'business_id' => (int)$establishment['business_id'],
+                        'business_name' => $establishment['business_name'] ?? null,
+                        'name' => $establishment['name'],
+                        'slug' => $establishment['slug'] ?? null,
+                        'description' => $establishment['description'] ?? null,
+                        'address' => $establishment['address'] ?? null,
+                        'phone' => $establishment['phone'] ?? null,
+                        'email' => $establishment['email'] ?? null,
+                        'timezone' => $establishment['timezone'] ?? 'America/Sao_Paulo',
+                        'opens_at' => $establishment['opens_at'] ?? null,
+                        'closes_at' => $establishment['closes_at'] ?? null,
+                        'is_active' => (bool)($establishment['is_active'] ?? false),
+                    ];
+                }, $establishments),
+                'total' => count($establishments),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to search establishments', [
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to search establishments', $request->requestId);
         }
     }
 
@@ -62,13 +145,100 @@ class EstablishmentController
                 return;
             }
 
+            $this->accessService->requireEstablishmentAccess(
+                $request->user,
+                $establishment,
+                'Voce nao tem acesso a este estabelecimento'
+            );
+
             Response::success([
                 'establishment' => $establishment,
             ]);
 
         }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        }
         catch (\Exception $e) {
             Logger::error('Failed to get establishment', [
+                'establishment_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to retrieve establishment', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/establishments/:id/discover
+     *
+     * Public authenticated read-only establishment detail.
+     */
+    public function discover(Request $request, int $id): void
+    {
+        try {
+            $establishment = Establishment::find($id);
+
+            if (!$establishment || !($establishment['is_active'] ?? false)) {
+                Response::notFound('Establishment not found', $request->requestId);
+                return;
+            }
+
+            $business = \QueueMaster\Models\Business::find((int)$establishment['business_id']);
+            if (!$business || !($business['is_active'] ?? false)) {
+                Response::notFound('Establishment not found', $request->requestId);
+                return;
+            }
+
+            $accessibleEstablishmentIds = $this->accessService->getAccessibleEstablishmentIds($request->user);
+            $services = array_values(array_filter(
+                Service::getActiveByEstablishment($id),
+                static fn(array $service): bool => (bool)($service['is_active'] ?? false)
+            ));
+            $queues = array_values(array_filter(
+                \QueueMaster\Models\Queue::getByEstablishment($id),
+                static fn(array $queue): bool => in_array(($queue['status'] ?? 'closed'), ['open', 'paused', 'closed'], true)
+            ));
+
+            Response::success([
+                'establishment' => [
+                    'id' => (int)$establishment['id'],
+                    'business_id' => (int)$establishment['business_id'],
+                    'business_name' => $business['name'] ?? null,
+                    'name' => $establishment['name'],
+                    'slug' => $establishment['slug'] ?? null,
+                    'description' => $establishment['description'] ?? null,
+                    'address' => $establishment['address'] ?? null,
+                    'phone' => $establishment['phone'] ?? null,
+                    'email' => $establishment['email'] ?? null,
+                    'timezone' => $establishment['timezone'] ?? 'America/Sao_Paulo',
+                    'opens_at' => $establishment['opens_at'] ?? null,
+                    'closes_at' => $establishment['closes_at'] ?? null,
+                    'is_active' => (bool)($establishment['is_active'] ?? false),
+                    'is_linked' => in_array($id, $accessibleEstablishmentIds, true),
+                ],
+                'services' => array_map(static function (array $service): array {
+                    return [
+                        'id' => (int)$service['id'],
+                        'name' => $service['name'],
+                        'description' => $service['description'] ?? null,
+                        'duration_minutes' => (int)($service['duration_minutes'] ?? 0),
+                        'price' => $service['price'] ?? null,
+                    ];
+                }, $services),
+                'queues' => array_map(static function (array $queue): array {
+                    return [
+                        'id' => (int)$queue['id'],
+                        'service_id' => !empty($queue['service_id']) ? (int)$queue['service_id'] : null,
+                        'name' => $queue['name'],
+                        'description' => $queue['description'] ?? null,
+                        'status' => $queue['status'] ?? 'closed',
+                        'max_capacity' => !empty($queue['max_capacity']) ? (int)$queue['max_capacity'] : null,
+                    ];
+                }, $queues),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to discover establishment', [
                 'establishment_id' => $id,
                 'error' => $e->getMessage(),
             ], $request->requestId);
@@ -93,6 +263,12 @@ class EstablishmentController
                 return;
             }
 
+            $this->accessService->requireEstablishmentAccess(
+                $request->user,
+                $establishment,
+                'Voce nao tem acesso aos servicos deste estabelecimento'
+            );
+
             // Get services using Model relationship
             $services = Establishment::getServices($id);
 
@@ -101,6 +277,9 @@ class EstablishmentController
                 'total' => count($services),
             ]);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to get establishment services', [
@@ -128,6 +307,12 @@ class EstablishmentController
                 return;
             }
 
+            $this->accessService->requireEstablishmentAccess(
+                $request->user,
+                $establishment,
+                'Voce nao tem acesso aos profissionais deste estabelecimento'
+            );
+
             // Get professionals using Model relationship
             $professionals = Establishment::getProfessionals($id);
 
@@ -136,6 +321,9 @@ class EstablishmentController
                 'total' => count($professionals),
             ]);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to get establishment professionals', [
@@ -184,13 +372,11 @@ class EstablishmentController
                 return;
             }
 
-            $userRole = $request->user['role'] ?? 'client';
-            $userId = (int)$request->user['id'];
-
-            if ($userRole !== 'admin' && !\QueueMaster\Models\BusinessUser::exists($businessId, $userId)) {
-                Response::forbidden('You do not have access to this business', $request->requestId);
-                return;
-            }
+            $this->accessService->requireBusinessManagement(
+                $request->user,
+                $businessId,
+                'Voce nao tem permissao para criar estabelecimentos neste negocio'
+            );
 
             $establishmentData = [
                 'name' => trim($data['name']),
@@ -229,6 +415,9 @@ class EstablishmentController
             ]);
 
         }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        }
         catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
         }
@@ -256,16 +445,11 @@ class EstablishmentController
                 return;
             }
 
-            // Check access: admin can update any, manager must belong to the business
-            $userRole = $request->user['role'] ?? 'client';
-            $userId = (int)$request->user['id'];
-
-            if ($userRole !== 'admin' && $establishment['business_id']) {
-                if (!\QueueMaster\Models\BusinessUser::exists((int)$establishment['business_id'], $userId)) {
-                    Response::forbidden('You do not have access to this establishment', $request->requestId);
-                    return;
-                }
-            }
+            $this->accessService->requireEstablishmentManagement(
+                $request->user,
+                $establishment,
+                'Voce nao tem permissao para editar este estabelecimento'
+            );
 
             $data = $request->all();
             $updateData = [];
@@ -333,6 +517,9 @@ class EstablishmentController
             ]);
 
         }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        }
         catch (\Exception $e) {
             Logger::error('Failed to update establishment', [
                 'establishment_id' => $id,
@@ -357,20 +544,11 @@ class EstablishmentController
                 return;
             }
 
-            // Check access: admin can delete any, manager must belong to the business
-            $userRole = $request->user['role'] ?? 'client';
-            $userId = (int)$request->user['id'];
-
-            if ($userRole !== 'admin' && $establishment['business_id']) {
-                if (!\QueueMaster\Models\BusinessUser::exists((int)$establishment['business_id'], $userId)) {
-                    Response::forbidden('You do not have access to this establishment', $request->requestId);
-                    return;
-                }
-            }
-            elseif ($userRole !== 'admin') {
-                Response::forbidden('Insufficient permissions', $request->requestId);
-                return;
-            }
+            $this->accessService->requireEstablishmentManagement(
+                $request->user,
+                $establishment,
+                'Voce nao tem permissao para excluir este estabelecimento'
+            );
 
             Establishment::delete($id);
 
@@ -387,6 +565,9 @@ class EstablishmentController
 
             Response::success(['message' => 'Establishment deleted successfully']);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to delete establishment', [

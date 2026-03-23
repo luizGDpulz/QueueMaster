@@ -1,112 +1,198 @@
 <template>
   <q-page class="businesses-page">
-    <!-- Header -->
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">Negócios</h1>
       </div>
       <div class="header-right">
         <q-btn
+          v-if="canCreateBusiness"
           color="primary"
           icon="add"
-          label="Novo Negócio"
+          label="Novo negócio"
           no-caps
           @click="openCreateDialog"
         />
       </div>
       <div class="header-bottom">
-        <p class="page-subtitle">Gerencie seus negócios e estabelecimentos</p>
+        <p class="page-subtitle">Explore negócios e gerencie os vínculos já associados ao seu perfil.</p>
       </div>
     </div>
 
-    <!-- Table Card -->
-    <div class="table-card soft-card">
-      <div class="table-header">
-        <h2 class="table-title">Seus Negócios</h2>
-        <div class="table-actions">
-          <q-input
-            v-model="searchQuery"
-            outlined
-            dense
-            placeholder="Buscar..."
-            class="search-input"
-          >
-            <template v-slot:prepend>
-              <q-icon name="search" />
-            </template>
-          </q-input>
-        </div>
-      </div>
+    <div class="soft-card page-card">
+      <q-tabs
+        v-model="activeTab"
+        dense
+        class="main-tabs"
+        active-color="primary"
+        indicator-color="primary"
+        align="left"
+        narrow-indicator
+      >
+        <q-tab name="linked" icon="business_center" label="Meus vínculos" no-caps />
+        <q-tab name="explore" icon="travel_explore" label="Explorar" no-caps />
+      </q-tabs>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="loading-state">
-        <q-spinner-dots color="primary" size="40px" />
-        <p>Carregando negócios...</p>
-      </div>
+      <q-separator />
 
-      <!-- Empty State -->
-      <div v-else-if="filteredBusinesses.length === 0" class="empty-state">
-        <q-icon name="business" size="64px" />
-        <h3>Nenhum negócio encontrado</h3>
-        <p v-if="searchQuery">Tente ajustar sua busca</p>
-        <p v-else>Comece criando seu primeiro negócio</p>
-      </div>
+      <q-tab-panels v-model="activeTab" animated class="tab-panels">
+        <q-tab-panel name="linked" class="tab-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Meus negócios</h3>
+              <p>Negócios onde você já atua ou gerencia.</p>
+            </div>
+            <q-input
+              v-model="searchQuery"
+              outlined
+              dense
+              placeholder="Filtrar vínculos..."
+              class="search-input"
+            >
+              <template #prepend>
+                <q-icon name="search" />
+              </template>
+            </q-input>
+          </div>
 
-      <!-- Table -->
-      <div v-else class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th class="th-name">Negócio</th>
-              <th class="th-role">Seu Papel</th>
-              <th class="th-status">Status</th>
-              <th class="th-created">Criado em</th>
-              <th class="th-actions"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="business in filteredBusinesses" :key="business.id" class="clickable-row" @click="router.push(`/app/businesses/${business.id}`)">
-              <td>
-                <div class="business-info">
-                  <q-icon name="business" size="24px" class="business-icon" />
-                  <div>
-                    <span class="business-name">{{ business.name }}</span>
-                    <span v-if="business.slug" class="business-slug">{{ business.slug }}</span>
-                  </div>
+          <div v-if="loading" class="loading-state">
+            <q-spinner-dots color="primary" size="40px" />
+            <p>Carregando vínculos...</p>
+          </div>
+
+          <div v-else-if="filteredBusinesses.length === 0" class="empty-state">
+            <q-icon name="business" size="56px" />
+            <h3>Nenhum vínculo encontrado</h3>
+            <p v-if="searchQuery">Tente ajustar o filtro.</p>
+            <p v-else>Use a aba Explorar para navegar pelos negócios ativos.</p>
+          </div>
+
+          <div v-else class="business-grid">
+            <article
+              v-for="business in filteredBusinesses"
+              :key="business.id"
+              class="business-card soft-card"
+              @click="openBusiness(business.id)"
+            >
+              <div class="business-card__header">
+                <div>
+                  <h4>{{ business.name }}</h4>
+                  <p>{{ business.slug || 'Sem slug configurado' }}</p>
                 </div>
-              </td>
-              <td>
                 <q-badge :color="getRoleColor(business.user_role)" :label="getRoleLabel(business.user_role)" />
-              </td>
-              <td>
-                <q-badge :color="business.is_active ? 'positive' : 'negative'" :label="business.is_active ? 'Ativo' : 'Inativo'" />
-              </td>
-              <td class="td-date">{{ formatDate(business.created_at) }}</td>
-              <td>
-                <div class="row-actions">
-                  <q-btn flat round dense icon="edit" size="sm" @click.stop="editBusiness(business)">
-                    <q-tooltip>Editar</q-tooltip>
-                  </q-btn>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              </div>
+
+              <p class="business-card__desc">{{ business.description || 'Sem descrição cadastrada.' }}</p>
+
+              <div class="business-card__meta">
+                <span>{{ business.is_active ? 'Ativo' : 'Inativo' }}</span>
+                <span>{{ formatDate(business.created_at) }}</span>
+              </div>
+
+              <div class="business-card__actions" @click.stop>
+                <q-btn flat no-caps icon="open_in_new" label="Abrir" @click="openBusiness(business.id)" />
+                <q-btn
+                  v-if="canCreateBusiness"
+                  flat
+                  no-caps
+                  icon="edit"
+                  label="Editar"
+                  @click="editBusiness(business)"
+                />
+              </div>
+            </article>
+          </div>
+        </q-tab-panel>
+
+        <q-tab-panel name="explore" class="tab-panel">
+          <div class="panel-header panel-header--stack">
+            <div>
+              <h3>Explorar negócios</h3>
+              <p>Pesquise negócios ativos. Ao abrir um negócio, você poderá navegar pelos estabelecimentos vinculados a ele.</p>
+            </div>
+
+            <div class="explore-toolbar">
+              <q-input
+                v-model="discoverQuery"
+                outlined
+                dense
+                placeholder="Nome do negócio..."
+                class="search-input search-input--wide"
+                @keyup.enter="searchDiscover"
+              >
+                <template #prepend>
+                  <q-icon name="search" />
+                </template>
+                <template #append>
+                  <q-btn flat dense round icon="send" @click="searchDiscover" />
+                </template>
+              </q-input>
+            </div>
+          </div>
+
+          <div v-if="searchingDiscover" class="loading-state">
+            <q-spinner-dots color="primary" size="40px" />
+            <p>Buscando resultados...</p>
+          </div>
+
+          <div v-else-if="discoverSearched && discoverBusinesses.length === 0" class="empty-state">
+            <q-icon name="search_off" size="56px" />
+            <h3>Nenhum resultado encontrado</h3>
+            <p>Tente um termo diferente ou mais amplo.</p>
+          </div>
+
+          <template v-else>
+            <section class="discover-section">
+              <div class="discover-section__header">
+                <h4>Negócios</h4>
+                <span>{{ discoverBusinesses.length }}</span>
+              </div>
+
+              <div v-if="discoverBusinesses.length === 0" class="empty-state-sm">
+                <p>Nenhum negócio listado para o filtro atual.</p>
+              </div>
+
+              <div v-else class="business-grid">
+                <article
+                  v-for="business in discoverBusinesses"
+                  :key="`biz-${business.id}`"
+                  class="business-card soft-card"
+                  @click="openBusiness(business.id)"
+                >
+                  <div class="business-card__header">
+                    <div>
+                      <h4>{{ business.name }}</h4>
+                      <p>{{ business.establishment_count || 0 }} estabelecimento(s)</p>
+                    </div>
+                    <q-badge
+                      :color="business.is_linked ? 'positive' : undefined"
+                      :label="business.is_linked ? 'Vinculado' : 'Explorar'"
+                      :class="{ 'neutral-badge': !business.is_linked }"
+                    />
+                  </div>
+                  <p class="business-card__desc">{{ business.description || 'Sem descrição cadastrada.' }}</p>
+                  <div class="business-card__actions" @click.stop>
+                    <q-btn flat no-caps icon="visibility" label="Ver detalhes" @click="openBusiness(business.id)" />
+                  </div>
+                </article>
+              </div>
+            </section>
+          </template>
+        </q-tab-panel>
+      </q-tab-panels>
     </div>
 
-    <!-- Create/Edit Dialog -->
     <q-dialog v-model="showDialog" persistent>
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <div class="text-h6">{{ isEditing ? 'Editar Negócio' : 'Novo Negócio' }}</div>
+          <div class="text-h6">{{ isEditing ? 'Editar negócio' : 'Novo negócio' }}</div>
           <q-btn flat round dense icon="close" @click="showDialog = false" />
         </q-card-section>
 
         <q-card-section class="dialog-body">
           <q-input
             v-model="form.name"
-            label="Nome do Negócio *"
+            label="Nome do negócio *"
             outlined
             dense
             :rules="[val => !!val || 'Nome é obrigatório']"
@@ -131,22 +217,15 @@
 
         <q-card-actions align="right" class="dialog-actions">
           <q-btn flat label="Cancelar" no-caps @click="showDialog = false" />
-          <q-btn
-            color="primary"
-            :label="isEditing ? 'Salvar' : 'Criar'"
-            no-caps
-            :loading="saving"
-            @click="saveBusiness"
-          />
+          <q-btn color="primary" :label="isEditing ? 'Salvar' : 'Criar'" no-caps :loading="saving" @click="saveBusiness" />
         </q-card-actions>
       </q-card>
     </q-dialog>
-
   </q-page>
 </template>
 
 <script>
-import { defineComponent, ref, computed, onMounted } from 'vue'
+import { computed, defineComponent, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
@@ -158,32 +237,49 @@ export default defineComponent({
     const $q = useQuasar()
     const router = useRouter()
 
-    // State
     const loading = ref(false)
     const saving = ref(false)
     const businesses = ref([])
+    const currentUser = ref(JSON.parse(localStorage.getItem('user') || '{}'))
+    const activeTab = ref('linked')
     const searchQuery = ref('')
     const showDialog = ref(false)
     const isEditing = ref(false)
     const editingId = ref(null)
+    const discoverQuery = ref('')
+    const discoverBusinesses = ref([])
+    const discoverSearched = ref(false)
+    const searchingDiscover = ref(false)
 
     const form = ref({
       name: '',
       slug: '',
-      description: ''
+      description: '',
     })
 
-    // Computed
+    const canCreateBusiness = computed(() => ['manager', 'admin'].includes(currentUser.value?.role))
     const filteredBusinesses = computed(() => {
       if (!searchQuery.value) return businesses.value
-      const q = searchQuery.value.toLowerCase()
-      return businesses.value.filter(b =>
-        b.name?.toLowerCase().includes(q) ||
-        b.slug?.toLowerCase().includes(q)
-      )
+      const query = searchQuery.value.toLowerCase()
+      return businesses.value.filter((business) => (
+        business.name?.toLowerCase().includes(query)
+        || business.slug?.toLowerCase().includes(query)
+        || business.description?.toLowerCase().includes(query)
+      ))
     })
 
-    // Methods
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await api.get('/auth/me')
+        if (response.data?.success) {
+          currentUser.value = response.data.data?.user || currentUser.value
+          localStorage.setItem('user', JSON.stringify(currentUser.value))
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     const fetchBusinesses = async () => {
       loading.value = true
       try {
@@ -192,11 +288,27 @@ export default defineComponent({
           businesses.value = response.data.data?.businesses || []
         }
       } catch (err) {
-        console.error('Failed to fetch businesses:', err)
-        $q.notify({ type: 'negative', message: 'Erro ao carregar negócios' })
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao carregar negócios' })
       } finally {
         loading.value = false
       }
+    }
+
+    const searchDiscover = async () => {
+      searchingDiscover.value = true
+      discoverSearched.value = true
+      try {
+        const response = await api.get('/businesses/search', { params: { q: discoverQuery.value, limit: 20 } })
+        discoverBusinesses.value = response.data?.data?.businesses || []
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao buscar resultados' })
+      } finally {
+        searchingDiscover.value = false
+      }
+    }
+
+    const openBusiness = (id) => {
+      router.push(`/app/businesses/${id}`)
     }
 
     const openCreateDialog = () => {
@@ -212,7 +324,7 @@ export default defineComponent({
       form.value = {
         name: business.name || '',
         slug: business.slug || '',
-        description: business.description || ''
+        description: business.description || '',
       }
       showDialog.value = true
     }
@@ -228,7 +340,7 @@ export default defineComponent({
         const payload = {
           name: form.value.name.trim(),
           slug: form.value.slug?.trim() || undefined,
-          description: form.value.description?.trim() || undefined
+          description: form.value.description?.trim() || undefined,
         }
 
         if (isEditing.value) {
@@ -242,47 +354,63 @@ export default defineComponent({
         showDialog.value = false
         await fetchBusinesses()
       } catch (err) {
-        const msg = err.response?.data?.error?.message || 'Erro ao salvar negócio'
-        $q.notify({ type: 'negative', message: msg })
+        const message = err.response?.data?.error?.message || 'Erro ao salvar negócio'
+        $q.notify({ type: 'negative', message })
       } finally {
         saving.value = false
       }
     }
 
-    const formatDate = (dateStr) => {
-      if (!dateStr) return '-'
-      return new Date(dateStr).toLocaleDateString('pt-BR')
+    const formatDate = (dateString) => {
+      if (!dateString) return '-'
+      return new Date(dateString).toLocaleDateString('pt-BR')
     }
 
-    const roleLabels = { owner: 'Proprietário', manager: 'Gerente' }
-    const roleColors = { owner: 'positive', manager: 'info' }
+    const getRoleLabel = (role) => ({
+      owner: 'Proprietário',
+      manager: 'Gerente',
+      professional: 'Profissional',
+      admin: 'Administrador',
+    }[role] || 'Vinculado')
 
-    const getRoleLabel = (role) => roleLabels[role] || role
-    const getRoleColor = (role) => roleColors[role] || 'grey'
+    const getRoleColor = (role) => ({
+      owner: 'positive',
+      manager: 'info',
+      professional: 'warning',
+      admin: 'negative',
+    }[role] || 'grey')
 
-    // Lifecycle
-    onMounted(() => {
-      fetchBusinesses()
+    onMounted(async () => {
+      await Promise.all([fetchCurrentUser(), fetchBusinesses()])
+      await searchDiscover()
     })
 
     return {
+      activeTab,
       loading,
       saving,
       businesses,
+      currentUser,
+      canCreateBusiness,
       searchQuery,
+      filteredBusinesses,
       showDialog,
       isEditing,
       form,
-      filteredBusinesses,
+      discoverQuery,
+      discoverBusinesses,
+      discoverSearched,
+      searchingDiscover,
+      openBusiness,
       openCreateDialog,
       editBusiness,
       saveBusiness,
+      searchDiscover,
       formatDate,
       getRoleLabel,
       getRoleColor,
-      router
     }
-  }
+  },
 })
 </script>
 
@@ -291,7 +419,6 @@ export default defineComponent({
   padding: 0 1.5rem 1.5rem;
 }
 
-// Header
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -332,47 +459,73 @@ export default defineComponent({
   margin: 0;
 }
 
-// Table Card
-.table-card {
+.page-card {
   padding: 0;
   overflow: hidden;
 }
 
-.table-header {
+.main-tabs {
+  padding: 0.5rem 1rem 0;
+}
+
+.tab-panels {
+  background: transparent;
+}
+
+.tab-panel {
+  padding: 1.5rem;
+}
+
+.panel-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--qm-border);
-  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 1rem;
-}
+  margin-bottom: 1.25rem;
 
-.table-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--qm-text-primary);
-  margin: 0;
-}
+  h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1.125rem;
+    color: var(--qm-text-primary);
+  }
 
-.search-input {
-  width: 250px;
-
-  @media (max-width: 600px) {
-    width: 100%;
+  p {
+    margin: 0;
+    color: var(--qm-text-muted);
+    font-size: 0.875rem;
   }
 }
 
-// Loading & Empty States
+.panel-header--stack {
+  flex-direction: column;
+}
+
+.explore-toolbar {
+  width: 100%;
+}
+
+.search-input {
+  width: 280px;
+}
+
+.search-input--wide {
+  width: 100%;
+}
+
 .loading-state,
-.empty-state {
+.empty-state,
+.empty-state-sm {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4rem 2rem;
   color: var(--qm-text-muted);
   text-align: center;
+}
+
+.loading-state,
+.empty-state {
+  padding: 4rem 2rem;
 
   h3 {
     margin: 1rem 0 0.5rem;
@@ -386,92 +539,101 @@ export default defineComponent({
   }
 }
 
-// Table
-.table-container {
-  overflow-x: auto;
-}
+.empty-state-sm {
+  padding: 2rem 1rem;
 
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-
-  th, td {
-    padding: 0.875rem 1.5rem;
-    text-align: left;
-  }
-
-  thead {
-    tr {
-      background: var(--qm-bg-secondary);
-    }
-
-    th {
-      font-size: 0.6875rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--qm-text-muted);
-      border-bottom: 1px solid var(--qm-border);
-    }
-  }
-
-  tbody {
-    tr {
-      border-bottom: 1px solid var(--qm-border);
-      transition: background 0.2s ease;
-
-      &:last-child {
-        border-bottom: none;
-      }
-
-      &:hover {
-        background: var(--qm-bg-secondary);
-      }
-    }
-
-    td {
-      font-size: 0.875rem;
-      color: var(--qm-text-primary);
-    }
+  p {
+    margin: 0;
+    font-size: 0.875rem;
   }
 }
 
-tbody tr.clickable-row {
-  cursor: pointer;
-}
-
-.row-actions {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.th-actions {
-  width: 80px;
-}
-
-.business-info {
+.discover-section__header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.875rem;
+
+  h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--qm-text-primary);
+  }
+
+  span {
+    font-size: 0.75rem;
+    color: var(--qm-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+}
+
+.business-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.business-card {
+  padding: 1.1rem;
+  cursor: pointer;
+  border-radius: 16px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--qm-shadow-lg);
+  }
+}
+
+.business-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+
+  h4 {
+    margin: 0 0 0.2rem;
+    font-size: 1rem;
+    color: var(--qm-text-primary);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--qm-text-muted);
+  }
+}
+
+.business-card__desc {
+  margin: 0 0 0.875rem;
+  color: var(--qm-text-secondary);
+  font-size: 0.875rem;
+  min-height: 2.6em;
+}
+
+.business-card__meta {
+  display: flex;
+  justify-content: space-between;
   gap: 0.75rem;
-}
-
-.business-icon {
-  color: var(--qm-brand);
-}
-
-.business-name {
-  display: block;
-  font-weight: 600;
-}
-
-.business-slug {
-  display: block;
-  font-size: 0.75rem;
   color: var(--qm-text-muted);
+  font-size: 0.75rem;
 }
 
-.td-date {
-  white-space: nowrap;
+.business-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.neutral-badge {
+  background: var(--qm-bg-tertiary);
+  color: var(--qm-text-secondary);
+  border: 1px solid var(--qm-border);
 }
 
 .dialog-card {
@@ -490,27 +652,18 @@ tbody tr.clickable-row {
   padding-top: 0;
 }
 
-.detail-row {
-  display: flex;
-  gap: 1rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--qm-border);
-}
+@media (max-width: 768px) {
+  .panel-header {
+    flex-direction: column;
+  }
 
-.detail-label {
-  font-weight: 600;
-  color: var(--qm-text-secondary);
-  min-width: 100px;
-}
+  .search-input {
+    width: 100%;
+  }
 
-.detail-value {
-  color: var(--qm-text-primary);
-}
-
-.section-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--qm-text-primary);
-  margin: 0;
+  .dialog-card {
+    min-width: 0;
+    width: calc(100vw - 24px);
+  }
 }
 </style>

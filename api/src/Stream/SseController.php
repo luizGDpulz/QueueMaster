@@ -274,6 +274,14 @@ class SseController
     }
 
     /**
+     * Compatibility wrapper used by routes.
+     */
+    public function appointmentsStream(Request $request): void
+    {
+        $this->streamAppointments($request);
+    }
+
+    /**
      * GET /api/v1/streams/appointments/{establishmentId}
      * 
      * Stream appointment events for an establishment
@@ -352,5 +360,91 @@ class SseController
 
             sleep($pollInterval);
         }
+    }
+
+    /**
+     * GET /api/v1/streams/notifications
+     *
+     * Stream new notifications for the current user.
+     */
+    public function notificationsStream(Request $request): void
+    {
+        $userId = (int)($request->user['id'] ?? 0);
+
+        if ($userId <= 0) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Unauthorized']);
+            exit;
+        }
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        $lastIdRows = $this->db->query(
+            'SELECT COALESCE(MAX(id), 0) AS last_id FROM notifications WHERE user_id = ?',
+            [$userId]
+        );
+        $lastNotificationId = (int)($lastIdRows[0]['last_id'] ?? 0);
+
+        Logger::info('SSE notification stream started', [
+            'user_id' => $userId,
+        ]);
+
+        $this->sendEvent('connected', [
+            'user_id' => $userId,
+            'message' => 'Connected to notifications stream',
+        ]);
+
+        $pollInterval = 3;
+        $heartbeatInterval = 30;
+        $maxDuration = 300;
+        $lastHeartbeat = time();
+        $startedAt = time();
+
+        while (true) {
+            if (connection_aborted() || (time() - $startedAt) > $maxDuration) {
+                break;
+            }
+
+            $now = time();
+            if (($now - $lastHeartbeat) >= $heartbeatInterval) {
+                $this->sendEvent('heartbeat', ['timestamp' => $now]);
+                $lastHeartbeat = $now;
+            }
+
+            $rows = $this->db->query(
+                '
+                SELECT *
+                FROM notifications
+                WHERE user_id = ?
+                  AND id > ?
+                ORDER BY id ASC
+                LIMIT 50
+                ',
+                [$userId, $lastNotificationId]
+            );
+
+            foreach ($rows as $row) {
+                $lastNotificationId = max($lastNotificationId, (int)$row['id']);
+                if (isset($row['data']) && is_string($row['data'])) {
+                    $row['data'] = json_decode($row['data'], true) ?? [];
+                }
+                $row['is_read'] = !empty($row['read_at']);
+                $this->sendEvent('notification', $row);
+            }
+
+            sleep($pollInterval);
+        }
+
+        Logger::info('SSE notification stream ended', [
+            'user_id' => $userId,
+            'duration' => time() - $startedAt,
+        ]);
     }
 }

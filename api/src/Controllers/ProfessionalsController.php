@@ -9,6 +9,7 @@ use QueueMaster\Utils\Validator;
 use QueueMaster\Models\Professional;
 use QueueMaster\Models\Establishment;
 use QueueMaster\Services\AuditService;
+use QueueMaster\Services\ContextAccessService;
 
 /**
  * ProfessionalsController - Professional Management Endpoints
@@ -17,6 +18,13 @@ use QueueMaster\Services\AuditService;
  */
 class ProfessionalsController
 {
+    private ContextAccessService $accessService;
+
+    public function __construct()
+    {
+        $this->accessService = new ContextAccessService();
+    }
+
     /**
      * GET /api/v1/professionals
      * 
@@ -26,14 +34,41 @@ class ProfessionalsController
     {
         try {
             $params = $request->getQuery();
-            $conditions = [];
+            $accessibleEstablishmentIds = $this->accessService->getAccessibleEstablishmentIds($request->user);
+            $requestedEstablishmentId = isset($params['establishment_id']) ? (int)$params['establishment_id'] : null;
 
-            // Filter by establishment if provided
-            if (isset($params['establishment_id'])) {
-                $conditions['establishment_id'] = (int)$params['establishment_id'];
+            if (!$this->accessService->isAdmin($request->user) && empty($accessibleEstablishmentIds)) {
+                Response::success([
+                    'professionals' => [],
+                    'total' => 0,
+                ]);
+                return;
             }
 
-            $professionals = Professional::all($conditions, 'name', 'ASC');
+            if ($requestedEstablishmentId !== null) {
+                $establishment = Establishment::find($requestedEstablishmentId);
+                if (!$establishment) {
+                    Response::notFound('Establishment not found', $request->requestId);
+                    return;
+                }
+
+                $this->accessService->requireEstablishmentAccess(
+                    $request->user,
+                    $establishment,
+                    'Voce nao tem acesso aos profissionais deste estabelecimento'
+                );
+
+                $professionals = Professional::all(['establishment_id' => $requestedEstablishmentId], 'name', 'ASC');
+            } else {
+                $professionals = Professional::all([], 'name', 'ASC');
+
+                if (!$this->accessService->isAdmin($request->user)) {
+                    $professionals = array_values(array_filter(
+                        $professionals,
+                        static fn(array $professional): bool => in_array((int)$professional['establishment_id'], $accessibleEstablishmentIds, true)
+                    ));
+                }
+            }
 
             // Enrich with establishment name
             foreach ($professionals as &$professional) {
@@ -48,6 +83,9 @@ class ProfessionalsController
                 'total' => count($professionals),
             ]);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to list professionals', [
@@ -76,6 +114,13 @@ class ProfessionalsController
             // Add establishment info
             if ($professional['establishment_id']) {
                 $establishment = Establishment::find($professional['establishment_id']);
+                if ($establishment) {
+                    $this->accessService->requireEstablishmentAccess(
+                        $request->user,
+                        $establishment,
+                        'Voce nao tem acesso a este profissional'
+                    );
+                }
                 $professional['establishment'] = $establishment;
             }
 
@@ -83,6 +128,9 @@ class ProfessionalsController
                 'professional' => $professional,
             ]);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to get professional', [
@@ -123,6 +171,12 @@ class ProfessionalsController
                 return;
             }
 
+            $this->accessService->requireEstablishmentManagement(
+                $request->user,
+                $establishment,
+                'Voce nao tem permissao para criar profissionais neste estabelecimento'
+            );
+
             // Check SaaS quota
             $quotaCheck = \QueueMaster\Services\QuotaService::canAddProfessional((int)$data['establishment_id']);
             if (!$quotaCheck['allowed']) {
@@ -155,6 +209,9 @@ class ProfessionalsController
             ]);
 
         }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        }
         catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
         }
@@ -182,6 +239,15 @@ class ProfessionalsController
                 return;
             }
 
+            $currentEstablishment = Establishment::find((int)$professional['establishment_id']);
+            if ($currentEstablishment) {
+                $this->accessService->requireEstablishmentManagement(
+                    $request->user,
+                    $currentEstablishment,
+                    'Voce nao tem permissao para editar este profissional'
+                );
+            }
+
             $data = $request->all();
             $updateData = [];
 
@@ -200,6 +266,11 @@ class ProfessionalsController
                     Response::notFound('Establishment not found', $request->requestId);
                     return;
                 }
+                $this->accessService->requireEstablishmentManagement(
+                    $request->user,
+                    $establishment,
+                    'Voce nao tem permissao para mover este profissional para outro estabelecimento'
+                );
                 $updateData['establishment_id'] = (int)$data['establishment_id'];
             }
 
@@ -242,6 +313,9 @@ class ProfessionalsController
             ]);
 
         }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        }
         catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
         }
@@ -269,6 +343,15 @@ class ProfessionalsController
                 return;
             }
 
+            $establishment = Establishment::find((int)$professional['establishment_id']);
+            if ($establishment) {
+                $this->accessService->requireEstablishmentManagement(
+                    $request->user,
+                    $establishment,
+                    'Voce nao tem permissao para excluir este profissional'
+                );
+            }
+
             Professional::delete($id);
 
             Logger::info('Professional deleted', [
@@ -284,6 +367,9 @@ class ProfessionalsController
 
             Response::success(['message' => 'Professional deleted successfully']);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to delete professional', [
@@ -307,6 +393,15 @@ class ProfessionalsController
             if (!$professional) {
                 Response::notFound('Professional not found', $request->requestId);
                 return;
+            }
+
+            $establishment = Establishment::find((int)$professional['establishment_id']);
+            if ($establishment) {
+                $this->accessService->requireEstablishmentAccess(
+                    $request->user,
+                    $establishment,
+                    'Voce nao tem acesso aos atendimentos deste profissional'
+                );
             }
 
             $params = $request->getQuery();
@@ -335,6 +430,9 @@ class ProfessionalsController
                 'total' => count($appointments),
             ]);
 
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to get professional appointments', [

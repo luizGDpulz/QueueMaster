@@ -154,7 +154,7 @@ class RefreshToken
         $qb = new QueryBuilder();
         return $qb->select(self::$table)
             ->where('user_id', '=', $userId)
-            ->where('revoked_at', 'IS', null)
+            ->whereNull('revoked_at')
             ->update(['revoked_at' => date('Y-m-d H:i:s')]);
     }
 

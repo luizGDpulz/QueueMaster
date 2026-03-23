@@ -1,7 +1,5 @@
 <template>
   <q-layout view="lHh LpR lff" class="main-layout">
-    
-    <!-- ===== SIDEBAR (Menu Lateral) ===== -->
     <q-drawer
       v-model="sidebarOpen"
       :width="260"
@@ -23,13 +21,9 @@
       />
     </q-drawer>
 
-    <!-- ===== CONTEÚDO PRINCIPAL ===== -->
     <q-page-container class="page-container">
-      
-      <!-- Header -->
       <header class="main-header">
         <div class="header-left">
-          <!-- Botão Menu Mobile -->
           <q-btn
             flat
             round
@@ -38,18 +32,32 @@
             class="menu-btn"
             @click="sidebarOpen = !sidebarOpen"
           />
-          
-          <!-- Breadcrumbs -->
+
           <nav class="breadcrumbs">
             <span class="breadcrumb-item">Páginas</span>
             <q-icon name="chevron_right" size="18px" class="breadcrumb-separator" />
-            <span class="breadcrumb-current">{{ currentPageTitle }}</span>
+            <span
+              :class="breadcrumbDetail ? 'breadcrumb-item breadcrumb-link' : 'breadcrumb-current'"
+              @click="breadcrumbDetail ? $router.push(breadcrumbParentPath) : null"
+            >
+              {{ currentPageTitle }}
+            </span>
+            <template v-if="breadcrumbDetail">
+              <q-icon name="chevron_right" size="18px" class="breadcrumb-separator" />
+              <span class="breadcrumb-current">{{ breadcrumbDetail }}</span>
+            </template>
           </nav>
         </div>
 
         <div class="header-right">
-          <!-- Notificações -->
-          <div class="notifications-wrapper">
+          <div ref="notificationsWrapper" class="notifications-wrapper">
+            <transition name="notif-pill">
+              <div v-if="previewNotification" class="notification-preview-pill">
+                <q-icon name="notifications_active" size="16px" />
+                <span>{{ previewNotification.title }}</span>
+              </div>
+            </transition>
+
             <q-btn
               flat
               round
@@ -58,25 +66,47 @@
               class="notification-btn"
               @click="toggleNotifications"
             >
-              <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount > 99 ? '99+' : unreadCount }}</q-badge>
+              <q-badge v-if="unreadCount > 0" color="red" floating rounded>
+                {{ unreadCount > 99 ? '99+' : unreadCount }}
+              </q-badge>
             </q-btn>
 
-            <!-- Dropdown de notificações -->
             <div v-if="showNotifications" class="notifications-dropdown">
               <div class="notifications-header">
-                <span class="notifications-title">Notificações</span>
-                <q-btn v-if="unreadCount > 0" flat dense no-caps size="sm" label="Marcar todas como lidas" @click="markAllRead" />
-              </div>
-              <div class="notifications-list">
-                <div v-if="notifications.length === 0" class="notifications-empty">
-                  <q-icon name="notifications_none" size="32px" color="grey-5" />
-                  <span>Nenhuma notificação</span>
+                <div>
+                  <div class="notifications-title">Não lidas</div>
+                  <div class="notifications-subtitle">
+                    {{ streamConnected ? 'Tempo real ativo' : 'Atualização automática' }}
+                  </div>
                 </div>
+                <div class="notifications-header-actions">
+                  <q-btn flat dense no-caps size="sm" label="Inbox" @click="openInbox" />
+                  <q-btn
+                    v-if="unreadCount > 0"
+                    flat
+                    dense
+                    no-caps
+                    size="sm"
+                    label="Marcar todas"
+                    @click="handleMarkAllRead"
+                  />
+                </div>
+              </div>
+
+              <div class="notifications-list">
+                <div v-if="unreadLoading" class="notifications-empty">
+                  <q-spinner-dots color="primary" size="28px" />
+                </div>
+
+                <div v-else-if="unreadNotifications.length === 0" class="notifications-empty">
+                  <q-icon name="notifications_none" size="32px" color="grey-5" />
+                  <span>Nenhuma notificação não lida</span>
+                </div>
+
                 <div
-                  v-for="notif in notifications"
+                  v-for="notif in unreadNotifications"
                   :key="notif.id"
-                  class="notification-item"
-                  :class="{ unread: !notif.read_at }"
+                  class="notification-item unread"
                   @click="handleNotificationClick(notif)"
                 >
                   <div class="notif-icon">
@@ -85,10 +115,35 @@
                   <div class="notif-content">
                     <span class="notif-title">{{ notif.title }}</span>
                     <span class="notif-body">{{ notif.body }}</span>
-                    <span class="notif-time">{{ formatNotifTime(notif.created_at) }}</span>
-                    <div v-if="notif.type === 'business_invitation' && !notif.read_at && notif.data?.invitation_id" class="notif-actions" @click.stop>
-                      <q-btn dense flat no-caps size="sm" color="positive" icon="check" label="Aceitar" @click="acceptInvitation(notif)" />
-                      <q-btn dense flat no-caps size="sm" color="negative" icon="close" label="Rejeitar" @click="rejectInvitation(notif)" />
+                    <span class="notif-time">{{ formatNotifTime(notif.sent_at || notif.created_at) }}</span>
+
+                    <div
+                      v-if="actionableTypes.has(notif.type) && notif.data?.invitation_id"
+                      class="notif-actions"
+                      @click.stop
+                    >
+                      <q-btn
+                        dense
+                        flat
+                        no-caps
+                        size="sm"
+                        color="positive"
+                        icon="check"
+                        label="Aceitar"
+                        :loading="notificationActionId === notif.id && notificationAction === 'accept'"
+                        @click="handleAcceptNotification(notif)"
+                      />
+                      <q-btn
+                        dense
+                        flat
+                        no-caps
+                        size="sm"
+                        color="negative"
+                        icon="close"
+                        label="Rejeitar"
+                        :loading="notificationActionId === notif.id && notificationAction === 'reject'"
+                        @click="handleRejectNotification(notif)"
+                      />
                     </div>
                   </div>
                 </div>
@@ -98,52 +153,73 @@
         </div>
       </header>
 
-      <!-- Página -->
+      <div class="page-spacer"></div>
+
       <router-view v-slot="{ Component }">
         <transition name="page-fade" mode="out-in">
           <component :is="Component" />
         </transition>
       </router-view>
-      
     </q-page-container>
-
   </q-layout>
 </template>
 
 <script>
-import { defineComponent, ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, defineComponent, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { loadBrandColor } from 'src/utils/brand'
 import AppSidebar from 'src/components/AppSidebar.vue'
+import { useBreadcrumb } from 'src/composables/useBreadcrumb'
+import { useNotificationsCenter } from 'src/composables/useNotificationsCenter'
 
 export default defineComponent({
   name: 'MainLayout',
 
   components: {
-    AppSidebar
+    AppSidebar,
   },
 
   setup() {
     const router = useRouter()
     const route = useRoute()
-
-    // ===== SIDEBAR =====
+    const notificationsWrapper = ref(null)
     const sidebarOpen = ref(true)
+    const showNotifications = ref(false)
+    const user = ref(null)
+    const isDark = ref(false)
+    const notificationActionId = ref(null)
+    const notificationAction = ref('')
 
-    // Menu items para o breadcrumb
+    const {
+      unreadNotifications,
+      unreadCount,
+      unreadLoading,
+      previewNotification,
+      streamConnected,
+      actionableTypes,
+      getNotifIcon,
+      formatNotifTime,
+      fetchPreferences,
+      fetchUnreadNotifications,
+      markAllNotificationsRead,
+      openNotification,
+      acceptInvitation,
+      rejectInvitation,
+      connectStream,
+      disconnectStream,
+    } = useNotificationsCenter()
+
     const menuItems = [
       { path: '/app', label: 'Dashboard' },
       { path: '/app/businesses', label: 'Negócios' },
       { path: '/app/queues', label: 'Filas' },
+      { path: '/app/reports', label: 'Relatórios' },
       { path: '/app/appointments', label: 'Agendamentos' },
       { path: '/app/establishments', label: 'Estabelecimentos' },
       { path: '/app/admin', label: 'Administração' },
-      { path: '/app/settings', label: 'Configurações' }
+      { path: '/app/settings', label: 'Configurações' },
     ]
-
-    // ===== USUÁRIO =====
-    const user = ref(null)
 
     const userName = computed(() => user.value?.name || 'Usuário')
     const userRole = computed(() => {
@@ -153,132 +229,12 @@ export default defineComponent({
     const userRoleRaw = computed(() => user.value?.role || '')
     const userInitials = computed(() => {
       const name = user.value?.name || 'U'
-      return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+      return name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()
     })
     const userAvatar = computed(() => {
       if (!user.value?.id) return ''
-      // Use API route for avatar (cached base64 in DB, no Google dependency)
       return `${import.meta.env.VITE_API_URL || 'http://localhost/api/v1'}/users/${user.value.id}/avatar`
     })
-
-    const handleLogout = async () => {
-      try {
-        await api.post('/auth/logout')
-      } catch {
-        // Ignora erro — limpa localmente de qualquer forma
-      }
-      localStorage.removeItem('user')
-      router.push('/login')
-    }
-
-    // ===== HEADER / NOTIFICATIONS =====
-    const notifications = ref([])
-    const unreadCount = ref(0)
-    const showNotifications = ref(false)
-    let notifInterval = null
-
-    const fetchNotifications = async () => {
-      try {
-        const [listRes, countRes] = await Promise.all([
-          api.get('/notifications?per_page=10'),
-          api.get('/notifications/unread-count'),
-        ])
-        // Handle both response shapes (array or {notifications: []})
-        const data = listRes.data?.data
-        notifications.value = Array.isArray(data) ? data : (data?.notifications ?? [])
-        unreadCount.value = countRes.data?.data?.unread_count ?? 0
-      } catch {
-        // Silently fail — user might not be logged in yet
-      }
-    }
-
-    const toggleNotifications = () => {
-      showNotifications.value = !showNotifications.value
-      if (showNotifications.value) {
-        fetchNotifications()
-      }
-    }
-
-    const markAllRead = async () => {
-      try {
-        await api.post('/notifications/mark-all-read')
-        notifications.value = notifications.value.map(n => ({ ...n, read_at: new Date().toISOString(), is_read: true }))
-        unreadCount.value = 0
-      } catch { /* ignore */ }
-    }
-
-    const handleNotificationClick = async (notif) => {
-      if (!notif.read_at) {
-        try {
-          await api.post(`/notifications/${notif.id}/read`)
-          notif.read_at = new Date().toISOString()
-          unreadCount.value = Math.max(0, unreadCount.value - 1)
-        } catch { /* ignore */ }
-      }
-      showNotifications.value = false
-
-      // Navigate based on notification type
-      if (notif.type === 'business_invitation' || notif.type === 'join_request' || notif.type === 'invitation_accepted') {
-        router.push('/app/businesses')
-      } else if (notif.type === 'appointment_reminder') {
-        router.push('/app/appointments')
-      } else if (notif.type === 'queue_called') {
-        router.push('/app/queues')
-      }
-    }
-
-    const getNotifIcon = (type) => {
-      const icons = {
-        business_invitation: 'business',
-        join_request: 'person_add',
-        invitation_accepted: 'check_circle',
-        invitation_rejected: 'cancel',
-        appointment_reminder: 'event',
-        queue_called: 'notifications_active',
-      }
-      return icons[type] || 'notifications'
-    }
-
-    const formatNotifTime = (dateStr) => {
-      if (!dateStr) return ''
-      const date = new Date(dateStr)
-      const now = new Date()
-      const diffMs = now - date
-      const diffMins = Math.floor(diffMs / 60000)
-      if (diffMins < 1) return 'agora'
-      if (diffMins < 60) return `${diffMins}min`
-      const diffHours = Math.floor(diffMins / 60)
-      if (diffHours < 24) return `${diffHours}h`
-      const diffDays = Math.floor(diffHours / 24)
-      return `${diffDays}d`
-    }
-
-    const acceptInvitation = async (notif) => {
-      const invId = notif.data?.invitation_id
-      if (!invId) return
-      try {
-        await api.post(`/invitations/${invId}/accept`)
-        notif.read_at = new Date().toISOString()
-        fetchNotifications()
-      } catch { /* ignore */ }
-    }
-
-    const rejectInvitation = async (notif) => {
-      const invId = notif.data?.invitation_id
-      if (!invId) return
-      try {
-        await api.post(`/invitations/${invId}/reject`)
-        notif.read_at = new Date().toISOString()
-        fetchNotifications()
-      } catch { /* ignore */ }
-    }
-
-    // Close dropdown when clicking outside
-    const handleClickOutside = (e) => {
-      if (showNotifications.value && !e.target.closest('.notifications-wrapper')) {
-        showNotifications.value = false
-      }
-    }
 
     const fetchCurrentUser = async () => {
       try {
@@ -288,56 +244,92 @@ export default defineComponent({
           localStorage.setItem('user', JSON.stringify(response.data.data.user))
         }
       } catch {
-        // Token inválido/expirado — o interceptor em axios.js vai tentar o refresh.
-        // Se falhar, o interceptor redireciona para /login automaticamente.
+        // ignore: axios interceptor handles auth redirects
       }
     }
 
-    onMounted(() => {
-      // Carrega do localStorage imediatamente para evitar flicker na UI
-      const savedUser = localStorage.getItem('user')
-      if (savedUser) {
-        try {
-          user.value = JSON.parse(savedUser)
-        } catch { /* ignore parse errors */ }
+    const handleLogout = async () => {
+      try {
+        await api.post('/auth/logout')
+      } catch {
+        // ignore
       }
 
-      // Busca o user real da API para garantir role e dados atualizados
-      fetchCurrentUser()
+      disconnectStream()
+      localStorage.removeItem('user')
+      router.push('/login')
+    }
 
-      // Load theme
-      const savedTheme = localStorage.getItem('theme')
-      if (savedTheme) {
-        isDark.value = savedTheme === 'dark'
-      } else {
-        isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const toggleNotifications = async () => {
+      showNotifications.value = !showNotifications.value
+      if (showNotifications.value) {
+        await fetchUnreadNotifications()
       }
-      applyTheme()
-      loadBrandColor()
+    }
 
-      // Notifications
-      document.addEventListener('click', handleClickOutside)
-      fetchNotifications()
-      notifInterval = setInterval(fetchNotifications, 30000)
-    })
+    const handleNotificationClick = async (notification) => {
+      try {
+        await openNotification(router, notification)
+      } finally {
+        showNotifications.value = false
+      }
+    }
 
-    onUnmounted(() => {
-      document.removeEventListener('click', handleClickOutside)
-      if (notifInterval) clearInterval(notifInterval)
+    const handleAcceptNotification = async (notification) => {
+      notificationActionId.value = notification.id
+      notificationAction.value = 'accept'
+      try {
+        await acceptInvitation(notification)
+      } finally {
+        notificationActionId.value = null
+        notificationAction.value = ''
+      }
+    }
+
+    const handleRejectNotification = async (notification) => {
+      notificationActionId.value = notification.id
+      notificationAction.value = 'reject'
+      try {
+        await rejectInvitation(notification)
+      } finally {
+        notificationActionId.value = null
+        notificationAction.value = ''
+      }
+    }
+
+    const handleMarkAllRead = async () => {
+      await markAllNotificationsRead()
+    }
+
+    const openInbox = () => {
+      showNotifications.value = false
+      router.push('/app/settings?tab=notifications')
+    }
+
+    const handleClickOutside = (event) => {
+      if (showNotifications.value && notificationsWrapper.value && !notificationsWrapper.value.contains(event.target)) {
+        showNotifications.value = false
+      }
+    }
+
+    const { state: breadcrumbState } = useBreadcrumb()
+    const breadcrumbDetail = computed(() => breadcrumbState.detail)
+
+    const breadcrumbParentPath = computed(() => {
+      const currentItem = menuItems.find((item) => {
+        if (item.path === '/app') return route.path === '/app' || route.path === '/app/'
+        return route.path.startsWith(item.path)
+      })
+      return currentItem?.path || '/app'
     })
 
     const currentPageTitle = computed(() => {
-      const currentItem = menuItems.find(item => {
-        if (item.path === '/app') {
-          return route.path === '/app' || route.path === '/app/'
-        }
+      const currentItem = menuItems.find((item) => {
+        if (item.path === '/app') return route.path === '/app' || route.path === '/app/'
         return route.path.startsWith(item.path)
       })
       return currentItem?.label || 'Dashboard'
     })
-
-    // ===== TEMA =====
-    const isDark = ref(false)
 
     const applyTheme = () => {
       document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
@@ -350,56 +342,95 @@ export default defineComponent({
       loadBrandColor()
     }
 
+    onMounted(async () => {
+      const savedUser = localStorage.getItem('user')
+      if (savedUser) {
+        try {
+          user.value = JSON.parse(savedUser)
+        } catch {
+          // ignore invalid cache
+        }
+      }
+
+      await fetchCurrentUser()
+
+      const savedTheme = localStorage.getItem('theme')
+      if (savedTheme) {
+        isDark.value = savedTheme === 'dark'
+      } else {
+        isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+      }
+
+      applyTheme()
+      loadBrandColor()
+
+      document.addEventListener('click', handleClickOutside)
+      await Promise.all([fetchPreferences(), fetchUnreadNotifications()])
+      connectStream()
+    })
+
+    onUnmounted(() => {
+      document.removeEventListener('click', handleClickOutside)
+      disconnectStream()
+    })
+
     return {
       sidebarOpen,
+      notificationsWrapper,
       userName,
       userRole,
       userRoleRaw,
       userInitials,
       userAvatar,
       handleLogout,
-      notifications,
-      unreadCount,
       showNotifications,
-      toggleNotifications,
-      markAllRead,
-      handleNotificationClick,
+      unreadNotifications,
+      unreadCount,
+      unreadLoading,
+      previewNotification,
+      streamConnected,
+      actionableTypes,
       getNotifIcon,
       formatNotifTime,
-      acceptInvitation,
-      rejectInvitation,
+      toggleNotifications,
+      handleNotificationClick,
+      handleAcceptNotification,
+      handleRejectNotification,
+      handleMarkAllRead,
+      openInbox,
+      notificationActionId,
+      notificationAction,
       currentPageTitle,
+      breadcrumbDetail,
+      breadcrumbParentPath,
       isDark,
-      toggleTheme
+      toggleTheme,
     }
-  }
+  },
 })
 </script>
 
 <style lang="scss" scoped>
-// ===== MAIN LAYOUT =====
 .main-layout {
   background: var(--qm-bg-secondary);
 }
 
-// ===== SIDEBAR =====
 .sidebar {
   border: none !important;
   box-shadow: none !important;
 }
 
-// ===== PAGE CONTAINER =====
 .page-container {
   background: var(--qm-bg-secondary);
 }
 
-// ===== HEADER =====
 .main-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
   background: transparent;
+  gap: 1rem;
 }
 
 .header-left {
@@ -410,7 +441,7 @@ export default defineComponent({
 
 .menu-btn {
   color: var(--qm-text-secondary);
-  
+
   @media (min-width: 1024px) {
     display: none;
   }
@@ -420,11 +451,22 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .breadcrumb-item {
   font-size: 0.875rem;
   color: var(--qm-text-muted);
+  min-width: 0;
+}
+
+.breadcrumb-link {
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .breadcrumb-separator {
@@ -435,6 +477,9 @@ export default defineComponent({
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--qm-text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-right {
@@ -443,28 +488,58 @@ export default defineComponent({
   gap: 1rem;
 }
 
-// ===== NOTIFICATIONS =====
+.page-spacer {
+  height: 0.5rem;
+}
+
 .notifications-wrapper {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 56px;
 }
 
 .notification-btn {
   color: var(--qm-text-secondary);
-  
+  background: color-mix(in srgb, var(--qm-surface) 70%, transparent);
+  border: 1px solid var(--qm-border-light);
+
   &:hover {
     color: var(--qm-brand);
   }
 }
 
+.notification-preview-pill {
+  position: absolute;
+  right: 52px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 320px;
+  padding: 0.625rem 0.875rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--qm-brand), color-mix(in srgb, var(--qm-brand) 70%, #081220));
+  color: #fff;
+  box-shadow: var(--qm-shadow-lg, 0 16px 36px rgba(0, 0, 0, 0.18));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 5;
+  pointer-events: none;
+}
+
 .notifications-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 10px);
   right: 0;
-  width: 360px;
-  max-height: 480px;
+  width: 380px;
+  max-height: 520px;
   background: var(--qm-surface);
   border-radius: 1rem;
-  box-shadow: var(--qm-shadow-lg, 0 10px 40px rgba(0,0,0,0.15));
+  box-shadow: var(--qm-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.15));
   border: 1px solid var(--qm-border);
   z-index: 1000;
   overflow: hidden;
@@ -473,14 +548,15 @@ export default defineComponent({
 
   @media (max-width: 480px) {
     width: calc(100vw - 2rem);
-    right: -1rem;
+    right: -0.75rem;
   }
 }
 
 .notifications-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 1rem;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--qm-border);
 }
@@ -491,9 +567,21 @@ export default defineComponent({
   color: var(--qm-text-primary);
 }
 
+.notifications-subtitle {
+  font-size: 0.75rem;
+  color: var(--qm-text-muted);
+  margin-top: 0.125rem;
+}
+
+.notifications-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .notifications-list {
   overflow-y: auto;
-  max-height: 400px;
+  max-height: 420px;
 }
 
 .notifications-empty {
@@ -518,17 +606,13 @@ export default defineComponent({
     background: var(--qm-bg-tertiary);
   }
 
-  &.unread {
-    background: var(--qm-bg-secondary);
-    
-    .notif-title {
-      font-weight: 600;
-    }
-  }
-
   &:last-child {
     border-bottom: none;
   }
+}
+
+.notification-item.unread {
+  background: var(--qm-bg-secondary);
 }
 
 .notif-icon {
@@ -553,7 +637,7 @@ export default defineComponent({
 
 .notif-title {
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--qm-text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -577,26 +661,58 @@ export default defineComponent({
 .notif-actions {
   display: flex;
   gap: 0.375rem;
-  margin-top: 0.25rem;
+  margin-top: 0.375rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .main-header {
+    padding: 1rem;
+  }
+
+  .header-left {
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .breadcrumbs {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .notifications-wrapper {
+    position: static;
+  }
+
+  .notification-preview-pill {
+    display: none;
+  }
 }
 </style>
 
 <style lang="scss">
-// ===== PAGE TRANSITIONS (must be non-scoped) =====
 .page-fade-enter-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.25s ease;
 }
 
 .page-fade-leave-active {
   transition: opacity 0.15s ease;
 }
 
-.page-fade-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
+.page-fade-enter-from,
 .page-fade-leave-to {
   opacity: 0;
+}
+
+.notif-pill-enter-active,
+.notif-pill-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease, width 0.25s ease;
+}
+
+.notif-pill-enter-from,
+.notif-pill-leave-to {
+  opacity: 0;
+  transform: translateY(-50%) translateX(12px) scaleX(0.85);
 }
 </style>

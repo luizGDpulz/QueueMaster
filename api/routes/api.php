@@ -27,6 +27,7 @@ use QueueMaster\Controllers\UsersController;
 use QueueMaster\Controllers\BusinessController;
 use QueueMaster\Controllers\AdminController;
 use QueueMaster\Controllers\InvitationsController;
+use QueueMaster\Controllers\ReportsController;
 use QueueMaster\Stream\SseController;
 use QueueMaster\Middleware\AuthMiddleware;
 use QueueMaster\Middleware\RoleMiddleware;
@@ -221,6 +222,20 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
+                // GET /api/v1/establishments/search — Search active establishments for discovery
+                $router->get('/search', function ($request) {
+                    $controller = new EstablishmentController();
+                    $controller->search($request);
+                }
+                );
+
+                // GET /api/v1/establishments/{id}/discover — Read-only discovery detail
+                $router->get('/{id}/discover', function ($request) {
+                    $controller = new EstablishmentController();
+                    $controller->discover($request, (int)$request->getParam('id'));
+                }
+                );
+
                 // GET /api/v1/establishments/{id} — Get single establishment
                 $router->get('/{id}', function ($request) {
                     $controller = new EstablishmentController();
@@ -286,26 +301,63 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
-                // POST /api/v1/services — Create service (manager/admin)
+                // POST /api/v1/services — Create service (professional/manager/admin)
                 $router->post('', function ($request) {
                     $controller = new ServicesController();
                     $controller->create($request);
                 }
-                    , [new RoleMiddleware(['manager', 'admin'])]);
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
-                // PUT /api/v1/services/{id} — Update service (manager/admin)
+                // PUT /api/v1/services/{id} — Update service (professional/manager/admin)
                 $router->put('/{id}', function ($request) {
                     $controller = new ServicesController();
                     $controller->update($request, (int)$request->getParam('id'));
                 }
-                    , [new RoleMiddleware(['manager', 'admin'])]);
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
-                // DELETE /api/v1/services/{id} — Delete service (manager/admin)
+                // DELETE /api/v1/services/{id} — Delete service (professional/manager/admin)
                 $router->delete('/{id}', function ($request) {
                     $controller = new ServicesController();
                     $controller->delete($request, (int)$request->getParam('id'));
                 }
-                    , [new RoleMiddleware(['manager', 'admin'])]);
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+            }
+            );
+
+            // ========================================================================
+            // Reports Routes
+            // ========================================================================
+
+            $router->group('/reports', function ($router) {
+
+            // GET /api/v1/reports/filters — Metadata for unified reports filters
+            $router->get('/filters', function ($request) {
+                    $controller = new ReportsController();
+                    $controller->reportFilters($request);
+                }
+                    , [new RoleMiddleware(['client', 'professional', 'manager', 'admin'])]);
+
+                // GET /api/v1/reports — Unified reports for queues and appointments
+                $router->get('', function ($request) {
+                    $controller = new ReportsController();
+                    $controller->reports($request);
+                }
+                    , [new RoleMiddleware(['client', 'professional', 'manager', 'admin'])]);
+
+            // GET /api/v1/reports/queues/filters — Metadata for queue reports filters
+            $router->get('/queues/filters', function ($request) {
+                    $controller = new ReportsController();
+                    $controller->queueReportFilters($request);
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // GET /api/v1/reports/queues — Global queue reports
+                $router->get('/queues', function ($request) {
+                    $controller = new ReportsController();
+                    $controller->queueReports($request);
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
             }
             );
@@ -388,19 +440,19 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
-                // GET /api/v1/queues/{id}/access-codes — List access codes (manager/admin)
+                // GET /api/v1/queues/{id}/access-codes — List access codes (professional/manager/admin)
                 $router->get('/{id}/access-codes', function ($request) {
                     $controller = new QueuesController();
                     $controller->listCodes($request, (int)$request->getParam('id'));
                 }
-                    , [new RoleMiddleware(['manager', 'admin'])]);
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
-                // GET /api/v1/queues/{id}/access-codes/{codeId} — Get single code (manager/admin)
+                // GET /api/v1/queues/{id}/access-codes/{codeId} — Get single code (professional/manager/admin)
                 $router->get('/{id}/access-codes/{codeId}', function ($request) {
                     $controller = new QueuesController();
                     $controller->getCode($request, (int)$request->getParam('id'), (int)$request->getParam('codeId'));
                 }
-                    , [new RoleMiddleware(['manager', 'admin'])]);
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
                 // POST /api/v1/queues — Create queue (professional/manager/admin)
                 $router->post('', function ($request) {
@@ -430,24 +482,101 @@ $router->group('/api/v1', function ($router) {
                 }
                     , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
-                // POST /api/v1/queues/{id}/generate-code — Generate join code (manager/admin)
+                // POST /api/v1/queues/{id}/generate-code — Generate join code (professional/manager/admin)
                 $router->post('/{id}/generate-code', function ($request) {
                     $controller = new QueuesController();
                     $controller->generateCode($request, (int)$request->getParam('id'));
                 }
-                    , [new RoleMiddleware(['manager', 'admin'])]);
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
-                // POST /api/v1/queues/{id}/access-codes/{codeId}/deactivate — Deactivate code (manager/admin)
+                // POST /api/v1/queues/{id}/access-codes/{codeId}/deactivate — Deactivate code (professional/manager/admin)
                 $router->post('/{id}/access-codes/{codeId}/deactivate', function ($request) {
                     $controller = new QueuesController();
                     $controller->deactivateCode($request, (int)$request->getParam('id'), (int)$request->getParam('codeId'));
                 }
-                    , [new RoleMiddleware(['manager', 'admin'])]);
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // POST /api/v1/queues/{id}/batch-remove — Batch remove entries (staff)
+                $router->post('/{id}/batch-remove', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->batchRemoveEntries($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
                 // PUT /api/v1/queues/{id} — Update queue (professional/manager/admin)
                 $router->put('/{id}', function ($request) {
                     $controller = new QueuesController();
                     $controller->update($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // PUT /api/v1/queues/entries/{entryId}/status — Update entry status (staff)
+                $router->put('/entries/{entryId}/status', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->updateEntryStatus($request, (int)$request->getParam('entryId'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // PUT /api/v1/queues/{id}/access-codes/{codeId} — Update access code (professional/manager/admin)
+                $router->put('/{id}/access-codes/{codeId}', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->updateCode($request, (int)$request->getParam('id'), (int)$request->getParam('codeId'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // GET /api/v1/queues/{id}/reports — Queue analytics (staff)
+                $router->get('/{id}/reports', function ($request) {
+                    $controller = new ReportsController();
+                    $controller->queueDrilldown($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // GET /api/v1/queues/{id}/professionals — List professionals for queue
+                $router->get('/{id}/professionals', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->listProfessionals($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // GET /api/v1/queues/{id}/queue-professionals — List queue-assigned professionals
+                $router->get('/{id}/queue-professionals', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->listQueueProfessionals($request, (int)$request->getParam('id'));
+                }
+                    );
+
+                // POST /api/v1/queues/{id}/queue-professionals — Add professional to queue
+                $router->post('/{id}/queue-professionals', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->addQueueProfessional($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // PUT /api/v1/queues/{id}/queue-professionals/{profId} — Update queue professional
+                $router->put('/{id}/queue-professionals/{profId}', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->updateQueueProfessional($request, (int)$request->getParam('id'), (int)$request->getParam('profId'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // DELETE /api/v1/queues/{id}/queue-professionals/{profId} — Remove professional from queue
+                $router->delete('/{id}/queue-professionals/{profId}', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->removeQueueProfessional($request, (int)$request->getParam('id'), (int)$request->getParam('profId'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // PUT /api/v1/queues/entries/{entryId}/position — Move entry up/down
+                $router->put('/entries/{entryId}/position', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->updateEntryPosition($request, (int)$request->getParam('entryId'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // PUT /api/v1/queues/entries/{entryId}/priority — Change entry priority
+                $router->put('/entries/{entryId}/priority', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->updateEntryPriority($request, (int)$request->getParam('entryId'));
                 }
                     , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
@@ -458,12 +587,40 @@ $router->group('/api/v1', function ($router) {
                 }
                     , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
-                // DELETE /api/v1/queues/{id}/access-codes/{codeId} — Delete access code (manager/admin)
+                // DELETE /api/v1/queues/entries/{entryId} — Remove entry (staff or owner)
+                $router->delete('/entries/{entryId}', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->removeEntry($request, (int)$request->getParam('entryId'));
+                }
+                    );
+
+                // DELETE /api/v1/queues/{id}/access-codes/{codeId} — Delete access code (professional/manager/admin)
                 $router->delete('/{id}/access-codes/{codeId}', function ($request) {
                     $controller = new QueuesController();
                     $controller->deleteCode($request, (int)$request->getParam('id'), (int)$request->getParam('codeId'));
                 }
-                    , [new RoleMiddleware(['manager', 'admin'])]);
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // GET /api/v1/queues/{id}/services — List services linked to queue
+                $router->get('/{id}/services', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->listQueueServices($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // POST /api/v1/queues/{id}/services — Link or create+link a service to queue
+                $router->post('/{id}/services', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->addQueueService($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // DELETE /api/v1/queues/{id}/services/{serviceId} — Unlink a service from queue
+                $router->delete('/{id}/services/{serviceId}', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->removeQueueService($request, (int)$request->getParam('id'), (int)$request->getParam('serviceId'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
             }
             );
@@ -649,10 +806,31 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
+                // GET /api/v1/notifications/preferences — Get notification preferences
+                $router->get('/preferences', function ($request) {
+                    $controller = new NotificationsController();
+                    $controller->getPreferences($request);
+                }
+                );
+
+                // PUT /api/v1/notifications/preferences — Update notification preferences
+                $router->put('/preferences', function ($request) {
+                    $controller = new NotificationsController();
+                    $controller->updatePreferences($request);
+                }
+                );
+
                 // POST /api/v1/notifications/mark-all-read — Mark all as read
                 $router->post('/mark-all-read', function ($request) {
                     $controller = new NotificationsController();
                     $controller->markAllRead($request);
+                }
+                );
+
+                // POST /api/v1/notifications/fcm-token — Save or update device token
+                $router->post('/fcm-token', function ($request) {
+                    $controller = new NotificationsController();
+                    $controller->saveFcmToken($request);
                 }
                 );
 
@@ -693,6 +871,20 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
+                // GET /api/v1/businesses/search — Search/discover businesses (any authenticated user)
+                $router->get('/search', function ($request) {
+                    $controller = new BusinessController();
+                    $controller->search($request);
+                }
+                );
+
+                // GET /api/v1/businesses/{id}/discover — Read-only discovery detail
+                $router->get('/{id}/discover', function ($request) {
+                    $controller = new BusinessController();
+                    $controller->discover($request, (int)$request->getParam('id'));
+                }
+                );
+
                 // GET /api/v1/businesses/{id} — Get single business
                 $router->get('/{id}', function ($request) {
                     $controller = new BusinessController();
@@ -704,6 +896,13 @@ $router->group('/api/v1', function ($router) {
                 $router->get('/{id}/establishments', function ($request) {
                     $controller = new BusinessController();
                     $controller->listEstablishments($request, (int)$request->getParam('id'));
+                }
+                );
+
+                // GET /api/v1/businesses/{id}/discover-establishments — Discover active establishments for a business
+                $router->get('/{id}/discover-establishments', function ($request) {
+                    $controller = new BusinessController();
+                    $controller->discoverEstablishments($request, (int)$request->getParam('id'));
                 }
                 );
 
@@ -763,12 +962,19 @@ $router->group('/api/v1', function ($router) {
                 }
                     , [new RoleMiddleware(['manager', 'admin'])]);
 
-                // POST /api/v1/businesses/{id}/join-request — Professional requests to join a business
+                // GET /api/v1/businesses/{id}/invitation-target — Preview invite target by email
+                $router->get('/{id}/invitation-target', function ($request) {
+                    $controller = new InvitationsController();
+                    $controller->previewTarget($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['manager', 'admin'])]);
+
+                // POST /api/v1/businesses/{id}/join-request — User requests to join a business as professional
                 $router->post('/{id}/join-request', function ($request) {
                     $controller = new InvitationsController();
                     $controller->joinRequest($request, (int)$request->getParam('id'));
                 }
-                    , [new RoleMiddleware(['professional'])]);
+                );
 
             }
             );

@@ -30,6 +30,8 @@ class BusinessInvitation
 {
     protected static string $table = 'business_invitations';
     protected static string $primaryKey = 'id';
+    public const DIRECTION_BUSINESS_TO_PROFESSIONAL = 'business_to_professional';
+    public const DIRECTION_PROFESSIONAL_TO_BUSINESS = 'professional_to_business';
 
     public static function find(int $id): ?array
     {
@@ -53,7 +55,8 @@ class BusinessInvitation
         $existing = self::findPending(
             (int)$data['business_id'],
             (int)$data['from_user_id'],
-            (int)$data['to_user_id']
+            (int)$data['to_user_id'],
+            isset($data['establishment_id']) ? (int)$data['establishment_id'] : null
         );
         if ($existing) {
             throw new \InvalidArgumentException('A pending invitation already exists');
@@ -67,14 +70,24 @@ class BusinessInvitation
     /**
      * Find existing pending invitation between users for a business
      */
-    public static function findPending(int $businessId, int $fromUserId, int $toUserId): ?array
+    public static function findPending(int $businessId, int $fromUserId, int $toUserId, ?int $establishmentId = null): ?array
     {
         $db = Database::getInstance();
         $sql = "SELECT * FROM " . self::$table . "
                 WHERE business_id = ? AND status = 'pending'
-                AND ((from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?))
-                LIMIT 1";
-        $results = $db->query($sql, [$businessId, $fromUserId, $toUserId, $toUserId, $fromUserId]);
+                  AND ((from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?))";
+        $params = [$businessId, $fromUserId, $toUserId, $toUserId, $fromUserId];
+
+        if ($establishmentId === null) {
+            $sql .= " AND establishment_id IS NULL";
+        } else {
+            $sql .= " AND establishment_id = ?";
+            $params[] = $establishmentId;
+        }
+
+        $sql .= " LIMIT 1";
+
+        $results = $db->query($sql, $params);
         return $results[0] ?? null;
     }
 
@@ -125,15 +138,35 @@ class BusinessInvitation
      */
     public static function getReceivedByUser(int $userId, string $status = 'pending'): array
     {
-        $db = Database::getInstance();
-        $sql = "SELECT bi.*, b.name as business_name, 
-                       fu.name as from_user_name, fu.email as from_user_email
-                FROM " . self::$table . " bi
-                JOIN businesses b ON b.id = bi.business_id
-                JOIN users fu ON fu.id = bi.from_user_id
-                WHERE bi.to_user_id = ? AND bi.status = ?
-                ORDER BY bi.created_at DESC";
-        return $db->query($sql, [$userId, $status]);
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table . ' bi', [
+            'bi.id',
+            'bi.business_id',
+            'bi.establishment_id',
+            'bi.from_user_id',
+            'bi.to_user_id',
+            'bi.direction',
+            'bi.role',
+            'bi.status',
+            'bi.message',
+            'bi.responded_at',
+            'bi.created_at',
+            'bi.updated_at',
+            'b.name AS business_name',
+            'e.name AS establishment_name',
+            'fu.name AS from_user_name',
+            'fu.email AS from_user_email',
+            'tu.name AS to_user_name',
+            'tu.email AS to_user_email',
+        ])
+            ->join('businesses b', 'b.id', '=', 'bi.business_id')
+            ->leftJoin('establishments e', 'e.id', '=', 'bi.establishment_id')
+            ->join('users fu', 'fu.id', '=', 'bi.from_user_id')
+            ->join('users tu', 'tu.id', '=', 'bi.to_user_id')
+            ->where('bi.to_user_id', '=', $userId)
+            ->where('bi.status', '=', $status)
+            ->orderBy('bi.created_at', 'DESC')
+            ->get();
     }
 
     /**
@@ -141,15 +174,34 @@ class BusinessInvitation
      */
     public static function getSentByUser(int $userId): array
     {
-        $db = Database::getInstance();
-        $sql = "SELECT bi.*, b.name as business_name,
-                       tu.name as to_user_name, tu.email as to_user_email
-                FROM " . self::$table . " bi
-                JOIN businesses b ON b.id = bi.business_id
-                JOIN users tu ON tu.id = bi.to_user_id
-                WHERE bi.from_user_id = ?
-                ORDER BY bi.created_at DESC";
-        return $db->query($sql, [$userId]);
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table . ' bi', [
+            'bi.id',
+            'bi.business_id',
+            'bi.establishment_id',
+            'bi.from_user_id',
+            'bi.to_user_id',
+            'bi.direction',
+            'bi.role',
+            'bi.status',
+            'bi.message',
+            'bi.responded_at',
+            'bi.created_at',
+            'bi.updated_at',
+            'b.name AS business_name',
+            'e.name AS establishment_name',
+            'tu.name AS to_user_name',
+            'tu.email AS to_user_email',
+            'fu.name AS from_user_name',
+            'fu.email AS from_user_email',
+        ])
+            ->join('businesses b', 'b.id', '=', 'bi.business_id')
+            ->leftJoin('establishments e', 'e.id', '=', 'bi.establishment_id')
+            ->join('users tu', 'tu.id', '=', 'bi.to_user_id')
+            ->join('users fu', 'fu.id', '=', 'bi.from_user_id')
+            ->where('bi.from_user_id', '=', $userId)
+            ->orderBy('bi.created_at', 'DESC')
+            ->get();
     }
 
     /**
@@ -157,23 +209,36 @@ class BusinessInvitation
      */
     public static function getByBusiness(int $businessId, ?string $status = null): array
     {
-        $db = Database::getInstance();
-        $sql = "SELECT bi.*, 
-                       fu.name as from_user_name, fu.email as from_user_email,
-                       tu.name as to_user_name, tu.email as to_user_email
-                FROM " . self::$table . " bi
-                JOIN users fu ON fu.id = bi.from_user_id
-                JOIN users tu ON tu.id = bi.to_user_id
-                WHERE bi.business_id = ?";
-        $params = [$businessId];
+        $qb = new QueryBuilder();
+        $qb->select(self::$table . ' bi', [
+            'bi.id',
+            'bi.business_id',
+            'bi.establishment_id',
+            'bi.from_user_id',
+            'bi.to_user_id',
+            'bi.direction',
+            'bi.role',
+            'bi.status',
+            'bi.message',
+            'bi.responded_at',
+            'bi.created_at',
+            'bi.updated_at',
+            'fu.name AS from_user_name',
+            'fu.email AS from_user_email',
+            'tu.name AS to_user_name',
+            'tu.email AS to_user_email',
+            'e.name AS establishment_name',
+        ])
+            ->join('users fu', 'fu.id', '=', 'bi.from_user_id')
+            ->join('users tu', 'tu.id', '=', 'bi.to_user_id')
+            ->leftJoin('establishments e', 'e.id', '=', 'bi.establishment_id')
+            ->where('bi.business_id', '=', $businessId);
 
-        if ($status) {
-            $sql .= " AND bi.status = ?";
-            $params[] = $status;
+        if ($status !== null && $status !== '') {
+            $qb->where('bi.status', '=', $status);
         }
 
-        $sql .= " ORDER BY bi.created_at DESC";
-        return $db->query($sql, $params);
+        return $qb->orderBy('bi.created_at', 'DESC')->get();
     }
 
     /**
@@ -194,8 +259,16 @@ class BusinessInvitation
         }
         if (empty($data['direction'])) {
             $errors['direction'] = 'Direction is required';
-        } elseif (!in_array($data['direction'], ['business_to_professional', 'professional_to_business'])) {
+        } elseif (!in_array($data['direction'], [self::DIRECTION_BUSINESS_TO_PROFESSIONAL, self::DIRECTION_PROFESSIONAL_TO_BUSINESS], true)) {
             $errors['direction'] = 'Invalid direction';
+        }
+
+        if (isset($data['establishment_id']) && !is_null($data['establishment_id']) && (!is_numeric($data['establishment_id']) || (int)$data['establishment_id'] <= 0)) {
+            $errors['establishment_id'] = 'Establishment ID must be a positive integer';
+        }
+
+        if (isset($data['role']) && !in_array($data['role'], ['professional', 'manager'], true)) {
+            $errors['role'] = 'Invalid invitation role';
         }
 
         // Can't invite yourself

@@ -2,8 +2,10 @@
   <q-page class="detail-page">
     <!-- Back + Header -->
     <div class="page-header">
-      <div class="header-left">
+      <div class="header-back-row">
         <q-btn flat round dense icon="arrow_back" class="back-btn" @click="goBack" />
+      </div>
+      <div class="header-left">
         <h1 class="page-title">{{ isNew ? 'Novo Profissional' : (editForm.name || '\u00A0') }}</h1>
       </div>
       <div class="header-right" v-if="canManage && (isNew || hasChanges)">

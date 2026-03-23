@@ -9,8 +9,10 @@ use QueueMaster\Models\BusinessUser;
 use QueueMaster\Models\BusinessSubscription;
 use QueueMaster\Models\Plan;
 use QueueMaster\Models\Establishment;
+use QueueMaster\Core\Database;
 use QueueMaster\Services\QuotaService;
 use QueueMaster\Services\AuditService;
+use QueueMaster\Services\ContextAccessService;
 use QueueMaster\Utils\Logger;
 use QueueMaster\Utils\Validator;
 
@@ -21,6 +23,13 @@ use QueueMaster\Utils\Validator;
  */
 class BusinessController
 {
+    private ContextAccessService $accessService;
+
+    public function __construct()
+    {
+        $this->accessService = new ContextAccessService();
+    }
+
     /**
      * GET /api/v1/businesses
      * Admin => all businesses, Manager => only their businesses
@@ -28,18 +37,13 @@ class BusinessController
     public function list(Request $request): void
     {
         try {
-            $userRole = $request->user['role'] ?? 'client';
-            $userId = (int)$request->user['id'];
+            $businesses = $this->accessService->getAccessibleBusinesses($request->user);
 
-            if ($userRole === 'admin') {
-                $businesses = Business::all([], 'name', 'ASC');
-                // Inject admin role for all businesses if global admin
+            if ($this->accessService->isAdmin($request->user)) {
                 foreach ($businesses as &$business) {
                     $business['user_role'] = 'admin';
                 }
-            }
-            else {
-                $businesses = Business::getByUser($userId);
+                unset($business);
             }
 
             Response::success([
@@ -56,6 +60,175 @@ class BusinessController
     }
 
     /**
+     * GET /api/v1/businesses/search
+     * Search/discover active businesses (any authenticated user)
+     */
+    public function search(Request $request): void
+    {
+        try {
+            $query = trim((string)$request->getQuery('q', ''));
+            $limit = min((int)$request->getQuery('limit', 20), 50);
+            $accessibleBusinessIds = $this->accessService->getAccessibleBusinessIds($request->user);
+            $accessibleBusinessMap = array_flip($accessibleBusinessIds);
+
+            $params = [];
+            $searchSql = '';
+            if ($query !== '') {
+                $searchSql = ' AND (b.name LIKE ? OR b.description LIKE ? OR b.slug LIKE ?)';
+                $like = '%' . $query . '%';
+                $params = [$like, $like, $like];
+            }
+
+            $db = Database::getInstance();
+            $businesses = $db->query(
+                "
+                SELECT
+                    b.id,
+                    b.name,
+                    b.slug,
+                    b.description,
+                    b.is_active,
+                    COUNT(DISTINCT CASE WHEN e.is_active = 1 THEN e.id END) AS establishment_count
+                FROM businesses b
+                LEFT JOIN establishments e ON e.business_id = b.id
+                WHERE b.is_active = 1
+                $searchSql
+                GROUP BY b.id, b.name, b.slug, b.description, b.is_active
+                ORDER BY b.name ASC
+                LIMIT $limit
+                ",
+                $params
+            );
+
+            $results = array_map(function (array $business) use ($accessibleBusinessMap) {
+                $businessId = (int)$business['id'];
+                return [
+                    'id' => $businessId,
+                    'name' => $business['name'],
+                    'slug' => $business['slug'] ?? null,
+                    'description' => $business['description'] ?? null,
+                    'establishment_count' => (int)($business['establishment_count'] ?? 0),
+                    'is_linked' => isset($accessibleBusinessMap[$businessId]),
+                ];
+            }, $businesses);
+
+            Response::success([
+                'businesses' => $results,
+                'total' => count($results),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to search businesses', [
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to search businesses', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/businesses/:id/discover
+     * Public authenticated read-only business detail.
+     */
+    public function discover(Request $request, int $id): void
+    {
+        try {
+            $business = Business::find($id);
+            if (!$business || !($business['is_active'] ?? false)) {
+                Response::notFound('Business not found', $request->requestId);
+                return;
+            }
+
+            $accessibleBusinessIds = $this->accessService->getAccessibleBusinessIds($request->user);
+            $establishments = array_values(array_filter(
+                Business::getEstablishments($id),
+                static fn(array $establishment): bool => (bool)($establishment['is_active'] ?? false)
+            ));
+
+            Response::success([
+                'business' => [
+                    'id' => (int)$business['id'],
+                    'name' => $business['name'],
+                    'slug' => $business['slug'] ?? null,
+                    'description' => $business['description'] ?? null,
+                    'is_active' => (bool)($business['is_active'] ?? false),
+                    'is_linked' => in_array($id, $accessibleBusinessIds, true),
+                ],
+                'establishments' => array_map(static function (array $establishment): array {
+                    return [
+                        'id' => (int)$establishment['id'],
+                        'business_id' => (int)$establishment['business_id'],
+                        'name' => $establishment['name'],
+                        'slug' => $establishment['slug'] ?? null,
+                        'description' => $establishment['description'] ?? null,
+                        'address' => $establishment['address'] ?? null,
+                        'phone' => $establishment['phone'] ?? null,
+                        'email' => $establishment['email'] ?? null,
+                        'timezone' => $establishment['timezone'] ?? 'America/Sao_Paulo',
+                        'opens_at' => $establishment['opens_at'] ?? null,
+                        'closes_at' => $establishment['closes_at'] ?? null,
+                        'is_active' => (bool)($establishment['is_active'] ?? false),
+                    ];
+                }, $establishments),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to discover business', [
+                'business_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to retrieve business', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/businesses/:id/discover-establishments
+     * Discover active establishments for a business by name.
+     */
+    public function discoverEstablishments(Request $request, int $id): void
+    {
+        try {
+            $business = Business::find($id);
+            if (!$business || !($business['is_active'] ?? false)) {
+                Response::notFound('Business not found', $request->requestId);
+                return;
+            }
+
+            $query = trim((string)($request->getQuery()['q'] ?? ''));
+            $limit = min(max((int)($request->getQuery()['limit'] ?? 20), 1), 50);
+
+            $qb = new \QueueMaster\Builders\QueryBuilder();
+            $qb->select('establishments', [
+                'id',
+                'business_id',
+                'name',
+                'slug',
+                'address',
+                'is_active',
+            ])
+                ->where('business_id', '=', $id)
+                ->where('is_active', '=', 1);
+
+            if ($query !== '') {
+                $qb->where('name', 'LIKE', '%' . $query . '%');
+            }
+
+            $establishments = $qb
+                ->orderBy('name', 'ASC')
+                ->limit($limit)
+                ->get();
+
+            Response::success([
+                'establishments' => $establishments,
+                'total' => count($establishments),
+            ]);
+        } catch (\Exception $e) {
+            Logger::error('Failed to discover business establishments', [
+                'business_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to retrieve establishments', $request->requestId);
+        }
+    }
+
+    /**
      * GET /api/v1/businesses/:id
      */
     public function get(Request $request, int $id): void
@@ -67,18 +240,18 @@ class BusinessController
                 return;
             }
 
-            // Check access (admin or business user)
-            $userRole = $request->user['role'] ?? 'client';
-            $userId = (int)$request->user['id'];
-
-            if ($userRole !== 'admin' && !BusinessUser::exists($id, $userId)) {
-                Response::forbidden('You do not have access to this business', $request->requestId);
-                return;
-            }
+            $this->accessService->requireBusinessAccess(
+                $request->user,
+                $id,
+                'Voce nao tem acesso a este negocio'
+            );
 
             Response::success([
                 'business' => $business,
             ]);
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to get business', [
@@ -193,13 +366,11 @@ class BusinessController
                 return;
             }
 
-            $userRole = $request->user['role'] ?? 'client';
-            $userId = (int)$request->user['id'];
-
-            if ($userRole !== 'admin' && !BusinessUser::exists($id, $userId)) {
-                Response::forbidden('You do not have access to this business', $request->requestId);
-                return;
-            }
+            $this->accessService->requireBusinessManagement(
+                $request->user,
+                $id,
+                'Voce nao tem permissao para editar este negocio'
+            );
 
             $data = $request->all();
             $updateData = [];
@@ -236,6 +407,9 @@ class BusinessController
                 'message' => 'Business updated successfully',
             ]);
         }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        }
         catch (\Exception $e) {
             Logger::error('Failed to update business', [
                 'business_id' => $id,
@@ -257,12 +431,29 @@ class BusinessController
                 return;
             }
 
+            $this->accessService->requireBusinessAccess(
+                $request->user,
+                $id,
+                'Voce nao tem acesso aos estabelecimentos deste negocio'
+            );
+
             $establishments = Business::getEstablishments($id);
+
+            if (!$this->accessService->isAdmin($request->user)) {
+                $accessibleEstablishmentIds = $this->accessService->getAccessibleEstablishmentIds($request->user);
+                $establishments = array_values(array_filter(
+                    $establishments,
+                    static fn(array $establishment): bool => in_array((int)$establishment['id'], $accessibleEstablishmentIds, true)
+                ));
+            }
 
             Response::success([
                 'establishments' => $establishments,
                 'total' => count($establishments),
             ]);
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to list business establishments', [
@@ -297,6 +488,12 @@ class BusinessController
                 return;
             }
 
+            $this->accessService->requireBusinessManagement(
+                $request->user,
+                $id,
+                'Voce nao tem permissao para criar estabelecimentos neste negocio'
+            );
+
             // Check SaaS quota
             $quotaCheck = QuotaService::canCreateEstablishment($id);
             if (!$quotaCheck['allowed']) {
@@ -326,6 +523,9 @@ class BusinessController
                 'establishment' => $establishment,
                 'message' => 'Establishment created successfully',
             ]);
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\InvalidArgumentException $e) {
             Response::validationError(['general' => $e->getMessage()], $request->requestId);
@@ -363,9 +563,15 @@ class BusinessController
                 return;
             }
 
+            $this->accessService->requireBusinessManagement(
+                $request->user,
+                $id,
+                'Voce nao tem permissao para gerenciar usuarios deste negocio'
+            );
+
             $role = $data['role'] ?? 'manager';
-            if (!in_array($role, ['owner', 'manager'])) {
-                Response::validationError(['role' => 'Invalid role. Must be owner or manager'], $request->requestId);
+            if (!in_array($role, ['owner', 'manager', 'professional'], true)) {
+                Response::validationError(['role' => 'Invalid role. Must be owner, manager, or professional'], $request->requestId);
                 return;
             }
 
@@ -389,7 +595,7 @@ class BusinessController
 
             // Update user's global role if needed
             if ($user['role'] === 'client') {
-                \QueueMaster\Models\User::update($targetUserId, ['role' => 'manager']);
+                \QueueMaster\Models\User::update($targetUserId, ['role' => $role === 'manager' ? 'manager' : 'professional']);
             }
 
             AuditService::logFromRequest($request, 'add_user', 'business', (string)$id, null, $id, [
@@ -400,6 +606,9 @@ class BusinessController
             Response::created([
                 'message' => 'User added to business successfully',
             ]);
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\InvalidArgumentException $e) {
             Response::error('CONFLICT', $e->getMessage(), 409, $request->requestId);
@@ -426,12 +635,59 @@ class BusinessController
                 return;
             }
 
+            $this->accessService->requireBusinessManagement(
+                $request->user,
+                $id,
+                'Voce nao tem permissao para gerenciar usuarios deste negocio'
+            );
+
             if (!BusinessUser::exists($id, $userId)) {
                 Response::notFound('User is not part of this business', $request->requestId);
                 return;
             }
 
+            $db = Database::getInstance();
+            $db->beginTransaction();
+
+            $establishmentIds = array_map(
+                static fn(array $row): int => (int)$row['id'],
+                Establishment::all(['business_id' => $id])
+            );
+
+            if (!empty($establishmentIds)) {
+                $placeholders = implode(',', array_fill(0, count($establishmentIds), '?'));
+                $params = array_merge([$userId], $establishmentIds);
+
+                $db->execute(
+                    "DELETE FROM queue_professionals
+                     WHERE user_id = ?
+                       AND queue_id IN (
+                           SELECT id FROM queues WHERE establishment_id IN ($placeholders)
+                       )",
+                    $params
+                );
+                $db->execute(
+                    "DELETE FROM establishment_users
+                     WHERE user_id = ?
+                       AND establishment_id IN ($placeholders)",
+                    $params
+                );
+                $db->execute(
+                    "DELETE FROM professional_establishments
+                     WHERE user_id = ?
+                       AND establishment_id IN ($placeholders)",
+                    $params
+                );
+                $db->execute(
+                    "DELETE FROM professionals
+                     WHERE user_id = ?
+                       AND establishment_id IN ($placeholders)",
+                    $params
+                );
+            }
+
             BusinessUser::removeUser($id, $userId);
+            $db->commit();
 
             AuditService::logFromRequest($request, 'remove_user', 'business', (string)$id, null, $id, [
                 'removed_user_id' => $userId,
@@ -439,7 +695,13 @@ class BusinessController
 
             Response::success(['message' => 'User removed from business successfully']);
         }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
+        }
         catch (\Exception $e) {
+            if (isset($db) && $db->inTransaction()) {
+                $db->rollback();
+            }
             Logger::error('Failed to remove user from business', [
                 'business_id' => $id,
                 'error' => $e->getMessage(),
@@ -461,12 +723,21 @@ class BusinessController
                 return;
             }
 
+            $this->accessService->requireBusinessAccess(
+                $request->user,
+                $id,
+                'Voce nao tem acesso aos usuarios deste negocio'
+            );
+
             $users = Business::getUsers($id);
 
             Response::success([
                 'users' => $users,
                 'total' => count($users),
             ]);
+        }
+        catch (\RuntimeException $e) {
+            Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
             Logger::error('Failed to list business users', [

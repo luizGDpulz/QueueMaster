@@ -116,9 +116,10 @@ export default defineComponent({
     const allMenuItems = [
       { path: '/app', label: 'Dashboard', icon: 'dashboard' },
       { path: '/app/queues', label: 'Filas', icon: 'format_list_numbered' },
+      { path: '/app/reports', label: 'Relatórios', icon: 'analytics', roles: ['client', 'professional', 'manager', 'admin'] },
       { path: '/app/appointments', label: 'Agendamentos', icon: 'event' },
-      { path: '/app/establishments', label: 'Estabelecimentos', icon: 'store' },
-      { path: '/app/businesses', label: 'Negócios', icon: 'business' },
+      { path: '/app/establishments', label: 'Estabelecimentos', icon: 'store', roles: ['professional', 'manager', 'admin'] },
+      { path: '/app/businesses', label: 'Negócios', icon: 'business', roles: ['professional', 'manager', 'admin'] },
       { path: '/app/admin', label: 'Administração', icon: 'admin_panel_settings', roles: ['admin', 'manager'] },
       { path: '/app/settings', label: 'Configurações', icon: 'settings' }
     ]
@@ -155,6 +156,7 @@ export default defineComponent({
   height: 100%;
   padding: 1rem;
   background: transparent;
+  gap: 0.25rem;
 }
 
 // ===== HEADER/LOGO =====
@@ -166,7 +168,7 @@ export default defineComponent({
 .logo {
   display: flex;
   align-items: center;
-  gap: 0rem;
+  gap: 0.125rem;
   flex-direction: column;
 }
 
@@ -181,7 +183,7 @@ export default defineComponent({
   color: var(--qm-text-primary);
 }
 
-// ===== NAVEGAÇÃO =====
+// ===== NAVEGACAO =====
 .nav-list {
   padding: 0;
 }
@@ -192,15 +194,18 @@ export default defineComponent({
   padding: 0.75rem 1rem;
   min-height: auto;
   transition: all 0.2s ease;
+  border: 1px solid transparent;
 
   &:hover {
     background: var(--qm-surface);
     box-shadow: var(--qm-shadow-sm);
+    border-color: var(--qm-border-light);
   }
 
   &.nav-item-active {
     background: var(--qm-surface);
     box-shadow: var(--qm-shadow);
+    border-color: color-mix(in srgb, var(--qm-brand) 14%, var(--qm-border));
   }
 }
 
@@ -252,6 +257,7 @@ export default defineComponent({
   background: var(--qm-surface);
   border-radius: 1rem;
   box-shadow: var(--qm-shadow);
+  border: 1px solid var(--qm-border-light);
 }
 
 .user-card-link {
@@ -337,9 +343,11 @@ export default defineComponent({
   font-weight: 500;
   transition: all 0.2s ease;
   box-shadow: var(--qm-shadow-sm);
+  border: 1px solid var(--qm-border-light);
 
   &:hover {
     box-shadow: var(--qm-shadow);
+    color: var(--qm-text-primary);
   }
 }
 </style>

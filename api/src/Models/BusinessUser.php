@@ -3,6 +3,7 @@
 namespace QueueMaster\Models;
 
 use QueueMaster\Builders\QueryBuilder;
+use QueueMaster\Core\Database;
 
 /**
  * BusinessUser Model - Pivot table for businesses <-> users
@@ -16,6 +17,7 @@ class BusinessUser
 
     public const ROLE_OWNER = 'owner';
     public const ROLE_MANAGER = 'manager';
+    public const ROLE_PROFESSIONAL = 'professional';
 
     /**
      * Add a user to a business
@@ -94,22 +96,66 @@ class BusinessUser
      */
     public static function getUsers(int $businessId): array
     {
-        $qb = new QueryBuilder();
-        $links = $qb->select(self::$table)
-            ->where('business_id', '=', $businessId)
-            ->get();
+        $db = Database::getInstance();
 
-        $users = [];
-        foreach ($links as $link) {
-            $user = User::find($link['user_id']);
-            if ($user) {
-                $user['business_role'] = $link['role'];
-                unset($user['google_id']);
-                $users[] = $user;
-            }
-        }
-
-        return $users;
+        return $db->query(
+            "
+            SELECT
+                u.id,
+                u.name,
+                u.email,
+                u.avatar_url,
+                u.avatar_base64,
+                u.email_verified,
+                u.phone,
+                u.role,
+                u.is_active,
+                u.last_login_at,
+                u.created_at,
+                u.updated_at,
+                bu.role AS business_role,
+                GROUP_CONCAT(
+                    DISTINCT CASE
+                        WHEN eu.id IS NOT NULL OR pe.id IS NOT NULL OR p.id IS NOT NULL THEN e.name
+                        ELSE NULL
+                    END
+                    ORDER BY e.name SEPARATOR ', '
+                ) AS professional_establishments_label
+            FROM business_users bu
+            JOIN users u
+              ON u.id = bu.user_id
+            LEFT JOIN establishments e
+              ON e.business_id = bu.business_id
+            LEFT JOIN establishment_users eu
+              ON eu.establishment_id = e.id
+             AND eu.user_id = u.id
+            LEFT JOIN professional_establishments pe
+              ON pe.establishment_id = e.id
+             AND pe.user_id = u.id
+             AND pe.is_active = 1
+            LEFT JOIN professionals p
+              ON p.establishment_id = e.id
+             AND p.user_id = u.id
+             AND p.is_active = 1
+            WHERE bu.business_id = ?
+            GROUP BY
+                u.id,
+                u.name,
+                u.email,
+                u.avatar_url,
+                u.avatar_base64,
+                u.email_verified,
+                u.phone,
+                u.role,
+                u.is_active,
+                u.last_login_at,
+                u.created_at,
+                u.updated_at,
+                bu.role
+            ORDER BY u.name ASC
+            ",
+            [$businessId]
+        );
     }
 
     /**
@@ -135,12 +181,26 @@ class BusinessUser
             ->count();
     }
 
+    public static function getManagerUserIds(int $businessId): array
+    {
+        $qb = new QueryBuilder();
+        $rows = $qb->select(self::$table, ['user_id'])
+            ->where('business_id', '=', $businessId)
+            ->whereIn('role', [self::ROLE_OWNER, self::ROLE_MANAGER])
+            ->get();
+
+        return array_map(
+            static fn(array $row): int => (int)$row['user_id'],
+            $rows
+        );
+    }
+
     /**
      * Validate role value
      */
     private static function validateRole(string $role): void
     {
-        $validRoles = [self::ROLE_OWNER, self::ROLE_MANAGER];
+        $validRoles = [self::ROLE_OWNER, self::ROLE_MANAGER, self::ROLE_PROFESSIONAL];
         if (!in_array($role, $validRoles)) {
             throw new \InvalidArgumentException('Invalid role. Must be: ' . implode(', ', $validRoles));
         }

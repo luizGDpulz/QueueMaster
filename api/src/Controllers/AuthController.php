@@ -342,20 +342,55 @@ class AuthController
     }
 
     /**
+     * Clear stale cookies from a previous path scope.
+     *
+     * Cookies were temporarily set with path=/ — now reverted to the
+     * proper restricted paths.  This helper expires any leftover
+     * path=/ duplicates so the browser stops sending them.
+     */
+    private static function clearStaleCookies(): void
+    {
+        $secure = self::isSecureConnection();
+
+        // Expire any access_token that was set with path=/
+        setcookie('access_token', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => '',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+
+        // Expire any refresh_token that was set with path=/
+        setcookie('refresh_token', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => '',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    /**
      * Set access token as httpOnly cookie
      *
      * Security:
      * - httpOnly: JS cannot access (XSS-proof)
      * - Secure: only HTTPS (detected from reverse proxy headers)
      * - SameSite=Lax: CSRF protection
+     * - Path: /api/v1 (sent only with API requests)
      */
     private static function setAccessTokenCookie(string $token): void
     {
         $ttl = (int)($_ENV['ACCESS_TOKEN_TTL'] ?? 900);
 
+        self::clearStaleCookies();
+
         setcookie('access_token', $token, [
             'expires' => time() + $ttl,
-            'path' => '/',
+            'path' => '/api/v1',
             'domain' => '',
             'secure' => self::isSecureConnection(),
             'httponly' => true,
@@ -368,9 +403,11 @@ class AuthController
      */
     private static function clearAccessTokenCookie(): void
     {
+        self::clearStaleCookies();
+
         setcookie('access_token', '', [
             'expires' => time() - 3600,
-            'path' => '/',
+            'path' => '/api/v1',
             'domain' => '',
             'secure' => self::isSecureConnection(),
             'httponly' => true,
@@ -380,14 +417,18 @@ class AuthController
 
     /**
      * Set refresh token as httpOnly cookie
+     *
+     * Path restricted to /api/v1/auth (only sent on auth endpoints)
      */
     private static function setRefreshTokenCookie(string $token): void
     {
         $ttl = (int)($_ENV['REFRESH_TOKEN_TTL'] ?? 2592000);
 
+        self::clearStaleCookies();
+
         setcookie('refresh_token', $token, [
             'expires' => time() + $ttl,
-            'path' => '/',
+            'path' => '/api/v1/auth',
             'domain' => '',
             'secure' => self::isSecureConnection(),
             'httponly' => true,
@@ -400,9 +441,11 @@ class AuthController
      */
     private static function clearRefreshTokenCookie(): void
     {
+        self::clearStaleCookies();
+
         setcookie('refresh_token', '', [
             'expires' => time() - 3600,
-            'path' => '/',
+            'path' => '/api/v1/auth',
             'domain' => '',
             'secure' => self::isSecureConnection(),
             'httponly' => true,
