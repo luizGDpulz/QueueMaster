@@ -141,6 +141,12 @@ GOOGLE_CLIENT_ID=seu-client-id.apps.googleusercontent.com
 
 # Define o primeiro admin (configure ANTES do primeiro login)
 SUPER_ADMIN_EMAIL=seu.email@gmail.com
+
+# Opcional: restricao de ambiente para login
+AUTH_ALLOWED_EMAILS=
+AUTH_BLOCKED_EMAILS=
+AUTH_ALLOWED_EMAIL_DOMAINS=
+AUTH_BLOCKED_EMAIL_DOMAINS=
 ```
 
 ### Frontend (`web/queuemaster/.env`)
@@ -170,6 +176,51 @@ Se já logou como `client`:
 ```sql
 UPDATE users SET role = 'admin' WHERE email = 'seu.email@gmail.com';
 ```
+
+---
+
+## 🔐 Camadas de Controle de Acesso
+
+O login agora pode ser controlado em duas camadas complementares:
+
+### 1. Regra de ambiente (`.env`)
+
+Serve para staging, homologação e ambientes de teste.
+
+Precedência aplicada pelo backend:
+
+1. `AUTH_BLOCKED_EMAILS` sempre bloqueia.
+2. `AUTH_ALLOWED_EMAILS` libera explicitamente e vence domínio bloqueado.
+3. `AUTH_BLOCKED_EMAIL_DOMAINS` bloqueia se o e-mail não foi liberado antes.
+4. `AUTH_ALLOWED_EMAIL_DOMAINS` libera se o e-mail/domínio não foi bloqueado antes.
+5. Se existir qualquer allow list e nada casar, o login é negado.
+6. Se nada estiver configurado, o ambiente não bloqueia ninguém.
+
+Casos comuns:
+
+- **Ambiente aberto**: deixe tudo vazio.
+- **Somente alguns e-mails**: use `AUTH_ALLOWED_EMAILS`.
+- **Somente domínio corporativo**: use `AUTH_ALLOWED_EMAIL_DOMAINS=empresa.com`.
+- **Bloquear domínio inteiro**: use `AUTH_BLOCKED_EMAIL_DOMAINS=gmail.com`.
+- **Bloquear um e-mail específico mesmo num domínio liberado**: use `AUTH_BLOCKED_EMAILS`.
+- **Liberar um e-mail específico mesmo com domínio bloqueado**: use `AUTH_ALLOWED_EMAILS`.
+
+### 2. Regra interna do sistema
+
+Serve para operação diária, sem mexer em deploy nem em `.env`.
+
+Na tela admin de detalhes do usuário é possível:
+
+- Bloquear acesso imediatamente
+- Liberar acesso
+- Encerrar sessões ativas
+- Excluir cadastro com salvaguardas
+
+O bloqueio interno vale para:
+
+- Novos logins via Google
+- Requisições autenticadas já em andamento
+- Refresh token de quem já estava logado
 
 ---
 

@@ -486,140 +486,141 @@
               />
             </div>
 
-            <div v-if="inboxLoading" class="loading-state-sm">
-              <q-spinner-dots color="primary" size="28px" />
-            </div>
-
-            <div v-else-if="inboxNotifications.length === 0" class="empty-state-sm">
-              <q-icon name="notifications_none" size="44px" />
-              <p>Nenhuma notificação encontrada</p>
-            </div>
-
-            <div v-else class="table-container notifications-table-container">
-              <table class="data-table notifications-table">
-                <thead>
-                  <tr>
-                    <th class="th-notification">Notificação</th>
-                    <th class="th-type">Tipo</th>
-                    <th class="th-date">Data</th>
-                    <th class="th-status">Status</th>
-                    <th class="th-actions">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="notification in inboxNotifications"
-                    :key="notification.id"
-                    class="clickable-row"
-                    :class="{ 'notification-row--unread': !notification.read_at }"
-                    @click="openInboxNotification(notification)"
-                  >
-                    <td>
-                      <div class="notification-cell">
-                        <div class="notification-icon" :class="{ 'notification-icon--unread': !notification.read_at }">
-                          <q-icon :name="getNotifIcon(notification.type)" size="18px" />
-                        </div>
-                        <div class="notification-content">
-                          <span class="notification-title">{{ notification.title }}</span>
-                          <span class="notification-body">{{ notification.body || 'Sem descrição adicional.' }}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <q-badge
-                        :color="!notification.read_at ? 'primary' : 'grey-7'"
-                        :label="getNotificationTypeLabel(notification.type)"
-                      />
-                    </td>
-                    <td>
-                      <div class="notification-date-block">
-                        <span class="notification-date-primary">{{ formatNotifTime(notification.sent_at || notification.created_at) }}</span>
-                        <span class="notification-date-secondary">{{ formatDate(notification.sent_at || notification.created_at) }}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <q-badge
-                        :color="notification.read_at ? 'positive' : 'orange'"
-                        :label="notification.read_at ? 'Lida' : 'Não lida'"
-                      />
-                    </td>
-                    <td @click.stop>
-                      <div class="row-actions notification-row-actions">
-                        <q-btn
-                          v-if="!notification.read_at"
-                          flat
-                          round
-                          dense
-                          icon="done"
-                          size="sm"
-                          :loading="notificationActionId === notification.id && notificationAction === 'read'"
-                          @click="markInboxNotificationRead(notification)"
-                        >
-                          <q-tooltip>Marcar como lida</q-tooltip>
-                        </q-btn>
-
-                        <template v-if="notification.type === 'business_invitation' && notification.data?.invitation_id">
-                          <q-btn
-                            flat
-                            round
-                            dense
-                            icon="check_circle"
-                            size="sm"
-                            color="positive"
-                            :loading="notificationActionId === notification.id && notificationAction === 'accept'"
-                            @click="acceptInboxNotification(notification)"
-                          />
-                          <q-btn
-                            flat
-                            round
-                            dense
-                            icon="cancel"
-                            size="sm"
-                            color="negative"
-                            :loading="notificationActionId === notification.id && notificationAction === 'reject'"
-                            @click="rejectInboxNotification(notification)"
-                          />
-                        </template>
-
-                        <template v-if="notification.type === 'manager_role_request' && notification.data?.request_id">
-                          <q-btn
-                            flat
-                            round
-                            dense
-                            icon="check_circle"
-                            size="sm"
-                            color="positive"
-                            :loading="notificationActionId === notification.id && notificationAction === 'approve-manager'"
-                            @click="approveManagerRequest(notification)"
-                          />
-                          <q-btn
-                            flat
-                            round
-                            dense
-                            icon="cancel"
-                            size="sm"
-                            color="negative"
-                            :loading="notificationActionId === notification.id && notificationAction === 'reject-manager'"
-                            @click="rejectManagerRequest(notification)"
-                          />
-                        </template>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div v-if="inboxMeta.total_pages > 1" class="notifications-pagination">
-              <q-pagination
-                :model-value="inboxMeta.page"
-                :max="inboxMeta.total_pages"
-                max-pages="6"
-                direction-links
-                boundary-links
-                color="primary"
-                @update:model-value="changeNotificationPage"
+            <div v-if="hasNotificationSelection" class="notifications-selection-toolbar">
+              <span class="selection-count">{{ selectedNotificationIds.length }} selecionada(s)</span>
+              <q-btn
+                flat
+                dense
+                no-caps
+                icon="done_all"
+                label="Marcar como lidas"
+                :loading="notificationActionId === 'bulk' && notificationAction === 'bulk-read'"
+                @click="markSelectedNotificationsRead"
               />
+              <q-btn
+                flat
+                dense
+                no-caps
+                icon="delete_sweep"
+                color="negative"
+                label="Excluir em lote"
+                :loading="notificationActionId === 'bulk' && notificationAction === 'bulk-delete'"
+                @click="deleteSelectedNotifications"
+              />
+              <q-btn flat dense no-caps label="Limpar seleção" @click="clearNotificationSelection" />
+            </div>
+
+            <div class="notifications-workspace" :class="{ 'notifications-workspace--detail': quasar.screen.lt.md && selectedNotificationId }">
+              <div v-show="!(quasar.screen.lt.md && selectedNotificationId)" class="notifications-master">
+                <div v-if="inboxLoading" class="loading-state-sm">
+                  <q-spinner-dots color="primary" size="28px" />
+                </div>
+
+                <div v-else-if="inboxNotifications.length === 0" class="empty-state-sm">
+                  <q-icon name="notifications_none" size="44px" />
+                  <p>Nenhuma notificação encontrada</p>
+                </div>
+
+                <template v-else>
+                  <div class="table-container notifications-table-container">
+                    <table class="data-table notifications-table">
+                      <thead>
+                        <tr>
+                          <th class="th-select">
+                            <q-checkbox
+                              :model-value="allVisibleNotificationsSelected"
+                              dense
+                              @update:model-value="toggleAllVisibleNotifications"
+                            />
+                          </th>
+                          <th class="th-notification">Notificação</th>
+                          <th class="th-type">Tipo</th>
+                          <th class="th-date">Data</th>
+                          <th class="th-status">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr
+                          v-for="notification in inboxNotifications"
+                          :key="notification.id"
+                          class="clickable-row"
+                          :class="{
+                            'notification-row--unread': !notification.read_at,
+                            'notification-row--active': selectedNotificationId === notification.id,
+                          }"
+                          @click="openInboxNotification(notification)"
+                        >
+                          <td @click.stop>
+                            <q-checkbox
+                              :model-value="selectedNotificationIds.includes(notification.id)"
+                              dense
+                              @update:model-value="toggleNotificationSelection(notification.id)"
+                            />
+                          </td>
+                          <td>
+                            <div class="notification-cell">
+                              <div class="notification-icon" :class="{ 'notification-icon--unread': !notification.read_at }">
+                                <q-icon :name="getNotifIcon(notification.type)" size="18px" />
+                              </div>
+                              <div class="notification-content">
+                                <span class="notification-title">{{ notification.title }}</span>
+                                <span class="notification-body">{{ notification.body || 'Sem descrição adicional.' }}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <q-badge
+                              :color="!notification.read_at ? 'primary' : 'grey-7'"
+                              :label="getNotificationTypeLabel(notification.type)"
+                            />
+                          </td>
+                          <td>
+                            <div class="notification-date-block">
+                              <span class="notification-date-primary">{{ formatNotifTime(notification.sent_at || notification.created_at) }}</span>
+                              <span class="notification-date-secondary">{{ formatDate(notification.sent_at || notification.created_at) }}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <q-badge
+                              :color="notification.workflow?.status_color || (notification.read_at ? 'positive' : 'orange')"
+                              :label="notification.workflow?.status_label || (notification.read_at ? 'Lida' : 'Não lida')"
+                            />
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div v-if="inboxMeta.total_pages > 1" class="notifications-pagination">
+                    <q-pagination
+                      :model-value="inboxMeta.page"
+                      :max="inboxMeta.total_pages"
+                      max-pages="6"
+                      direction-links
+                      boundary-links
+                      color="primary"
+                      @update:model-value="changeNotificationPage"
+                    />
+                  </div>
+                </template>
+              </div>
+
+              <div v-show="!quasar.screen.lt.md || selectedNotificationId" class="notifications-detail">
+                <NotificationDetailPanel
+                  :notification="selectedNotification"
+                  :loading="selectedNotificationLoading"
+                  :show-back="quasar.screen.lt.md && Boolean(selectedNotificationId)"
+                  :type-label="selectedNotificationTypeLabel"
+                  :action-state="{ id: notificationActionId, action: notificationAction }"
+                  @back="closeSelectedNotification"
+                  @mark-read="markInboxNotificationRead"
+                  @accept-invitation="acceptInboxNotification"
+                  @reject-invitation="rejectInboxNotification"
+                  @approve-manager-request="approveManagerRequest"
+                  @reject-manager-request="rejectManagerRequest"
+                  @open-business="openNotificationBusiness"
+                />
+              </div>
             </div>
           </div>
         </q-tab-panel>
@@ -842,9 +843,14 @@ import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { BRAND_PRESETS, loadBrandColor, saveBrandColor, resetBrandColor, isValidHex, normalizeHex } from 'src/utils/brand'
 import { useNotificationsCenter } from 'src/composables/useNotificationsCenter'
+import NotificationDetailPanel from 'src/components/notifications/NotificationDetailPanel.vue'
 
 export default defineComponent({
   name: 'SettingsPage',
+
+  components: {
+    NotificationDetailPanel,
+  },
 
   setup() {
     const createEmptyProfessionalRequestForm = () => ({
@@ -925,6 +931,10 @@ export default defineComponent({
     const invitationAction = ref('')
     const notificationActionId = ref(null)
     const notificationAction = ref('')
+    const selectedNotificationId = ref(route.query.notification ? Number(route.query.notification) : null)
+    const selectedNotification = ref(null)
+    const selectedNotificationLoading = ref(false)
+    const selectedNotificationIds = ref([])
     const notificationFilters = ref({
       search: '',
       type: '',
@@ -945,8 +955,10 @@ export default defineComponent({
       fetchPreferences,
       setPushEnabled,
       fetchInbox,
+      fetchNotificationById,
       markNotificationRead,
-      openNotification,
+      markNotificationsRead,
+      deleteNotifications,
       acceptInvitation,
       rejectInvitation,
     } = useNotificationsCenter()
@@ -1055,6 +1067,15 @@ export default defineComponent({
     const receivedProfessionalInvitations = computed(() => {
       return (invitationSummary.value.received || []).filter((item) => item.direction === 'business_to_professional' && item.status === 'pending')
     })
+    const visibleNotificationIds = computed(() => inboxNotifications.value.map((notification) => Number(notification.id)).filter(Boolean))
+    const hasNotificationSelection = computed(() => selectedNotificationIds.value.length > 0)
+    const allVisibleNotificationsSelected = computed(() => (
+      visibleNotificationIds.value.length > 0
+      && visibleNotificationIds.value.every((id) => selectedNotificationIds.value.includes(id))
+    ))
+    const selectedNotificationTypeLabel = computed(() => (
+      selectedNotification.value ? getNotificationTypeLabel(selectedNotification.value.type) : 'Notificação'
+    ))
 
     onMounted(() => {
       fetchUserFromBackend()
@@ -1063,19 +1084,23 @@ export default defineComponent({
       fetchRoleRequests()
       fetchPreferences().catch(() => {})
       if (activeTab.value === 'notifications') {
-        applyNotificationFilters()
+        applyNotificationFilters().then(() => {
+          if (selectedNotificationId.value) {
+            loadSelectedNotification(selectedNotificationId.value, { markAsRead: false, syncQuery: false })
+          }
+        })
       }
     })
 
     watch(activeTab, (value) => {
-      router.replace({ query: buildSettingsQuery(value, activeRoleOverlay.value) })
+      router.replace({ query: buildSettingsQuery(value, activeRoleOverlay.value, selectedNotificationId.value) })
       if (value === 'notifications') {
         applyNotificationFilters()
       }
     })
 
     watch(activeRoleOverlay, (value) => {
-      router.replace({ query: buildSettingsQuery(activeTab.value, value) })
+      router.replace({ query: buildSettingsQuery(activeTab.value, value, selectedNotificationId.value) })
     })
 
     watch(() => route.query.panel, (value) => {
@@ -1083,6 +1108,20 @@ export default defineComponent({
       if (value === 'manager' || value === 'professional') {
         activeTab.value = 'roles'
       }
+    })
+
+    watch(() => route.query.notification, (value) => {
+      const nextId = Number(value) || null
+      if (nextId === selectedNotificationId.value) return
+
+      if (nextId) {
+        activeTab.value = 'notifications'
+        loadSelectedNotification(nextId, { markAsRead: false, syncQuery: false })
+        return
+      }
+
+      selectedNotificationId.value = null
+      selectedNotification.value = null
     })
 
     const fetchUserFromBackend = async () => {
@@ -1145,7 +1184,7 @@ export default defineComponent({
       return 'Receber alertas no navegador quando houver novidades.'
     })
 
-    const buildSettingsQuery = (tab = activeTab.value, panel = activeRoleOverlay.value) => {
+    const buildSettingsQuery = (tab = activeTab.value, panel = activeRoleOverlay.value, notificationId = selectedNotificationId.value) => {
       const query = {}
       if (tab !== 'profile') {
         query.tab = tab
@@ -1153,7 +1192,77 @@ export default defineComponent({
       if (tab === 'roles' && panel) {
         query.panel = panel
       }
+      if (tab === 'notifications' && notificationId) {
+        query.notification = String(notificationId)
+      }
       return query
+    }
+
+    const loadSelectedNotification = async (notificationOrId, options = {}) => {
+      const { markAsRead = true, syncQuery = true } = options
+      const baseNotification = typeof notificationOrId === 'object' ? notificationOrId : null
+      const targetId = Number(baseNotification?.id || notificationOrId || 0)
+
+      if (!targetId) {
+        selectedNotificationId.value = null
+        selectedNotification.value = null
+        return
+      }
+
+      selectedNotificationId.value = targetId
+      if (baseNotification) {
+        selectedNotification.value = baseNotification
+      }
+
+      if (syncQuery) {
+        router.replace({ query: buildSettingsQuery(activeTab.value, activeRoleOverlay.value, targetId) })
+      }
+
+      if (markAsRead && baseNotification && !baseNotification.read_at) {
+        await markNotificationRead(baseNotification)
+      }
+
+      selectedNotificationLoading.value = true
+      try {
+        const freshNotification = await fetchNotificationById(targetId)
+        selectedNotification.value = freshNotification
+      } catch (err) {
+        if (err.response?.status === 404) {
+          selectedNotificationId.value = null
+          selectedNotification.value = null
+          router.replace({ query: buildSettingsQuery(activeTab.value, activeRoleOverlay.value, null) })
+        } else {
+          $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao carregar detalhes da notificação' })
+        }
+      } finally {
+        selectedNotificationLoading.value = false
+      }
+    }
+
+    const closeSelectedNotification = () => {
+      selectedNotificationId.value = null
+      selectedNotification.value = null
+      router.replace({ query: buildSettingsQuery(activeTab.value, activeRoleOverlay.value, null) })
+    }
+
+    const toggleNotificationSelection = (notificationId) => {
+      const id = Number(notificationId)
+      if (!id) return
+
+      if (selectedNotificationIds.value.includes(id)) {
+        selectedNotificationIds.value = selectedNotificationIds.value.filter((item) => item !== id)
+        return
+      }
+
+      selectedNotificationIds.value = [...selectedNotificationIds.value, id]
+    }
+
+    const toggleAllVisibleNotifications = (checked) => {
+      selectedNotificationIds.value = checked ? [...visibleNotificationIds.value] : []
+    }
+
+    const clearNotificationSelection = () => {
+      selectedNotificationIds.value = []
     }
 
     const applyNotificationFilters = async (page = 1) => {
@@ -1162,6 +1271,9 @@ export default defineComponent({
         page,
         per_page: 12,
       })
+
+      const visibleSet = new Set(visibleNotificationIds.value)
+      selectedNotificationIds.value = selectedNotificationIds.value.filter((id) => visibleSet.has(id))
     }
 
     const resetNotificationFilters = async () => {
@@ -1194,7 +1306,7 @@ export default defineComponent({
     }
 
     const openInboxNotification = async (notification) => {
-      await openNotification(router, notification)
+      await loadSelectedNotification(notification, { markAsRead: true, syncQuery: true })
     }
 
     const markInboxNotificationRead = async (notification) => {
@@ -1202,6 +1314,63 @@ export default defineComponent({
       notificationAction.value = 'read'
       try {
         await markNotificationRead(notification)
+        if (selectedNotificationId.value === notification.id) {
+          selectedNotification.value = {
+            ...(selectedNotification.value || notification),
+            read_at: new Date().toISOString(),
+            is_read: true,
+          }
+        }
+      } finally {
+        notificationActionId.value = null
+        notificationAction.value = ''
+      }
+    }
+
+    const markSelectedNotificationsRead = async () => {
+      if (!selectedNotificationIds.value.length) return
+
+      notificationActionId.value = 'bulk'
+      notificationAction.value = 'bulk-read'
+      try {
+        await markNotificationsRead(selectedNotificationIds.value)
+        if (selectedNotificationId.value && selectedNotificationIds.value.includes(selectedNotificationId.value)) {
+          await loadSelectedNotification(selectedNotificationId.value, { markAsRead: false, syncQuery: false })
+        }
+        clearNotificationSelection()
+        $q.notify({ type: 'positive', message: 'Notificações selecionadas marcadas como lidas' })
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao marcar notificações como lidas' })
+      } finally {
+        notificationActionId.value = null
+        notificationAction.value = ''
+      }
+    }
+
+    const deleteSelectedNotifications = async () => {
+      if (!selectedNotificationIds.value.length) return
+
+      const confirmed = window.confirm(`Excluir ${selectedNotificationIds.value.length} notificação(ões) selecionada(s)?`)
+      if (!confirmed) return
+
+      const targetPage = inboxNotifications.value.length === selectedNotificationIds.value.length && inboxMeta.value.page > 1
+        ? inboxMeta.value.page - 1
+        : inboxMeta.value.page
+
+      notificationActionId.value = 'bulk'
+      notificationAction.value = 'bulk-delete'
+      try {
+        await deleteNotifications(selectedNotificationIds.value)
+        if (selectedNotificationId.value && selectedNotificationIds.value.includes(selectedNotificationId.value)) {
+          selectedNotificationId.value = null
+          selectedNotification.value = null
+        }
+        clearNotificationSelection()
+        await applyNotificationFilters(targetPage)
+        router.replace({ query: buildSettingsQuery(activeTab.value, activeRoleOverlay.value, selectedNotificationId.value) })
+        $q.notify({ type: 'positive', message: 'Notificações selecionadas excluídas' })
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao excluir notificações' })
       } finally {
         notificationActionId.value = null
         notificationAction.value = ''
@@ -1214,6 +1383,7 @@ export default defineComponent({
       try {
         await acceptInvitation(notification)
         await Promise.all([applyNotificationFilters(inboxMeta.value.page), fetchInvitationSummary(), fetchUserFromBackend()])
+        await loadSelectedNotification(notification.id, { markAsRead: false, syncQuery: false })
         $q.notify({ type: 'positive', message: 'Convite aceito com sucesso' })
       } catch (err) {
         $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao aceitar convite' })
@@ -1223,12 +1393,16 @@ export default defineComponent({
       }
     }
 
-    const rejectInboxNotification = async (notification) => {
+    const rejectInboxNotification = async (payload) => {
+      const notification = payload?.notification || payload
+      const note = payload?.note?.trim() || ''
+
       notificationActionId.value = notification.id
       notificationAction.value = 'reject'
       try {
-        await rejectInvitation(notification)
+        await rejectInvitation(notification, { decision_note: note || undefined })
         await applyNotificationFilters(inboxMeta.value.page)
+        await loadSelectedNotification(notification.id, { markAsRead: false, syncQuery: false })
         $q.notify({ type: 'positive', message: 'Convite recusado' })
       } catch (err) {
         $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao recusar convite' })
@@ -1248,6 +1422,7 @@ export default defineComponent({
         await api.post(`/role-requests/${requestId}/approve`)
         await markNotificationRead(notification)
         await Promise.all([applyNotificationFilters(inboxMeta.value.page), fetchRoleRequests(), fetchUserFromBackend()])
+        await loadSelectedNotification(notification.id, { markAsRead: false, syncQuery: false })
         $q.notify({ type: 'positive', message: 'Solicitação de gerência aprovada' })
       } catch (err) {
         $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao aprovar solicitação' })
@@ -1257,16 +1432,19 @@ export default defineComponent({
       }
     }
 
-    const rejectManagerRequest = async (notification) => {
+    const rejectManagerRequest = async (payload) => {
+      const notification = payload?.notification || payload
+      const note = payload?.note?.trim() || ''
       const requestId = notification?.data?.request_id
       if (!requestId) return
 
       notificationActionId.value = notification.id
       notificationAction.value = 'reject-manager'
       try {
-        await api.post(`/role-requests/${requestId}/reject`)
+        await api.post(`/role-requests/${requestId}/reject`, { decision_note: note || undefined })
         await markNotificationRead(notification)
         await Promise.all([applyNotificationFilters(inboxMeta.value.page), fetchRoleRequests(), fetchUserFromBackend()])
+        await loadSelectedNotification(notification.id, { markAsRead: false, syncQuery: false })
         $q.notify({ type: 'positive', message: 'Solicitação de gerência recusada' })
       } catch (err) {
         $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao recusar solicitação' })
@@ -1274,6 +1452,16 @@ export default defineComponent({
         notificationActionId.value = null
         notificationAction.value = ''
       }
+    }
+
+    const openNotificationBusiness = (notification) => {
+      const routeTarget = notification?.workflow?.business_route
+      if (!routeTarget) {
+        $q.notify({ type: 'warning', message: 'Este vínculo não possui acesso ativo ao negócio no momento.' })
+        return
+      }
+
+      router.push(routeTarget)
     }
 
     const filterBusinesses = async (value, update) => {
@@ -1571,6 +1759,7 @@ export default defineComponent({
     }
 
     return {
+      quasar: $q,
       activeTab,
       user,
       loadingUser,
@@ -1621,6 +1810,13 @@ export default defineComponent({
       inboxNotifications,
       inboxMeta,
       inboxLoading,
+      selectedNotificationId,
+      selectedNotification,
+      selectedNotificationLoading,
+      selectedNotificationIds,
+      hasNotificationSelection,
+      allVisibleNotificationsSelected,
+      selectedNotificationTypeLabel,
       notificationActionId,
       notificationAction,
       toggleTheme,
@@ -1639,11 +1835,18 @@ export default defineComponent({
       changeNotificationPage,
       togglePushNotifications,
       openInboxNotification,
+      closeSelectedNotification,
       markInboxNotificationRead,
+      markSelectedNotificationsRead,
+      deleteSelectedNotifications,
+      toggleNotificationSelection,
+      toggleAllVisibleNotifications,
+      clearNotificationSelection,
       acceptInboxNotification,
       rejectInboxNotification,
       approveManagerRequest,
       rejectManagerRequest,
+      openNotificationBusiness,
       getNotifIcon,
       getNotificationTypeLabel,
       formatNotifTime,
@@ -2150,6 +2353,9 @@ export default defineComponent({
 .notifications-inbox {
   padding: 1.25rem;
   border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--qm-brand) 3%, var(--qm-surface)), var(--qm-surface)),
+    var(--qm-surface);
 }
 
 .notifications-inbox__header {
@@ -2186,10 +2392,63 @@ export default defineComponent({
   margin-bottom: 1rem;
 }
 
+.notifications-selection-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--qm-brand) 8%, var(--qm-bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--qm-brand) 18%, var(--qm-border));
+
+  :deep(.q-btn) {
+    color: var(--qm-text-primary);
+  }
+
+  :deep(.q-btn.text-negative),
+  :deep(.q-btn[class*='text-negative']) {
+    color: var(--qm-error);
+  }
+}
+
+.selection-count {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--qm-text-primary);
+  letter-spacing: 0.02em;
+}
+
+.notifications-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.notifications-master,
+.notifications-detail {
+  min-width: 0;
+}
+
+.notifications-detail {
+  position: sticky;
+  top: 1rem;
+
+  :deep(.notification-detail-panel) {
+    max-height: calc(100vh - 7rem);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+}
+
 .notifications-table-container {
   overflow-x: auto;
   border: 1px solid var(--qm-border);
   border-radius: 12px;
+  background: color-mix(in srgb, var(--qm-surface) 88%, var(--qm-bg-secondary));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--qm-brand) 3%, transparent);
 }
 
 .notifications-table {
@@ -2243,6 +2502,15 @@ export default defineComponent({
   background: color-mix(in srgb, var(--qm-brand) 4%, transparent);
 }
 
+.notification-row--active {
+  background: color-mix(in srgb, var(--qm-brand) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--qm-brand);
+}
+
+.th-select {
+  width: 56px;
+}
+
 .th-notification {
   min-width: 320px;
 }
@@ -2261,16 +2529,18 @@ export default defineComponent({
 
 .notification-cell {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.875rem;
+  justify-content: center;
 }
 
 .notification-icon {
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: var(--qm-bg-secondary);
-  color: var(--qm-text-muted);
+  background: color-mix(in srgb, var(--qm-bg-secondary) 84%, var(--qm-surface));
+  color: var(--qm-text-secondary);
+  border: 1px solid color-mix(in srgb, var(--qm-brand) 8%, var(--qm-border));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2278,8 +2548,9 @@ export default defineComponent({
 }
 
 .notification-icon--unread {
-  background: var(--qm-brand-light);
+  background: color-mix(in srgb, var(--qm-brand) 14%, var(--qm-bg-secondary));
   color: var(--qm-brand);
+  border-color: color-mix(in srgb, var(--qm-brand) 26%, var(--qm-border));
 }
 
 .notification-content {
@@ -2329,6 +2600,43 @@ export default defineComponent({
   display: flex;
   justify-content: center;
   padding-top: 1rem;
+}
+
+.notifications-inbox :deep(.q-checkbox__inner) {
+  color: color-mix(in srgb, var(--qm-text-secondary) 86%, var(--qm-border));
+}
+
+.notifications-inbox :deep(.q-checkbox__inner--truthy),
+.notifications-inbox :deep(.q-checkbox__inner--indet) {
+  color: var(--qm-brand);
+}
+
+.notifications-inbox :deep(.q-checkbox__bg) {
+  border-radius: 6px;
+}
+
+.notifications-inbox :deep(.q-pagination .q-btn) {
+  color: var(--qm-text-secondary);
+}
+
+.notifications-inbox :deep(.q-pagination .q-btn--active) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--qm-brand) 22%, transparent);
+}
+
+.empty-state-sm,
+.loading-state-sm {
+  min-height: 240px;
+  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--qm-brand) 10%, var(--qm-border));
+  background: color-mix(in srgb, var(--qm-brand) 3%, var(--qm-bg-secondary));
+}
+
+.empty-state-sm {
+  color: var(--qm-text-secondary);
+
+  .q-icon {
+    color: color-mix(in srgb, var(--qm-brand) 58%, var(--qm-text-secondary));
+  }
 }
 
 .color-swatch {
@@ -2389,6 +2697,31 @@ export default defineComponent({
   .notifications-inbox__actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .notifications-selection-toolbar {
+    align-items: stretch;
+
+    :deep(.q-btn) {
+      width: 100%;
+    }
+  }
+
+  .notifications-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .notifications-workspace--detail .notifications-master {
+    display: none;
+  }
+
+  .notifications-detail {
+    position: static;
+
+    :deep(.notification-detail-panel) {
+      max-height: none;
+      overflow: visible;
+    }
   }
 
   .custom-hex-row {

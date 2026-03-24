@@ -424,7 +424,7 @@ class InvitationsController
                 $actorId,
                 true,
                 $business['name'] ?? 'o negócio',
-                $invitation['establishment_id'] ?? null
+                $invitation['establishment_id'] ?? null,
             );
 
             AuditService::logFromRequest($request, 'accept_invitation', 'business_invitation', (string)$id, $invitation['establishment_id'] ?? null, $invitation['business_id'] ?? null, [
@@ -448,6 +448,16 @@ class InvitationsController
     public function reject(Request $request, int $id): void
     {
         $actorId = (int)$request->user['id'];
+        $data = $request->all();
+
+        $errors = Validator::make($data, [
+            'decision_note' => 'max:2000',
+        ]);
+
+        if (!empty($errors)) {
+            Response::validationError($errors, $request->requestId);
+            return;
+        }
 
         try {
             $invitation = BusinessInvitation::find($id);
@@ -467,17 +477,20 @@ class InvitationsController
             }
 
             BusinessInvitation::reject($id);
+            $decisionNote = $this->resolveDecisionNote($data['decision_note'] ?? null);
             $business = Business::find((int)$invitation['business_id']);
             $this->notifyInvitationDecision(
                 $invitation,
                 $actorId,
                 false,
                 $business['name'] ?? 'o negócio',
-                $invitation['establishment_id'] ?? null
+                $invitation['establishment_id'] ?? null,
+                $decisionNote
             );
 
             AuditService::logFromRequest($request, 'reject_invitation', 'business_invitation', (string)$id, $invitation['establishment_id'] ?? null, $invitation['business_id'] ?? null, [
                 'direction' => $invitation['direction'] ?? null,
+                'decision_note' => $decisionNote,
             ]);
 
             Response::success(['message' => 'Invitation rejected']);
@@ -564,7 +577,7 @@ class InvitationsController
         return false;
     }
 
-    private function notifyInvitationDecision(array $invitation, int $actorId, bool $accepted, string $businessName, mixed $establishmentId): void
+    private function notifyInvitationDecision(array $invitation, int $actorId, bool $accepted, string $businessName, mixed $establishmentId, ?string $decisionNote = null): void
     {
         $actor = User::find($actorId);
         $actorName = $actor['name'] ?? 'Um usuário';
@@ -577,6 +590,8 @@ class InvitationsController
             $establishment = Establishment::find((int)$establishmentId);
             $establishmentName = $establishment['name'] ?? null;
         }
+
+        $decisionNote = $accepted ? null : $this->resolveDecisionNote($decisionNote);
 
         Notification::create([
             'user_id' => $targetUserId,
@@ -591,6 +606,7 @@ class InvitationsController
                 'business_name' => $businessName,
                 'establishment_id' => $establishmentId ? (int)$establishmentId : null,
                 'establishment_name' => $establishmentName,
+                'decision_note' => $decisionNote,
                 'deep_link' => '/app/businesses/' . (int)$invitation['business_id'] . '?tab=professionals',
             ],
             'channel' => 'in_app',
@@ -657,5 +673,15 @@ class InvitationsController
         }
 
         return $url;
+    }
+
+    private function resolveDecisionNote(mixed $value): string
+    {
+        $note = trim((string)($value ?? ''));
+        if ($note !== '') {
+            return $note;
+        }
+
+        return 'No momento esta solicitacao nao foi aprovada. Voce pode revisar seus dados e tentar novamente quando quiser.';
     }
 }

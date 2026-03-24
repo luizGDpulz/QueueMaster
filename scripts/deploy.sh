@@ -89,6 +89,123 @@ load_env() {
     fi
 }
 
+get_env_value() {
+    local key="$1"
+    if [[ ! -f "$ENV_FILE" ]]; then
+        return 0
+    fi
+
+    local line
+    line=$(grep -E "^${key}=" "$ENV_FILE" | tail -n 1 || true)
+    echo "${line#*=}"
+}
+
+set_env_value() {
+    local key="$1"
+    local value="$2"
+    local escaped_value="$value"
+
+    escaped_value="${escaped_value//\\/\\\\}"
+    escaped_value="${escaped_value//&/\\&}"
+    escaped_value="${escaped_value//|/\\|}"
+
+    if grep -q -E "^${key}=" "$ENV_FILE" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${escaped_value}|" "$ENV_FILE"
+    else
+        printf '\n%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+    fi
+}
+
+prompt_csv_rule() {
+    local label="$1"
+    local current_value="${2:-}"
+    local input_value=""
+
+    echo -en "${CYAN}${label}${NC}"
+    if [[ -n "$current_value" ]]; then
+        echo -en " [atual: ${current_value}]"
+    fi
+    echo -en " (Enter mantém, '-' limpa): "
+    read -r input_value
+
+    if [[ "$input_value" == "-" ]]; then
+        echo ""
+    elif [[ -z "$input_value" ]]; then
+        echo "$current_value"
+    else
+        echo "$input_value"
+    fi
+}
+
+configure_access_rules_interactive() {
+    local current_allowed_emails="${1:-}"
+    local current_blocked_emails="${2:-}"
+    local current_allowed_domains="${3:-}"
+    local current_blocked_domains="${4:-}"
+    local setup_mode="${5:-false}"
+
+    local allowed_emails="$current_allowed_emails"
+    local blocked_emails="$current_blocked_emails"
+    local allowed_domains="$current_allowed_domains"
+    local blocked_domains="$current_blocked_domains"
+
+    echo ""
+    echo -e "${BOLD}Controle de acesso por e-mail/domínio${NC}"
+    echo "────────────────────────────────────────"
+    echo "Use listas separadas por vírgula, no formato: email1@x.com,email2@x.com"
+    echo "Ou domínios assim: empresa.com,parceiro.com"
+    echo ""
+
+    if [[ "$setup_mode" == "true" ]]; then
+        echo -en "${CYAN}Deseja configurar regras de acesso no ambiente agora?${NC} [y/N]: "
+        read -r configure_now
+        if [[ ! "$configure_now" =~ ^[yY]$ ]]; then
+            AUTH_ALLOWED_EMAILS=""
+            AUTH_BLOCKED_EMAILS=""
+            AUTH_ALLOWED_EMAIL_DOMAINS=""
+            AUTH_BLOCKED_EMAIL_DOMAINS=""
+            return 0
+        fi
+    fi
+
+    echo -en "${CYAN}Deseja liberar e-mails específicos?${NC} [y/N]: "
+    read -r use_allowed_emails
+    if [[ "$use_allowed_emails" =~ ^[yY]$ ]]; then
+        allowed_emails=$(prompt_csv_rule "AUTH_ALLOWED_EMAILS" "$current_allowed_emails")
+    elif [[ "$setup_mode" == "true" ]]; then
+        allowed_emails=""
+    fi
+
+    echo -en "${CYAN}Deseja bloquear e-mails específicos?${NC} [y/N]: "
+    read -r use_blocked_emails
+    if [[ "$use_blocked_emails" =~ ^[yY]$ ]]; then
+        blocked_emails=$(prompt_csv_rule "AUTH_BLOCKED_EMAILS" "$current_blocked_emails")
+    elif [[ "$setup_mode" == "true" ]]; then
+        blocked_emails=""
+    fi
+
+    echo -en "${CYAN}Deseja liberar domínios inteiros?${NC} [y/N]: "
+    read -r use_allowed_domains
+    if [[ "$use_allowed_domains" =~ ^[yY]$ ]]; then
+        allowed_domains=$(prompt_csv_rule "AUTH_ALLOWED_EMAIL_DOMAINS" "$current_allowed_domains")
+    elif [[ "$setup_mode" == "true" ]]; then
+        allowed_domains=""
+    fi
+
+    echo -en "${CYAN}Deseja bloquear domínios inteiros?${NC} [y/N]: "
+    read -r use_blocked_domains
+    if [[ "$use_blocked_domains" =~ ^[yY]$ ]]; then
+        blocked_domains=$(prompt_csv_rule "AUTH_BLOCKED_EMAIL_DOMAINS" "$current_blocked_domains")
+    elif [[ "$setup_mode" == "true" ]]; then
+        blocked_domains=""
+    fi
+
+    AUTH_ALLOWED_EMAILS="$allowed_emails"
+    AUTH_BLOCKED_EMAILS="$blocked_emails"
+    AUTH_ALLOWED_EMAIL_DOMAINS="$allowed_domains"
+    AUTH_BLOCKED_EMAIL_DOMAINS="$blocked_domains"
+}
+
 generate_password() {
     openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24
 }
@@ -180,6 +297,8 @@ do_setup() {
     read -r timezone
     timezone="${timezone:-America/Sao_Paulo}"
 
+    configure_access_rules_interactive "" "" "" "" true
+
     # Build CORS and API URL (public URLs through NPM — never include internal port)
     cors_origins="${protocol}://${server_domain}"
     vite_api_url="${protocol}://${server_domain}/api/v1"
@@ -210,6 +329,10 @@ GOOGLE_CLIENT_ID=${google_client_id}
 
 # Admin
 SUPER_ADMIN_EMAIL=${admin_email}
+AUTH_ALLOWED_EMAILS=${AUTH_ALLOWED_EMAILS}
+AUTH_BLOCKED_EMAILS=${AUTH_BLOCKED_EMAILS}
+AUTH_ALLOWED_EMAIL_DOMAINS=${AUTH_ALLOWED_EMAIL_DOMAINS}
+AUTH_BLOCKED_EMAIL_DOMAINS=${AUTH_BLOCKED_EMAIL_DOMAINS}
 
 # Application
 APP_TIMEZONE=${timezone}
@@ -650,6 +773,87 @@ do_cleanup_tokens() {
 }
 
 # ---------------------------------------------------------------------------
+# 15) Editar regras de acesso do .env
+# ---------------------------------------------------------------------------
+do_edit_access_rules() {
+    while true; do
+        print_header
+        echo -e "${BOLD}🔐 Editar regras de acesso (.env)${NC}"
+        echo "────────────────────────────────────────"
+
+        check_env || return 1
+        load_env
+
+        local current_allowed_emails
+        local current_blocked_emails
+        local current_allowed_domains
+        local current_blocked_domains
+
+        current_allowed_emails="$(get_env_value 'AUTH_ALLOWED_EMAILS')"
+        current_blocked_emails="$(get_env_value 'AUTH_BLOCKED_EMAILS')"
+        current_allowed_domains="$(get_env_value 'AUTH_ALLOWED_EMAIL_DOMAINS')"
+        current_blocked_domains="$(get_env_value 'AUTH_BLOCKED_EMAIL_DOMAINS')"
+
+        echo ""
+        echo "Atual:"
+        echo "  1) AUTH_ALLOWED_EMAILS=${current_allowed_emails}"
+        echo "  2) AUTH_BLOCKED_EMAILS=${current_blocked_emails}"
+        echo "  3) AUTH_ALLOWED_EMAIL_DOMAINS=${current_allowed_domains}"
+        echo "  4) AUTH_BLOCKED_EMAIL_DOMAINS=${current_blocked_domains}"
+        echo ""
+        echo "  5) Wizard guiado das 4 regras"
+        echo "  0) Voltar"
+        echo ""
+        echo -en "Escolha: "
+        read -r access_choice
+
+        case "$access_choice" in
+            1)
+                set_env_value "AUTH_ALLOWED_EMAILS" "$(prompt_csv_rule 'Informe os e-mails liberados (x@y.com,z@w.com)' "$current_allowed_emails")"
+                print_success "AUTH_ALLOWED_EMAILS atualizado."
+                ;;
+            2)
+                set_env_value "AUTH_BLOCKED_EMAILS" "$(prompt_csv_rule 'Informe os e-mails bloqueados (x@y.com,z@w.com)' "$current_blocked_emails")"
+                print_success "AUTH_BLOCKED_EMAILS atualizado."
+                ;;
+            3)
+                set_env_value "AUTH_ALLOWED_EMAIL_DOMAINS" "$(prompt_csv_rule 'Informe os domínios liberados (empresa.com,parceiro.com)' "$current_allowed_domains")"
+                print_success "AUTH_ALLOWED_EMAIL_DOMAINS atualizado."
+                ;;
+            4)
+                set_env_value "AUTH_BLOCKED_EMAIL_DOMAINS" "$(prompt_csv_rule 'Informe os domínios bloqueados (gmail.com,outlook.com)' "$current_blocked_domains")"
+                print_success "AUTH_BLOCKED_EMAIL_DOMAINS atualizado."
+                ;;
+            5)
+                configure_access_rules_interactive \
+                    "$current_allowed_emails" \
+                    "$current_blocked_emails" \
+                    "$current_allowed_domains" \
+                    "$current_blocked_domains" \
+                    false
+
+                set_env_value "AUTH_ALLOWED_EMAILS" "${AUTH_ALLOWED_EMAILS:-}"
+                set_env_value "AUTH_BLOCKED_EMAILS" "${AUTH_BLOCKED_EMAILS:-}"
+                set_env_value "AUTH_ALLOWED_EMAIL_DOMAINS" "${AUTH_ALLOWED_EMAIL_DOMAINS:-}"
+                set_env_value "AUTH_BLOCKED_EMAIL_DOMAINS" "${AUTH_BLOCKED_EMAIL_DOMAINS:-}"
+                print_success "Regras de acesso atualizadas."
+                ;;
+            0)
+                return
+                ;;
+            *)
+                print_error "Opção inválida."
+                ;;
+        esac
+
+        echo ""
+        print_warn "Se alterou regras de acesso, recrie o app para aplicar os novos envs."
+        echo -en "Pressione Enter para continuar..."
+        read -r
+    done
+}
+
+# ---------------------------------------------------------------------------
 # 14) Nuclear Rebuild — apaga tudo e recomeça do zero
 # ---------------------------------------------------------------------------
 do_nuclear_rebuild() {
@@ -764,6 +968,7 @@ main_menu() {
         echo -e "  ${CYAN}12)${NC} 🔨 Rebuild (API/Frontend)"
         echo -e "  ${CYAN}13)${NC} 🧹 Cleanup tokens expirados"
         echo -e "  ${RED}14)${NC} ☢  Nuclear Rebuild (apaga banco e recomeça)${NC}"
+        echo -e "  ${CYAN}15)${NC} 🔐 Editar regras de acesso do .env"
         echo ""
         echo -e "  ${CYAN} 0)${NC} 🚪 Sair"
         echo ""
@@ -786,6 +991,7 @@ main_menu() {
             12) do_rebuild ;;
             13) do_cleanup_tokens ;;
             14) do_nuclear_rebuild ;;
+            15) do_edit_access_rules ;;
             0)  echo -e "\n${GREEN}Até logo! 👋${NC}\n"; exit 0 ;;
             *)  print_error "Opção inválida." ;;
         esac

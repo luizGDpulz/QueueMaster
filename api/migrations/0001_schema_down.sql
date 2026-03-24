@@ -6,6 +6,8 @@ USE `queue_master`;
 SET FOREIGN_KEY_CHECKS=0;
 
 DROP TABLE IF EXISTS business_invitations;
+DROP TABLE IF EXISTS user_role_requests;
+DROP TABLE IF EXISTS user_plan_subscriptions;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS business_subscriptions;
 DROP TABLE IF EXISTS plans;

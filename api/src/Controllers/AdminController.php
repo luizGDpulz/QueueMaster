@@ -4,15 +4,18 @@ namespace QueueMaster\Controllers;
 
 use QueueMaster\Core\Request;
 use QueueMaster\Core\Response;
+use QueueMaster\Core\Database;
 use QueueMaster\Models\AuditLog;
 use QueueMaster\Models\Plan;
 use QueueMaster\Models\Business;
+use QueueMaster\Models\RefreshToken;
 use QueueMaster\Models\User;
 use QueueMaster\Models\UserPlanSubscription;
 use QueueMaster\Services\AdminScopeService;
 use QueueMaster\Services\AuditService;
 use QueueMaster\Services\PlanService;
 use QueueMaster\Services\QuotaService;
+use QueueMaster\Services\UserAccessControlService;
 use QueueMaster\Services\UserRoleService;
 use QueueMaster\Utils\Logger;
 use QueueMaster\Utils\Validator;
@@ -28,12 +31,14 @@ class AdminController
     private PlanService $planService;
     private AdminScopeService $scopeService;
     private UserRoleService $userRoleService;
+    private UserAccessControlService $userAccessControlService;
 
     public function __construct()
     {
         $this->planService = new PlanService();
         $this->scopeService = new AdminScopeService();
         $this->userRoleService = new UserRoleService();
+        $this->userAccessControlService = new UserAccessControlService();
     }
 
     public function users(Request $request): void
@@ -80,6 +85,10 @@ class AdminController
             $currentSubscription = $this->planService->getCurrentSubscriptionForUser($id);
             $usageSnapshot = $isPlanHolder ? $this->planService->getUsageSnapshotForUser($id) : null;
             $roleOptions = $this->resolveRoleOptions($user, $memberships, $isOwner);
+            $accessState = $this->userAccessControlService->buildUserAccessSnapshot($user);
+            $blockedBy = !empty($user['login_blocked_by_user_id']) ? User::find((int)$user['login_blocked_by_user_id']) : null;
+            $managementSummary = $this->buildUserManagementSummary($request, $user, $isOwner);
+            $isAdminActor = ($request->user['role'] ?? null) === 'admin';
 
             Response::success([
                 'user' => array_merge($safeUser, [
@@ -87,6 +96,10 @@ class AdminController
                     'contextual_roles' => $memberships,
                     'is_owner' => $isOwner,
                     'is_plan_holder' => $isPlanHolder,
+                    'access_state' => array_merge($accessState, [
+                        'blocked_by_name' => $blockedBy['name'] ?? null,
+                        'blocked_by_email' => $blockedBy['email'] ?? null,
+                    ]),
                     'editable_fields' => [
                         'name' => !($safeUser['is_google_managed_profile'] ?? false) && ($request->user['role'] ?? null) === 'admin',
                         'email' => !($safeUser['is_google_managed_profile'] ?? false) && ($request->user['role'] ?? null) === 'admin',
@@ -94,10 +107,15 @@ class AdminController
                         'address_line_1' => ($request->user['role'] ?? null) === 'admin',
                         'address_line_2' => ($request->user['role'] ?? null) === 'admin',
                         'role' => ($request->user['role'] ?? null) === 'admin' && !empty($roleOptions),
-                        'plan' => ($request->user['role'] ?? null) === 'admin' && $isPlanHolder,
-                        'is_active' => ($request->user['role'] ?? null) === 'admin',
+                        'plan' => $isAdminActor && $isPlanHolder,
+                        'is_active' => false,
+                        'block_access' => $isAdminActor && (bool)($managementSummary['can_block'] ?? false),
+                        'unblock_access' => $isAdminActor && (bool)($managementSummary['can_unblock'] ?? false),
+                        'revoke_sessions' => $isAdminActor && (bool)($managementSummary['can_revoke_sessions'] ?? false),
+                        'delete_user' => $isAdminActor && (bool)($managementSummary['can_delete'] ?? false),
                     ],
                     'role_options' => $roleOptions,
+                    'management_summary' => $managementSummary,
                 ]),
                 'memberships' => $memberships,
                 'plan_assignment' => [
@@ -154,7 +172,24 @@ class AdminController
             }
 
             if (array_key_exists('is_active', $data)) {
-                $updateData['is_active'] = (int)((bool)$data['is_active']);
+                $nextIsActive = (bool)$data['is_active'];
+                if ((int)$request->user['id'] === $id && $nextIsActive === false) {
+                    Response::error('CANNOT_BLOCK_SELF', 'Você não pode bloquear seu próprio acesso por esta tela.', 409, $request->requestId);
+                    return;
+                }
+
+                if ($nextIsActive) {
+                    $updateData['is_active'] = 1;
+                    $updateData['login_blocked_at'] = null;
+                    $updateData['login_block_reason'] = null;
+                    $updateData['login_blocked_by_user_id'] = null;
+                }
+                else {
+                    $updateData['is_active'] = 0;
+                    $updateData['login_blocked_at'] = date('Y-m-d H:i:s');
+                    $updateData['login_block_reason'] = trim((string)($data['login_block_reason'] ?? 'Bloqueado manualmente pela administração.'));
+                    $updateData['login_blocked_by_user_id'] = (int)$request->user['id'];
+                }
             }
 
             $roleChanged = false;
@@ -171,6 +206,9 @@ class AdminController
                 }
 
                 User::update($id, $updateData);
+                if (array_key_exists('is_active', $updateData) && (int)$updateData['is_active'] === 0) {
+                    RefreshToken::revokeAllForUser($id);
+                }
             }
 
             if (empty($updateData) && !$roleChanged) {
@@ -235,6 +273,173 @@ class AdminController
                 'error' => $e->getMessage(),
             ], $request->requestId);
             Response::serverError('Failed to update user plan', $request->requestId);
+        }
+    }
+
+    public function blockUser(Request $request, int $id): void
+    {
+        try {
+            $user = $this->loadManageableUser($request, $id, false);
+            if (!$user) {
+                return;
+            }
+
+            if (!(bool)($user['is_active'] ?? false)) {
+                Response::success([
+                    'message' => 'Usuário já está bloqueado.',
+                    'user' => User::getSafeData($user),
+                ]);
+                return;
+            }
+
+            $reason = trim((string)($request->all()['reason'] ?? ''));
+            if ($reason !== '' && mb_strlen($reason) > 500) {
+                Response::validationError(['reason' => 'O motivo do bloqueio deve ter no máximo 500 caracteres.'], $request->requestId);
+                return;
+            }
+
+            User::update($id, [
+                'is_active' => 0,
+                'login_blocked_at' => date('Y-m-d H:i:s'),
+                'login_block_reason' => $reason !== '' ? $reason : 'Bloqueado manualmente pela administração.',
+                'login_blocked_by_user_id' => (int)$request->user['id'],
+            ]);
+            RefreshToken::revokeAllForUser($id);
+
+            AuditService::logFromRequest($request, 'block_access', 'user', (string)$id, null, null, [
+                'email' => $user['email'] ?? null,
+                'reason' => $reason !== '' ? $reason : null,
+            ]);
+
+            Response::success([
+                'message' => 'Acesso do usuário bloqueado com sucesso.',
+                'user' => User::getSafeData(User::find($id)),
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to block user access', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to block user access', $request->requestId);
+        }
+    }
+
+    public function unblockUser(Request $request, int $id): void
+    {
+        try {
+            $user = $this->loadManageableUser($request, $id, false);
+            if (!$user) {
+                return;
+            }
+
+            if ((bool)($user['is_active'] ?? false)) {
+                Response::success([
+                    'message' => 'Usuário já está com acesso liberado.',
+                    'user' => User::getSafeData($user),
+                ]);
+                return;
+            }
+
+            User::update($id, [
+                'is_active' => 1,
+                'login_blocked_at' => null,
+                'login_block_reason' => null,
+                'login_blocked_by_user_id' => null,
+            ]);
+
+            AuditService::logFromRequest($request, 'unblock_access', 'user', (string)$id, null, null, [
+                'email' => $user['email'] ?? null,
+            ]);
+
+            Response::success([
+                'message' => 'Acesso do usuário liberado com sucesso.',
+                'user' => User::getSafeData(User::find($id)),
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to unblock user access', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to unblock user access', $request->requestId);
+        }
+    }
+
+    public function revokeUserSessions(Request $request, int $id): void
+    {
+        try {
+            $user = $this->loadManageableUser($request, $id, false);
+            if (!$user) {
+                return;
+            }
+
+            RefreshToken::revokeAllForUser($id);
+
+            AuditService::logFromRequest($request, 'revoke_sessions', 'user', (string)$id, null, null, [
+                'email' => $user['email'] ?? null,
+            ]);
+
+            Response::success([
+                'message' => 'Sessões do usuário encerradas com sucesso.',
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to revoke user sessions', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to revoke user sessions', $request->requestId);
+        }
+    }
+
+    public function deleteUser(Request $request, int $id): void
+    {
+        $db = Database::getInstance();
+
+        try {
+            $user = $this->loadManageableUser($request, $id, false);
+            if (!$user) {
+                return;
+            }
+
+            $summary = $this->buildUserManagementSummary($request, $user, $this->userRoleService->userHasOwnershipSignals($id));
+            if (!($summary['can_delete'] ?? false)) {
+                Response::error(
+                    'USER_DELETE_BLOCKED',
+                    (string)($summary['delete_blockers'][0] ?? 'Este usuário não pode ser excluído agora.'),
+                    409,
+                    $request->requestId,
+                    ['blockers' => $summary['delete_blockers'] ?? []]
+                );
+                return;
+            }
+
+            $db->beginTransaction();
+            RefreshToken::revokeAllForUser($id);
+            User::delete($id);
+            $db->commit();
+
+            AuditService::logFromRequest($request, 'delete', 'user', (string)$id, null, null, [
+                'name' => $user['name'] ?? null,
+                'email' => $user['email'] ?? null,
+                'role' => $user['role'] ?? null,
+            ]);
+
+            Response::success([
+                'message' => 'Cadastro do usuário excluído com sucesso.',
+            ]);
+        }
+        catch (\Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollback();
+            }
+
+            Logger::error('Failed to delete admin user', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+            Response::serverError('Failed to delete user', $request->requestId);
         }
     }
 
@@ -944,6 +1149,54 @@ class AdminController
         }
 
         $this->userRoleService->applyContextualRoleTransition($userId, $newRole);
+    }
+
+    private function loadManageableUser(Request $request, int $id, bool $allowSelf): ?array
+    {
+        if (!$this->scopeService->canViewAdminUser($request->user, $id)) {
+            Response::forbidden('Você não tem acesso a este usuário', $request->requestId);
+            return null;
+        }
+
+        if (!$allowSelf && (int)$request->user['id'] === $id) {
+            Response::error('SELF_ACTION_BLOCKED', 'Esta ação não pode ser aplicada no seu próprio usuário.', 409, $request->requestId);
+            return null;
+        }
+
+        $user = User::find($id);
+        if (!$user) {
+            Response::notFound('User not found', $request->requestId);
+            return null;
+        }
+
+        return $user;
+    }
+
+    private function buildUserManagementSummary(Request $request, array $user, bool $isOwner): array
+    {
+        $userId = (int)$user['id'];
+        $actorId = (int)($request->user['id'] ?? 0);
+        $deleteBlockers = [];
+
+        if ($actorId === $userId) {
+            $deleteBlockers[] = 'Você não pode excluir seu próprio usuário por esta tela.';
+        }
+
+        if ($this->userRoleService->hasActivePlanSubscription($userId)) {
+            $deleteBlockers[] = 'Cancele ou remova o plano ativo antes de excluir o usuário.';
+        }
+
+        if ($isOwner) {
+            $deleteBlockers[] = 'Remova ou transfira os negócios/estabelecimentos de titularidade antes de excluir o usuário.';
+        }
+
+        return [
+            'can_block' => $actorId !== $userId && (bool)($user['is_active'] ?? false),
+            'can_unblock' => $actorId !== $userId && !(bool)($user['is_active'] ?? false),
+            'can_revoke_sessions' => $actorId !== $userId,
+            'can_delete' => empty($deleteBlockers),
+            'delete_blockers' => $deleteBlockers,
+        ];
     }
 
     private function resolveRoleOptions(array $user, array $memberships, bool $isOwner): array

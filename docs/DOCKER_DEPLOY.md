@@ -98,6 +98,7 @@ O wizard pergunta:
 > O setup gera automaticamente:
 > - Arquivo `.env` com todas as configurações
 > - JWT keys RSA 2048 bits
+> - Perguntas opcionais para `AUTH_ALLOWED_EMAILS`, `AUTH_BLOCKED_EMAILS`, `AUTH_ALLOWED_EMAIL_DOMAINS` e `AUTH_BLOCKED_EMAIL_DOMAINS`
 
 ### Passo 3.2 → Opção 2: Build & Deploy
 
@@ -137,6 +138,94 @@ No [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
 
 > Sem isso, o login com Google **não funcionará** no servidor.
 
+## 5.1 Controle de Login por E-mail e Domínio
+
+O QueueMaster agora trabalha em duas camadas:
+
+- **Camada de ambiente (`.env`)**: ideal para staging, homologação e testes fechados.
+- **Camada interna (painel admin)**: ideal para bloquear, desbloquear, encerrar sessões e excluir cadastro sem novo deploy.
+
+Se você **não definir nada** nos envs abaixo, o ambiente **não bloqueia ninguém**.
+
+Adicione no arquivo `.env` raiz do deploy:
+
+```env
+AUTH_ALLOWED_EMAILS=voce@empresa.com,qa@empresa.com
+AUTH_BLOCKED_EMAILS=
+AUTH_ALLOWED_EMAIL_DOMAINS=
+AUTH_BLOCKED_EMAIL_DOMAINS=
+```
+
+Variáveis disponíveis:
+
+- `AUTH_ALLOWED_EMAILS`: libera e-mails exatos.
+- `AUTH_BLOCKED_EMAILS`: bloqueia e-mails exatos.
+- `AUTH_ALLOWED_EMAIL_DOMAINS`: libera domínios inteiros.
+- `AUTH_BLOCKED_EMAIL_DOMAINS`: bloqueia domínios inteiros.
+
+### Ordem de precedência
+
+1. `AUTH_BLOCKED_EMAILS` sempre bloqueia.
+2. `AUTH_ALLOWED_EMAILS` libera explicitamente e **sobrescreve domínio bloqueado**.
+3. `AUTH_BLOCKED_EMAIL_DOMAINS` bloqueia se o e-mail não foi liberado explicitamente.
+4. `AUTH_ALLOWED_EMAIL_DOMAINS` libera se o e-mail/domínio não foi bloqueado antes.
+5. Se existir qualquer allow list e nada casar, o login é negado.
+6. Se nada estiver configurado, não há bloqueio por ambiente.
+
+### Casos de uso
+
+- **Não quero bloquear ninguém no servidor**: deixe as quatro variáveis vazias.
+- **Quero liberar apenas meus testers**: use `AUTH_ALLOWED_EMAILS`.
+- **Quero liberar apenas um domínio corporativo**: use `AUTH_ALLOWED_EMAIL_DOMAINS=empresa.com`.
+- **Quero bloquear Gmail em staging**: use `AUTH_BLOCKED_EMAIL_DOMAINS=gmail.com`.
+- **Quero bloquear um e-mail específico mesmo dentro de domínio liberado**: use `AUTH_BLOCKED_EMAILS`.
+- **Quero liberar um e-mail específico mesmo com domínio bloqueado**: use `AUTH_ALLOWED_EMAILS`; ele vence o domínio bloqueado.
+
+### Aplicando no Docker
+
+1. Edite o `.env` do deploy.
+2. Rode `docker compose config` para conferir a interpolação.
+3. Recrie o app:
+
+```bash
+docker compose up -d --build app
+```
+
+Você também pode editar essas regras pelo próprio script:
+
+```bash
+./scripts/deploy.sh
+# opção 15 -> Editar regras de acesso do .env
+```
+
+Nessa tela você pode:
+
+- editar `AUTH_ALLOWED_EMAILS`
+- editar `AUTH_BLOCKED_EMAILS`
+- editar `AUTH_ALLOWED_EMAIL_DOMAINS`
+- editar `AUTH_BLOCKED_EMAIL_DOMAINS`
+- rodar um wizard guiado das quatro regras
+
+Os valores devem ser informados no terminal separados por vírgula, por exemplo:
+
+```text
+voce@empresa.com,qa@empresa.com
+empresa.com,parceiro.com
+```
+
+Para limpar uma regra no editor, digite `-`.
+
+### Administração interna
+
+Depois que o usuário já existe no sistema, o controle recomendado é pela tela de detalhes do usuário:
+
+- Bloquear acesso imediatamente
+- Liberar acesso
+- Encerrar todas as sessões
+- Excluir cadastro com salvaguardas
+
+O bloqueio interno derruba novos logins e também impede refresh/autenticação de quem já estava ativo.
+
 ## 6. Verificar o Deploy
 
 | Serviço | URL |
@@ -160,6 +249,7 @@ Todas via `./scripts/deploy.sh`:
 | **11** | Restaurar um backup |
 | **12** | Rebuild após `git pull` |
 | **13** | Limpar tokens expirados |
+| **15** | Editar regras de acesso do `.env` |
 
 ### Fluxo de Atualização
 

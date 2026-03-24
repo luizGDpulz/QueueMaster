@@ -209,6 +209,16 @@ class RoleRequestsController
     public function reject(Request $request, int $id): void
     {
         $adminId = (int)$request->user['id'];
+        $data = $request->all();
+
+        $errors = Validator::make($data, [
+            'decision_note' => 'max:2000',
+        ]);
+
+        if (!empty($errors)) {
+            Response::validationError($errors, $request->requestId);
+            return;
+        }
 
         try {
             $roleRequest = UserRoleRequest::find($id);
@@ -222,10 +232,17 @@ class RoleRequestsController
                 return;
             }
 
+            $decisionNote = $this->resolveDecisionNote($data['decision_note'] ?? null);
+            $payload = is_array($roleRequest['payload'] ?? null)
+                ? $roleRequest['payload']
+                : (json_decode((string)($roleRequest['payload'] ?? ''), true) ?? []);
+            $payload['review_note'] = $decisionNote;
+
             UserRoleRequest::update($id, [
                 'status' => 'rejected',
                 'reviewed_by_user_id' => $adminId,
                 'reviewed_at' => date('Y-m-d H:i:s'),
+                'payload' => $payload,
             ]);
 
             Notification::create([
@@ -245,6 +262,7 @@ class RoleRequestsController
             AuditService::logFromRequest($request, 'reject_manager_access', 'user_role_request', (string)$id, null, null, [
                 'user_id' => (int)$roleRequest['user_id'],
                 'requested_role' => 'manager',
+                'decision_note' => $decisionNote,
             ]);
 
             Response::success(['message' => 'Role request rejected']);
@@ -415,5 +433,15 @@ class RoleRequestsController
         }
 
         return $url;
+    }
+
+    private function resolveDecisionNote(mixed $value): string
+    {
+        $note = trim((string)($value ?? ''));
+        if ($note !== '') {
+            return $note;
+        }
+
+        return 'No momento seu pedido nao foi aprovado, mas voce pode complementar as informacoes e enviar uma nova solicitacao quando quiser.';
     }
 }

@@ -35,6 +35,11 @@
                 <q-badge :color="getRoleColor(resolvedUserRole)" :label="getRoleLabel(resolvedUserRole)" />
                 <q-badge v-if="user.is_owner" color="amber-8" text-color="white" label="Titular / dono" />
                 <q-badge v-if="user.is_google_managed_profile" color="blue-grey-7" text-color="white" label="Google" />
+                <q-badge
+                  :color="accessState.can_authenticate ? 'positive' : 'negative'"
+                  text-color="white"
+                  :label="accessState.can_authenticate ? 'Acesso permitido' : 'Acesso bloqueado'"
+                />
               </div>
               <p v-if="user.is_google_managed_profile" class="profile-hint">
                 Nome e email vindos do Google ficam bloqueados para edicao nesta tela.
@@ -46,6 +51,85 @@
             :color="normalizeBoolean(user.is_active) ? 'positive' : 'negative'"
             :label="normalizeBoolean(user.is_active) ? 'Ativo' : 'Inativo'"
           />
+        </div>
+      </div>
+
+      <div class="soft-card q-mb-lg">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title section-title--compact">Controle de acesso</h2>
+            <p class="section-copy">Use o ambiente para fechar staging e o painel admin para agir sem deploy.</p>
+          </div>
+        </div>
+
+        <div class="detail-grid detail-grid--wide">
+          <div class="detail-item detail-item--boxed">
+            <span class="detail-label">Acesso final</span>
+            <span class="detail-value">{{ accessState.can_authenticate ? 'Permitido' : 'Bloqueado' }}</span>
+            <small v-if="finalAccessMessage" class="detail-help">{{ finalAccessMessage }}</small>
+          </div>
+          <div class="detail-item detail-item--boxed">
+            <span class="detail-label">Regra do ambiente</span>
+            <span class="detail-value">{{ environmentState.label }}</span>
+            <small v-if="environmentState.reason" class="detail-help">{{ environmentState.reason }}</small>
+          </div>
+          <div class="detail-item detail-item--boxed">
+            <span class="detail-label">Status interno</span>
+            <span class="detail-value">{{ systemState.label }}</span>
+            <small v-if="systemState.blocked_reason" class="detail-help">{{ systemState.blocked_reason }}</small>
+          </div>
+          <div class="detail-item detail-item--boxed">
+            <span class="detail-label">Bloqueado por</span>
+            <span class="detail-value">{{ blockedByLabel }}</span>
+            <small v-if="systemState.blocked_at" class="detail-help">{{ formatDateTime(systemState.blocked_at) }}</small>
+          </div>
+        </div>
+
+        <div class="access-actions q-mt-md">
+          <q-btn
+            v-if="canBlockAccess"
+            color="negative"
+            icon="block"
+            label="Bloquear acesso"
+            no-caps
+            :loading="blockingUser"
+            @click="showBlockDialog = true"
+          />
+          <q-btn
+            v-if="canUnblockAccess"
+            color="positive"
+            icon="lock_open"
+            label="Liberar acesso"
+            no-caps
+            :loading="unblockingUser"
+            @click="unblockUserAccess"
+          />
+          <q-btn
+            v-if="canRevokeSessions"
+            outline
+            color="warning"
+            icon="logout"
+            label="Encerrar sessoes"
+            no-caps
+            :loading="revokingSessions"
+            @click="showRevokeSessionsDialog = true"
+          />
+          <q-btn
+            v-if="showDeleteAction"
+            outline
+            color="negative"
+            icon="delete_forever"
+            label="Excluir cadastro"
+            no-caps
+            :disable="!canDeleteUser"
+            :loading="deletingUser"
+            @click="showDeleteDialog = true"
+          />
+        </div>
+
+        <div v-if="deleteBlockers.length" class="access-blockers q-mt-md">
+          <span class="detail-label">Bloqueios para exclusao</span>
+          <p v-for="blocker in deleteBlockers" :key="blocker">{{ blocker }}</p>
         </div>
       </div>
 
@@ -145,7 +229,9 @@
                   </div>
                   <div class="list-item-details">
                     <span class="list-item-name">{{ establishment.establishment_name }}</span>
-                    <span class="list-item-meta">{{ establishment.business_name || 'Sem negocio' }} | {{ getContextRoleLabel(establishment.role) }}</span>
+                    <span class="list-item-meta">
+                      {{ establishment.business_name || 'Sem negocio' }} | {{ getContextRoleLabel(establishment.role) }}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -246,8 +332,22 @@
           <q-input v-model="editForm.name" outlined dense label="Nome" :disable="!editableFields.name" />
           <q-input v-model="editForm.email" outlined dense label="Email" class="q-mt-md" :disable="!editableFields.email" />
           <q-input v-model="editForm.phone" outlined dense label="Telefone" class="q-mt-md" :disable="!editableFields.phone" />
-          <q-input v-model="editForm.address_line_1" outlined dense label="Endereco linha 1" class="q-mt-md" :disable="!editableFields.address_line_1" />
-          <q-input v-model="editForm.address_line_2" outlined dense label="Endereco linha 2" class="q-mt-md" :disable="!editableFields.address_line_2" />
+          <q-input
+            v-model="editForm.address_line_1"
+            outlined
+            dense
+            label="Endereco linha 1"
+            class="q-mt-md"
+            :disable="!editableFields.address_line_1"
+          />
+          <q-input
+            v-model="editForm.address_line_2"
+            outlined
+            dense
+            label="Endereco linha 2"
+            class="q-mt-md"
+            :disable="!editableFields.address_line_2"
+          />
           <q-select
             v-model="editForm.role"
             outlined
@@ -259,11 +359,76 @@
             :options="roleOptions"
             :disable="!editableFields.role || roleOptions.length === 0"
           />
-          <q-toggle v-model="editForm.is_active" class="q-mt-md" label="Usuario ativo" :disable="!editableFields.is_active" />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" no-caps @click="showEditDialog = false" />
           <q-btn color="primary" label="Salvar" no-caps :loading="saving" @click="saveUser" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showBlockDialog" persistent>
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-head">
+          <h3>Bloquear acesso</h3>
+          <q-btn flat round dense icon="close" @click="closeBlockDialog" />
+        </q-card-section>
+        <q-card-section>
+          <p class="section-copy">O usuario perde acesso imediato ao sistema e os refresh tokens sao revogados.</p>
+          <q-input
+            v-model="blockReason"
+            outlined
+            dense
+            type="textarea"
+            autogrow
+            maxlength="500"
+            label="Motivo do bloqueio"
+            placeholder="Ex: ambiente de testes fechado, auditoria pendente, acesso indevido."
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" no-caps @click="closeBlockDialog" />
+          <q-btn color="negative" label="Confirmar bloqueio" no-caps :loading="blockingUser" @click="blockUserAccess" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showRevokeSessionsDialog">
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-head">
+          <h3>Encerrar sessoes</h3>
+          <q-btn flat round dense icon="close" @click="showRevokeSessionsDialog = false" />
+        </q-card-section>
+        <q-card-section>
+          <p>Deseja revogar todas as sessoes ativas deste usuario?</p>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" no-caps @click="showRevokeSessionsDialog = false" />
+          <q-btn color="warning" label="Encerrar" no-caps :loading="revokingSessions" @click="revokeSessions" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showDeleteDialog">
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-head">
+          <h3>Excluir cadastro</h3>
+          <q-btn flat round dense icon="close" @click="showDeleteDialog = false" />
+        </q-card-section>
+        <q-card-section>
+          <p>Deseja excluir o cadastro de <strong>{{ user?.name }}</strong>?</p>
+          <p class="section-copy">
+            A exclusao remove o usuario e revoga as sessoes ativas. Titulares de negocio ou usuarios com plano ativo
+            continuam protegidos.
+          </p>
+          <div v-if="deleteBlockers.length" class="access-blockers q-mt-md">
+            <span class="detail-label">Bloqueios atuais</span>
+            <p v-for="blocker in deleteBlockers" :key="`dialog-${blocker}`">{{ blocker }}</p>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" no-caps @click="showDeleteDialog = false" />
+          <q-btn color="negative" label="Excluir" no-caps :disable="!canDeleteUser" :loading="deletingUser" @click="deleteUserRecord" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -292,46 +457,90 @@ export default defineComponent({
     const loading = ref(true)
     const saving = ref(false)
     const savingPlan = ref(false)
+    const blockingUser = ref(false)
+    const unblockingUser = ref(false)
+    const revokingSessions = ref(false)
+    const deletingUser = ref(false)
+
     const showEditDialog = ref(false)
+    const showBlockDialog = ref(false)
+    const showRevokeSessionsDialog = ref(false)
+    const showDeleteDialog = ref(false)
+
     const selectedPlanId = ref(null)
+    const blockReason = ref('')
     const editForm = ref({
       name: '',
       email: '',
       phone: '',
       address_line_1: '',
       address_line_2: '',
-      role: null,
-      is_active: true
+      role: null
     })
 
+    const normalizeBoolean = (value) => value === true || value === 1 || value === '1'
+
     const editableFields = computed(() => user.value?.editable_fields || {})
+    const accessState = computed(() => user.value?.access_state || {})
+    const environmentState = computed(() => accessState.value.environment || { label: 'Sem regra', reason: null })
+    const systemState = computed(() => accessState.value.system || { label: 'Nao informado', blocked_reason: null, blocked_at: null })
+    const managementSummary = computed(() => user.value?.management_summary || {})
+    const deleteBlockers = computed(() => managementSummary.value.delete_blockers || [])
+
     const resolvedUserRole = computed(() => {
       if (user.value?.role === 'admin' || user.value?.effective_role === 'admin') return 'admin'
       return user.value?.effective_role || user.value?.role || null
     })
+
     const roleOptions = computed(() => user.value?.role_options || [])
-    const planOptions = computed(() => (plans.value || []).filter((plan) => normalizeBoolean(plan.is_active)).map((plan) => ({
-      label: plan.name,
-      value: plan.id
-    })))
+    const planOptions = computed(() => (
+      (plans.value || [])
+        .filter((plan) => normalizeBoolean(plan.is_active))
+        .map((plan) => ({
+          label: plan.name,
+          value: plan.id
+        }))
+    ))
+
     const canEditProfile = computed(() => Boolean(
       editableFields.value.name ||
       editableFields.value.email ||
       editableFields.value.phone ||
       editableFields.value.address_line_1 ||
       editableFields.value.address_line_2 ||
-      editableFields.value.role ||
-      editableFields.value.is_active
+      editableFields.value.role
     ))
     const canEditPlan = computed(() => Boolean(editableFields.value.plan))
+    const canBlockAccess = computed(() => Boolean(editableFields.value.block_access))
+    const canUnblockAccess = computed(() => Boolean(editableFields.value.unblock_access))
+    const canRevokeSessions = computed(() => Boolean(editableFields.value.revoke_sessions))
+    const canDeleteUser = computed(() => Boolean(managementSummary.value.can_delete))
+    const canManageUser = computed(() => Boolean(
+      canEditProfile.value ||
+      canEditPlan.value ||
+      canBlockAccess.value ||
+      canUnblockAccess.value ||
+      canRevokeSessions.value ||
+      editableFields.value.delete_user
+    ))
+    const showDeleteAction = computed(() => canManageUser.value && (canDeleteUser.value || deleteBlockers.value.length > 0))
+    const blockedByLabel = computed(() => accessState.value.blocked_by_name || accessState.value.blocked_by_email || 'Nao informado')
+    const finalAccessMessage = computed(() => {
+      if (accessState.value.can_authenticate) return null
+      return environmentState.value.reason || systemState.value.reason || systemState.value.blocked_reason || null
+    })
 
-    const normalizeBoolean = (value) => value === true || value === 1 || value === '1'
     const notifyError = (error, fallback) => {
       $q.notify({ type: 'negative', message: error.response?.data?.error?.message || fallback })
     }
 
+    const notifySuccess = (message) => {
+      $q.notify({ type: 'positive', message })
+    }
+
     const fetchUser = async () => {
       loading.value = true
+
       try {
         const response = await api.get(`/admin/users/${route.params.id}`)
         if (!response.data?.success) throw new Error('invalid_response')
@@ -370,20 +579,21 @@ export default defineComponent({
 
     const openEdit = () => {
       if (!user.value) return
+
       editForm.value = {
         name: user.value.name || '',
         email: user.value.email || '',
         phone: user.value.phone || '',
         address_line_1: user.value.address_line_1 || '',
         address_line_2: user.value.address_line_2 || '',
-        role: resolvedUserRole.value,
-        is_active: normalizeBoolean(user.value.is_active)
+        role: resolvedUserRole.value
       }
       showEditDialog.value = true
     }
 
     const saveUser = async () => {
       saving.value = true
+
       try {
         const payload = {
           name: editForm.value.name,
@@ -391,12 +601,11 @@ export default defineComponent({
           phone: editForm.value.phone,
           address_line_1: editForm.value.address_line_1,
           address_line_2: editForm.value.address_line_2,
-          role: editForm.value.role,
-          is_active: editForm.value.is_active
+          role: editForm.value.role
         }
 
         await api.put(`/admin/users/${route.params.id}`, payload)
-        $q.notify({ type: 'positive', message: 'Usuario atualizado com sucesso.' })
+        notifySuccess('Usuario atualizado com sucesso.')
         showEditDialog.value = false
         await fetchUser()
       } catch (error) {
@@ -408,10 +617,12 @@ export default defineComponent({
 
     const savePlan = async () => {
       if (!selectedPlanId.value) return
+
       savingPlan.value = true
+
       try {
         await api.put(`/admin/users/${route.params.id}/plan`, { plan_id: selectedPlanId.value })
-        $q.notify({ type: 'positive', message: 'Plano atualizado com sucesso.' })
+        notifySuccess('Plano atualizado com sucesso.')
         await fetchUser()
       } catch (error) {
         notifyError(error, 'Erro ao atualizar plano.')
@@ -420,23 +631,134 @@ export default defineComponent({
       }
     }
 
+    const closeBlockDialog = () => {
+      blockReason.value = ''
+      showBlockDialog.value = false
+    }
+
+    const blockUserAccess = async () => {
+      blockingUser.value = true
+
+      try {
+        const response = await api.post(`/admin/users/${route.params.id}/block`, {
+          reason: blockReason.value.trim() || null
+        })
+        notifySuccess(response.data?.data?.message || 'Acesso bloqueado com sucesso.')
+        closeBlockDialog()
+        await fetchUser()
+      } catch (error) {
+        notifyError(error, 'Erro ao bloquear acesso do usuario.')
+      } finally {
+        blockingUser.value = false
+      }
+    }
+
+    const unblockUserAccess = async () => {
+      unblockingUser.value = true
+
+      try {
+        const response = await api.post(`/admin/users/${route.params.id}/unblock`)
+        notifySuccess(response.data?.data?.message || 'Acesso liberado com sucesso.')
+        await fetchUser()
+      } catch (error) {
+        notifyError(error, 'Erro ao liberar acesso do usuario.')
+      } finally {
+        unblockingUser.value = false
+      }
+    }
+
+    const revokeSessions = async () => {
+      revokingSessions.value = true
+
+      try {
+        const response = await api.post(`/admin/users/${route.params.id}/revoke-sessions`)
+        notifySuccess(response.data?.data?.message || 'Sessoes encerradas com sucesso.')
+        showRevokeSessionsDialog.value = false
+        await fetchUser()
+      } catch (error) {
+        notifyError(error, 'Erro ao encerrar sessoes do usuario.')
+      } finally {
+        revokingSessions.value = false
+      }
+    }
+
+    const deleteUserRecord = async () => {
+      if (!canDeleteUser.value) {
+        showDeleteDialog.value = false
+        return
+      }
+
+      deletingUser.value = true
+
+      try {
+        const response = await api.delete(`/admin/users/${route.params.id}`)
+        notifySuccess(response.data?.data?.message || 'Cadastro excluido com sucesso.')
+        showDeleteDialog.value = false
+        router.push('/app/admin')
+      } catch (error) {
+        const blockers = error.response?.data?.error?.details?.blockers
+        if (Array.isArray(blockers) && blockers.length > 0 && user.value) {
+          user.value = {
+            ...user.value,
+            management_summary: {
+              ...(user.value.management_summary || {}),
+              can_delete: false,
+              delete_blockers: blockers
+            },
+            editable_fields: {
+              ...(user.value.editable_fields || {}),
+              delete_user: false
+            }
+          }
+        }
+        notifyError(error, 'Erro ao excluir cadastro do usuario.')
+      } finally {
+        deletingUser.value = false
+      }
+    }
+
     const goBack = () => router.push('/app/admin')
 
-    const getInitials = (name) => name ? name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() : '?'
+    const getInitials = (name) => (
+      name
+        ? name
+          .split(' ')
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0])
+          .join('')
+          .toUpperCase()
+        : '?'
+    )
     const getRoleLabel = (role) => ({ admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', client: 'Cliente' }[role] || role || '-')
     const getContextRoleLabel = (role) => ({ owner: 'Dono', manager: 'Gerente', professional: 'Profissional' }[role] || role || '-')
     const getRoleColor = (role) => ({ admin: 'deep-orange', manager: 'primary', professional: 'teal', client: 'grey-7' }[role] || 'grey-7')
-    const formatDateTime = (value) => value ? new Date(value).toLocaleString('pt-BR') : '-'
+    const formatDateTime = (value) => (value ? new Date(value).toLocaleString('pt-BR') : '-')
     const formatLimit = (value) => (value === null || value === undefined || value === '' ? 'Ilimitado' : value)
     const formatSubscriptionStatus = (value) => ({ active: 'Ativo', past_due: 'Em atraso', cancelled: 'Cancelado' }[value] || 'Sem assinatura')
 
     onMounted(fetchUser)
 
     return {
+      accessState,
+      blockReason,
+      blockUserAccess,
+      blockedByLabel,
+      blockingUser,
+      canBlockAccess,
+      canDeleteUser,
       canEditPlan,
       canEditProfile,
+      canRevokeSessions,
+      canUnblockAccess,
+      closeBlockDialog,
+      deleteBlockers,
+      deleteUserRecord,
+      deletingUser,
       editableFields,
       editForm,
+      environmentState,
+      finalAccessMessage,
       formatDateTime,
       formatLimit,
       formatSubscriptionStatus,
@@ -451,14 +773,23 @@ export default defineComponent({
       openEdit,
       planAssignment,
       planOptions,
-      roleOptions,
       resolvedUserRole,
+      revokeSessions,
+      revokingSessions,
+      roleOptions,
       savePlan,
       saveUser,
       saving,
       savingPlan,
       selectedPlanId,
+      showBlockDialog,
+      showDeleteAction,
+      showDeleteDialog,
       showEditDialog,
+      showRevokeSessionsDialog,
+      systemState,
+      unblockUserAccess,
+      unblockingUser,
       user
     }
   }
@@ -476,7 +807,8 @@ export default defineComponent({
 .profile-hero__identity,
 .profile-badges,
 .plan-edit-row,
-.plan-card__header {
+.plan-card__header,
+.access-actions {
   display: flex;
   gap: 1rem;
 }
@@ -524,7 +856,8 @@ export default defineComponent({
   color: var(--qm-text-primary);
 }
 
-.profile-badges {
+.profile-badges,
+.access-actions {
   flex-wrap: wrap;
   align-items: center;
 }
@@ -532,7 +865,8 @@ export default defineComponent({
 .profile-hint,
 .section-copy,
 .membership-column__header p,
-.plan-card__eyebrow {
+.plan-card__eyebrow,
+.detail-help {
   color: var(--qm-text-muted);
 }
 
@@ -550,6 +884,24 @@ export default defineComponent({
   border: 1px solid var(--qm-border);
   border-radius: 14px;
   background: var(--qm-bg-secondary);
+}
+
+.detail-help {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.access-blockers {
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--q-negative) 22%, var(--qm-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--q-negative) 7%, var(--qm-bg-secondary));
+}
+
+.access-blockers p {
+  margin: 0.35rem 0 0;
+  color: var(--qm-text-secondary);
 }
 
 .memberships-grid {

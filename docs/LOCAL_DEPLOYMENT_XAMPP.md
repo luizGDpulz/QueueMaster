@@ -68,6 +68,13 @@ GOOGLE_CLIENT_ID=seu-client-id.apps.googleusercontent.com
 
 # ⚠️ IMPORTANTE: Configure SEU email para ser admin
 SUPER_ADMIN_EMAIL=seu.email@gmail.com
+
+# Opcional: feche o ambiente para testes/homologacao
+# Se tudo ficar vazio, o ambiente NAO bloqueia login
+AUTH_ALLOWED_EMAILS=
+AUTH_BLOCKED_EMAILS=
+AUTH_ALLOWED_EMAIL_DOMAINS=
+AUTH_BLOCKED_EMAIL_DOMAINS=
 ```
 
 **Frontend** (`web/queuemaster/.env`):
@@ -105,6 +112,34 @@ Include conf/extra/httpd-vhosts.conf
 ```
 
 **Reinicie o Apache** no XAMPP Control Panel.
+
+### Controle de login por e-mail/domínio
+
+Use os envs acima apenas quando quiser fechar o ambiente local ou de homologação.
+
+Ordem de precedência:
+
+1. `AUTH_BLOCKED_EMAILS` sempre bloqueia.
+2. `AUTH_ALLOWED_EMAILS` libera explicitamente e vence domínio bloqueado.
+3. `AUTH_BLOCKED_EMAIL_DOMAINS` bloqueia se o e-mail não foi liberado antes.
+4. `AUTH_ALLOWED_EMAIL_DOMAINS` libera se o e-mail/domínio não foi bloqueado antes.
+5. Se existir allow list e nada casar, o login é negado.
+6. Se nada estiver configurado, ninguém é bloqueado pelo ambiente.
+
+Casos de uso:
+
+- Liberar só você e QA: `AUTH_ALLOWED_EMAILS=voce@gmail.com,qa@gmail.com`
+- Liberar só domínio corporativo: `AUTH_ALLOWED_EMAIL_DOMAINS=empresa.com`
+- Bloquear Gmail: `AUTH_BLOCKED_EMAIL_DOMAINS=gmail.com`
+- Bloquear um e-mail específico mesmo em domínio liberado: `AUTH_BLOCKED_EMAILS=teste@empresa.com`
+- Liberar um e-mail específico mesmo com domínio bloqueado: `AUTH_ALLOWED_EMAILS=voce@gmail.com`
+
+Depois que o usuário já existe, o controle operacional deve ser feito na tela admin de detalhes do usuário:
+
+- Bloquear acesso
+- Liberar acesso
+- Encerrar sessões
+- Excluir cadastro com salvaguardas
 
 ### 6. Execute as Migrations
 

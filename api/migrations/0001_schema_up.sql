@@ -19,14 +19,26 @@ CREATE TABLE IF NOT EXISTS users (
   avatar_base64 MEDIUMTEXT NULL COMMENT 'Avatar image stored as base64 data URI',
   email_verified BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Email verified by provider',
   phone VARCHAR(20) NULL COMMENT 'Contact phone number',
+  address_line_1 VARCHAR(255) NULL COMMENT 'Primary address line',
+  address_line_2 VARCHAR(255) NULL COMMENT 'Secondary address line',
   role ENUM('client','attendant','professional','manager','admin') NOT NULL DEFAULT 'client',
+  manager_access_granted BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Administrative grant for manager access',
+  manager_access_granted_at TIMESTAMP NULL DEFAULT NULL COMMENT 'When manager access was granted',
   is_active BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Account active status',
+  login_blocked_at TIMESTAMP NULL DEFAULT NULL COMMENT 'When login was blocked internally',
+  login_block_reason VARCHAR(500) NULL COMMENT 'Administrative reason for access block',
+  login_blocked_by_user_id BIGINT UNSIGNED NULL COMMENT 'Admin who blocked login access',
   last_login_at TIMESTAMP NULL COMMENT 'Last successful login',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_users_login_blocked_by_user
+    FOREIGN KEY (login_blocked_by_user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_users_email (email),
   INDEX idx_users_google_id (google_id),
-  INDEX idx_users_role (role)
+  INDEX idx_users_role (role),
+  INDEX idx_users_active_blocked (is_active, login_blocked_at),
+  INDEX idx_users_login_blocked_by (login_blocked_by_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS businesses (
@@ -458,6 +470,82 @@ CREATE TABLE IF NOT EXISTS business_invitations (
   INDEX idx_bi_status (status),
   INDEX idx_bi_business_status (business_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_role_requests (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  requested_role ENUM('manager') NOT NULL,
+  status ENUM('pending','accepted','rejected','cancelled') NOT NULL DEFAULT 'pending',
+  message TEXT NULL,
+  payload JSON NULL,
+  reviewed_by_user_id BIGINT UNSIGNED NULL,
+  reviewed_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user_role_requests_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_user_role_requests_reviewed_by
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  INDEX idx_user_role_requests_user (user_id),
+  INDEX idx_user_role_requests_status (status),
+  INDEX idx_user_role_requests_role_status (requested_role, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_plan_subscriptions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  plan_id BIGINT UNSIGNED NOT NULL,
+  status ENUM('active','past_due','cancelled') NOT NULL DEFAULT 'active',
+  starts_at DATETIME NOT NULL,
+  ends_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user_plan_subscriptions_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_user_plan_subscriptions_plan
+    FOREIGN KEY (plan_id) REFERENCES plans(id)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  INDEX idx_user_plan_subscriptions_user (user_id),
+  INDEX idx_user_plan_subscriptions_status (status),
+  INDEX idx_user_plan_subscriptions_user_status (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO user_plan_subscriptions (
+  user_id,
+  plan_id,
+  status,
+  starts_at,
+  ends_at,
+  created_at,
+  updated_at
+)
+SELECT
+  b.owner_user_id,
+  bs.plan_id,
+  bs.status,
+  bs.starts_at,
+  bs.ends_at,
+  bs.created_at,
+  bs.updated_at
+FROM business_subscriptions bs
+JOIN businesses b
+  ON b.id = bs.business_id
+WHERE b.owner_user_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM user_plan_subscriptions ups
+    WHERE ups.user_id = b.owner_user_id
+      AND ups.plan_id = bs.plan_id
+      AND ups.status = bs.status
+      AND ups.starts_at = bs.starts_at
+      AND (
+        (ups.ends_at IS NULL AND bs.ends_at IS NULL)
+        OR ups.ends_at = bs.ends_at
+      )
+  );
 
 INSERT INTO plans (
   name,

@@ -116,35 +116,6 @@
                     <span class="notif-title">{{ notif.title }}</span>
                     <span class="notif-body">{{ notif.body }}</span>
                     <span class="notif-time">{{ formatNotifTime(notif.sent_at || notif.created_at) }}</span>
-
-                    <div
-                      v-if="actionableTypes.has(notif.type) && notif.data?.invitation_id"
-                      class="notif-actions"
-                      @click.stop
-                    >
-                      <q-btn
-                        dense
-                        flat
-                        no-caps
-                        size="sm"
-                        color="positive"
-                        icon="check"
-                        label="Aceitar"
-                        :loading="notificationActionId === notif.id && notificationAction === 'accept'"
-                        @click="handleAcceptNotification(notif)"
-                      />
-                      <q-btn
-                        dense
-                        flat
-                        no-caps
-                        size="sm"
-                        color="negative"
-                        icon="close"
-                        label="Rejeitar"
-                        :loading="notificationActionId === notif.id && notificationAction === 'reject'"
-                        @click="handleRejectNotification(notif)"
-                      />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -188,8 +159,6 @@ export default defineComponent({
     const showNotifications = ref(false)
     const user = ref(null)
     const isDark = ref(false)
-    const notificationActionId = ref(null)
-    const notificationAction = ref('')
 
     const {
       unreadNotifications,
@@ -197,15 +166,12 @@ export default defineComponent({
       unreadLoading,
       previewNotification,
       streamConnected,
-      actionableTypes,
       getNotifIcon,
       formatNotifTime,
       fetchPreferences,
       fetchUnreadNotifications,
       markAllNotificationsRead,
       openNotification,
-      acceptInvitation,
-      rejectInvitation,
       connectStream,
       disconnectStream,
     } = useNotificationsCenter()
@@ -272,28 +238,6 @@ export default defineComponent({
         await openNotification(router, notification)
       } finally {
         showNotifications.value = false
-      }
-    }
-
-    const handleAcceptNotification = async (notification) => {
-      notificationActionId.value = notification.id
-      notificationAction.value = 'accept'
-      try {
-        await acceptInvitation(notification)
-      } finally {
-        notificationActionId.value = null
-        notificationAction.value = ''
-      }
-    }
-
-    const handleRejectNotification = async (notification) => {
-      notificationActionId.value = notification.id
-      notificationAction.value = 'reject'
-      try {
-        await rejectInvitation(notification)
-      } finally {
-        notificationActionId.value = null
-        notificationAction.value = ''
       }
     }
 
@@ -389,17 +333,12 @@ export default defineComponent({
       unreadLoading,
       previewNotification,
       streamConnected,
-      actionableTypes,
       getNotifIcon,
       formatNotifTime,
       toggleNotifications,
       handleNotificationClick,
-      handleAcceptNotification,
-      handleRejectNotification,
       handleMarkAllRead,
       openInbox,
-      notificationActionId,
-      notificationAction,
       currentPageTitle,
       breadcrumbDetail,
       breadcrumbParentPath,

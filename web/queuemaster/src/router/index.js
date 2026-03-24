@@ -26,6 +26,34 @@ const resolveAccessRole = (user) => {
   return user.effective_role || user.role || null
 }
 
+const parseStoredUser = () => {
+  const rawUser = localStorage.getItem('user')
+  if (!rawUser) return null
+
+  try {
+    return JSON.parse(rawUser)
+  } catch {
+    localStorage.removeItem('user')
+    return null
+  }
+}
+
+const fetchFreshUser = async () => {
+  try {
+    const response = await api.get('/auth/me')
+    const user = response.data?.data?.user || null
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user))
+    } else {
+      localStorage.removeItem('user')
+    }
+    return user
+  } catch {
+    localStorage.removeItem('user')
+    return null
+  }
+}
+
 export default defineRouter(function (/* { store, ssrContext } */) {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
@@ -34,7 +62,17 @@ export default defineRouter(function (/* { store, ssrContext } */) {
       : createWebHashHistory
 
   const Router = createRouter({
-    scrollBehavior: () => ({ left: 0, top: 0 }),
+    scrollBehavior: (to, from, savedPosition) => {
+      if (savedPosition) {
+        return savedPosition
+      }
+
+      if (to.path === from.path) {
+        return false
+      }
+
+      return { left: 0, top: 0 }
+    },
     routes,
 
     // Leave this as is and make changes in quasar.conf.js instead!
@@ -92,21 +130,16 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     const requiredRoles = Array.isArray(to.meta?.roles) ? to.meta.roles : null
 
     if (requiredRoles) {
-      const rawUser = localStorage.getItem('user')
-      if (!rawUser) {
-        next('/login')
-        return
+      let user = parseStoredUser()
+      let accessRole = resolveAccessRole(user)
+
+      if (!requiredRoles.includes(accessRole)) {
+        user = await fetchFreshUser()
+        accessRole = resolveAccessRole(user)
       }
 
-      try {
-        const user = JSON.parse(rawUser)
-        const accessRole = resolveAccessRole(user)
-        if (!requiredRoles.includes(accessRole)) {
-          next('/app')
-          return
-        }
-      } catch {
-        next('/login')
+      if (!requiredRoles.includes(accessRole)) {
+        next(user ? '/app' : '/login')
         return
       }
     }

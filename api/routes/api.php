@@ -828,6 +828,18 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
+                $router->post('/batch-read', function ($request) {
+                    $controller = new NotificationsController();
+                    $controller->batchRead($request);
+                }
+                );
+
+                $router->post('/batch-delete', function ($request) {
+                    $controller = new NotificationsController();
+                    $controller->batchDelete($request);
+                }
+                );
+
                 // POST /api/v1/notifications/fcm-token — Save or update device token
                 $router->post('/fcm-token', function ($request) {
                     $controller = new NotificationsController();
@@ -1101,6 +1113,30 @@ $router->group('/api/v1', function ($router) {
                 $router->put('/users/{id}', function ($request) {
                     $controller = new AdminController();
                     $controller->updateUserProfile($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
+
+                $router->post('/users/{id}/block', function ($request) {
+                    $controller = new AdminController();
+                    $controller->blockUser($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
+
+                $router->post('/users/{id}/unblock', function ($request) {
+                    $controller = new AdminController();
+                    $controller->unblockUser($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
+
+                $router->post('/users/{id}/revoke-sessions', function ($request) {
+                    $controller = new AdminController();
+                    $controller->revokeUserSessions($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
+
+                $router->delete('/users/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $controller->deleteUser($request, (int)$request->getParam('id'));
                 }
                     , [new RoleMiddleware(['admin'])]);
 

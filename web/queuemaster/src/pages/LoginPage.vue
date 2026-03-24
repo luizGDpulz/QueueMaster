@@ -271,11 +271,11 @@ export default defineComponent({
         console.error('Erro no login:', error)
         
         if (error.response?.status === 403) {
-          errorMessage.value = 'Email não verificado pelo Google'
+          errorMessage.value = error.response?.data?.error?.message || 'Acesso não autorizado para esta conta.'
         } else if (error.response?.status === 401) {
           errorMessage.value = 'Token inválido. Tente novamente.'
         } else {
-          errorMessage.value = error.response?.data?.message || 'Erro ao fazer login'
+          errorMessage.value = error.response?.data?.error?.message || error.response?.data?.message || 'Erro ao fazer login'
         }
       } finally {
         loading.value = false
