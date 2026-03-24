@@ -145,7 +145,7 @@
             <q-tab name="reports" icon="analytics" label="Relatórios" no-caps />
           </q-tabs>
 
-          <q-separator />
+          <q-separator style="margin-top: 10px;" />
 
           <q-tab-panels v-model="mainTab" animated class="tab-panels">
 
@@ -2689,7 +2689,14 @@ export default defineComponent({
 
 // -- Main card & tabs --
 .main-card { padding: 0; overflow: hidden; }
-.main-tabs { padding: 0.5rem 1rem 0; }
+.main-tabs {
+  margin-top: 10px;
+  padding: 0 1rem;
+
+  :deep(.q-tab__label) {
+    font-weight: 500;
+  }
+}
 
 .flow-sub-tabs {
   padding: 0 0.5rem;

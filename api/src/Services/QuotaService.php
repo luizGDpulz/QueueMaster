@@ -2,13 +2,10 @@
 
 namespace QueueMaster\Services;
 
-use QueueMaster\Models\Business;
 use QueueMaster\Models\BusinessUser;
-use QueueMaster\Models\BusinessSubscription;
-use QueueMaster\Models\Plan;
 use QueueMaster\Models\Establishment;
 use QueueMaster\Models\Professional;
-use QueueMaster\Utils\Logger;
+use QueueMaster\Models\User;
 
 /**
  * QuotaService - SaaS Plan Limit Enforcement
@@ -18,19 +15,28 @@ use QueueMaster\Utils\Logger;
  */
 class QuotaService
 {
+    private static function planService(): PlanService
+    {
+        return new PlanService();
+    }
+
     /**
      * Check if a business can create more establishments
      */
     public static function canCreateEstablishment(int $businessId): array
     {
-
-        $plan = self::getActivePlan($businessId);
-        if (!$plan) {
-            return ['allowed' => true]; // No plan = no limits
+        $planResult = self::resolvePlanForBusiness($businessId);
+        if (($planResult['allowed'] ?? false) === true) {
+            return ['allowed' => true];
         }
 
+        if (!isset($planResult['plan'])) {
+            return $planResult;
+        }
+
+        $plan = $planResult['plan'];
         if ($plan['max_establishments_per_business'] === null) {
-            return ['allowed' => true]; // Unlimited
+            return ['allowed' => true];
         }
 
         $currentCount = count(Establishment::all(['business_id' => $businessId]));
@@ -51,40 +57,30 @@ class QuotaService
      */
     public static function canCreateBusiness(int $ownerUserId): array
     {
-
-        // Count existing businesses owned by user
-        $links = BusinessUser::getBusinessesForUser($ownerUserId);
-        $ownedCount = 0;
-        foreach ($links as $link) {
-            if ($link['role'] === 'owner') {
-                $ownedCount++;
-            }
-        }
-
-        // Check the most permissive plan among owned businesses
-        $maxAllowed = 1; // Default free tier
-        foreach ($links as $link) {
-            if ($link['role'] !== 'owner')
-                continue;
-            $plan = self::getActivePlan($link['business_id']);
-            if ($plan && $plan['max_businesses'] !== null) {
-                $maxAllowed = max($maxAllowed, $plan['max_businesses']);
-            }
-            elseif ($plan && $plan['max_businesses'] === null) {
-                return ['allowed' => true]; // Unlimited plan
-            }
-        }
-
-        // First business is always allowed
-        if ($ownedCount === 0) {
+        $owner = User::find($ownerUserId);
+        if (($owner['role'] ?? null) === 'admin') {
             return ['allowed' => true];
         }
 
-        if ($ownedCount >= $maxAllowed) {
+        $plan = self::getApplicablePlanForUser($ownerUserId);
+        if (!$plan) {
+            return self::planRequiredResponse();
+        }
+
+        $ownedCount = count(array_filter(
+            BusinessUser::getBusinessesForUser($ownerUserId),
+            static fn(array $link): bool => ($link['role'] ?? null) === BusinessUser::ROLE_OWNER
+        ));
+
+        if ($plan['max_businesses'] === null) {
+            return ['allowed' => true];
+        }
+
+        if ($ownedCount >= (int)$plan['max_businesses']) {
             return [
                 'allowed' => false,
                 'error' => 'quota_exceeded',
-                'message' => 'Plan limit: max_businesses_reached (' . $maxAllowed . ')',
+                'message' => 'Plan limit: max_businesses_reached (' . $plan['max_businesses'] . ')',
             ];
         }
 
@@ -96,12 +92,16 @@ class QuotaService
      */
     public static function canAddManager(int $businessId): array
     {
-
-        $plan = self::getActivePlan($businessId);
-        if (!$plan) {
+        $planResult = self::resolvePlanForBusiness($businessId);
+        if (($planResult['allowed'] ?? false) === true) {
             return ['allowed' => true];
         }
 
+        if (!isset($planResult['plan'])) {
+            return $planResult;
+        }
+
+        $plan = $planResult['plan'];
         if ($plan['max_managers'] === null) {
             return ['allowed' => true];
         }
@@ -124,17 +124,21 @@ class QuotaService
      */
     public static function canAddProfessional(int $establishmentId): array
     {
-
         $establishment = Establishment::find($establishmentId);
         if (!$establishment || !$establishment['business_id']) {
-            return ['allowed' => true]; // No business linked = no plan limits
-        }
-
-        $plan = self::getActivePlan($establishment['business_id']);
-        if (!$plan) {
             return ['allowed' => true];
         }
 
+        $planResult = self::resolvePlanForBusiness((int)$establishment['business_id']);
+        if (($planResult['allowed'] ?? false) === true) {
+            return ['allowed' => true];
+        }
+
+        if (!isset($planResult['plan'])) {
+            return $planResult;
+        }
+
+        $plan = $planResult['plan'];
         if ($plan['max_professionals_per_establishment'] === null) {
             return ['allowed' => true];
         }
@@ -152,16 +156,45 @@ class QuotaService
         return ['allowed' => true];
     }
 
-    /**
-     * Get the active plan for a business
-     */
-    private static function getActivePlan(int $businessId): ?array
+    private static function getApplicablePlanForUser(int $userId): ?array
     {
-        $subscription = BusinessSubscription::getActiveForBusiness($businessId);
-        if (!$subscription) {
-            return null;
+        return self::planService()->getCurrentPlanForUser($userId)
+            ?? self::planService()->getDefaultPlan();
+    }
+
+    private static function resolvePlanForBusiness(int $businessId): array
+    {
+        $holderUserId = self::planService()->getHolderUserIdForBusiness($businessId);
+        if ($holderUserId === null) {
+            return [
+                'allowed' => false,
+                'error' => 'plan_holder_missing',
+                'message' => 'Não foi possível identificar o titular do plano deste negócio.',
+            ];
         }
 
-        return Plan::find($subscription['plan_id']);
+        $holder = User::find($holderUserId);
+        if (($holder['role'] ?? null) === 'admin') {
+            return ['allowed' => true];
+        }
+
+        $plan = self::getApplicablePlanForUser($holderUserId);
+        if (!$plan) {
+            return self::planRequiredResponse();
+        }
+
+        return [
+            'allowed' => false,
+            'plan' => $plan,
+        ];
+    }
+
+    private static function planRequiredResponse(): array
+    {
+        return [
+            'allowed' => false,
+            'error' => 'plan_required',
+            'message' => 'É necessário ter um plano ativo para continuar.',
+        ];
     }
 }

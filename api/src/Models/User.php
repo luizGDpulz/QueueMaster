@@ -420,6 +420,18 @@ class User
             }
         }
 
+        if (isset($data['phone']) && strlen((string)$data['phone']) > 20) {
+            $errors['phone'] = 'Phone must not exceed 20 characters';
+        }
+
+        if (isset($data['address_line_1']) && strlen((string)$data['address_line_1']) > 255) {
+            $errors['address_line_1'] = 'Address line 1 must not exceed 255 characters';
+        }
+
+        if (isset($data['address_line_2']) && strlen((string)$data['address_line_2']) > 255) {
+            $errors['address_line_2'] = 'Address line 2 must not exceed 255 characters';
+        }
+
         return $errors;
     }
 
@@ -433,11 +445,14 @@ class User
     {
         // Check before unsetting
         $hasAvatar = !empty($user['avatar_base64'] ?? null) || !empty($user['avatar_url'] ?? null);
+        $isGoogleManaged = !empty($user['google_id'] ?? null);
 
         unset($user['google_id']); // Don't expose Google ID to frontend
         unset($user['avatar_base64']); // Too large for JSON — use GET /users/{id}/avatar
 
         $user['has_avatar'] = $hasAvatar;
+        $user['auth_provider'] = $isGoogleManaged ? 'google' : 'local';
+        $user['is_google_managed_profile'] = $isGoogleManaged;
 
         return $user;
     }

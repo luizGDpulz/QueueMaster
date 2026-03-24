@@ -32,8 +32,14 @@ const actionableTypes = new Set(['business_invitation'])
 const notificationTypeOptions = [
   { label: 'Todos os tipos', value: '' },
   { label: 'Convites profissionais', value: 'business_invitation' },
+  { label: 'Pedidos de gerência', value: 'manager_role_request' },
+  { label: 'Gerência criada', value: 'manager_request_created' },
+  { label: 'Gerência aprovada', value: 'manager_request_accepted' },
+  { label: 'Gerência recusada', value: 'manager_request_rejected' },
+  { label: 'Solicitações criadas', value: 'professional_request_created' },
   { label: 'Solicitações aprovadas', value: 'invitation_accepted' },
   { label: 'Solicitações recusadas', value: 'invitation_rejected' },
+  { label: 'Perfil cliente', value: 'role_reverted_client' },
   { label: 'Fila', value: 'queue_called' },
   { label: 'Agendamentos', value: 'appointment_reminder' },
 ]
@@ -74,6 +80,12 @@ function applyReadState(id) {
 function getNotifIcon(type) {
   const icons = {
     business_invitation: 'business',
+    manager_role_request: 'admin_panel_settings',
+    manager_request_created: 'assignment_ind',
+    manager_request_accepted: 'verified',
+    manager_request_rejected: 'gpp_bad',
+    professional_request_created: 'assignment_turned_in',
+    role_reverted_client: 'person_off',
     invitation_accepted: 'check_circle',
     invitation_rejected: 'cancel',
     appointment_reminder: 'event',
@@ -246,6 +258,12 @@ function resolveNotificationRoute(notification) {
 
   if (notification.type === 'business_invitation' || notification.type === 'invitation_accepted' || notification.type === 'invitation_rejected') {
     return '/app/businesses'
+  }
+  if (notification.type === 'professional_request_created') {
+    return '/app/settings?tab=roles'
+  }
+  if (notification.type === 'manager_role_request' || notification.type === 'manager_request_created' || notification.type === 'manager_request_accepted' || notification.type === 'manager_request_rejected' || notification.type === 'role_reverted_client') {
+    return '/app/settings?tab=roles'
   }
   if (notification.type === 'appointment_reminder') {
     return '/app/appointments'

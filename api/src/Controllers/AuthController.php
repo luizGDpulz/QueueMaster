@@ -12,6 +12,7 @@ use QueueMaster\Utils\Logger;
 use QueueMaster\Models\User;
 use QueueMaster\Models\RefreshToken;
 use QueueMaster\Services\AuditService;
+use QueueMaster\Services\UserRoleService;
 
 /**
  * AuthController - Authentication Endpoints
@@ -27,6 +28,13 @@ use QueueMaster\Services\AuditService;
  */
 class AuthController
 {
+    private UserRoleService $userRoleService;
+
+    public function __construct()
+    {
+        $this->userRoleService = new UserRoleService();
+    }
+
     /**
      * POST /api/v1/auth/google
      * 
@@ -257,8 +265,13 @@ class AuthController
             return;
         }
 
+        $safeUser = User::getSafeData($fullUser);
+
         Response::success([
-            'user' => User::getSafeData($fullUser),
+            'user' => array_merge($safeUser, [
+                'effective_role' => $this->userRoleService->resolveEffectiveRole((int)$request->user['id']),
+                'role_summary' => $this->userRoleService->getRoleSummary((int)$request->user['id']),
+            ]),
         ]);
     }
 

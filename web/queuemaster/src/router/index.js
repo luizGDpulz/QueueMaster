@@ -20,6 +20,12 @@ import { api } from 'boot/axios'
 // Flag para evitar processar o token múltiplas vezes
 let googleTokenProcessed = false
 
+const resolveAccessRole = (user) => {
+  if (!user || typeof user !== 'object') return null
+  if (user.role === 'admin' || user.effective_role === 'admin') return 'admin'
+  return user.effective_role || user.role || null
+}
+
 export default defineRouter(function (/* { store, ssrContext } */) {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
@@ -94,7 +100,8 @@ export default defineRouter(function (/* { store, ssrContext } */) {
 
       try {
         const user = JSON.parse(rawUser)
-        if (!requiredRoles.includes(user?.role)) {
+        const accessRole = resolveAccessRole(user)
+        if (!requiredRoles.includes(accessRole)) {
           next('/app')
           return
         }

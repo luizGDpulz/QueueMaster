@@ -116,10 +116,10 @@ export default defineComponent({
     const allMenuItems = [
       { path: '/app', label: 'Dashboard', icon: 'dashboard' },
       { path: '/app/queues', label: 'Filas', icon: 'format_list_numbered' },
-      { path: '/app/reports', label: 'Relatórios', icon: 'analytics', roles: ['client', 'professional', 'manager', 'admin'] },
       { path: '/app/appointments', label: 'Agendamentos', icon: 'event' },
       { path: '/app/establishments', label: 'Estabelecimentos', icon: 'store', roles: ['professional', 'manager', 'admin'] },
       { path: '/app/businesses', label: 'Negócios', icon: 'business', roles: ['professional', 'manager', 'admin'] },
+      { path: '/app/reports', label: 'Relatórios', icon: 'analytics', roles: ['client', 'professional', 'manager', 'admin'] },
       { path: '/app/admin', label: 'Administração', icon: 'admin_panel_settings', roles: ['admin', 'manager'] },
       { path: '/app/settings', label: 'Configurações', icon: 'settings' }
     ]

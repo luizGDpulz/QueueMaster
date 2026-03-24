@@ -33,7 +33,7 @@
         <q-tab name="explore" icon="travel_explore" label="Explorar" no-caps />
       </q-tabs>
 
-      <q-separator />
+      <q-separator style="margin-top: 10px;" />
 
       <q-tab-panels v-model="activeTab" animated class="tab-panels">
         <q-tab-panel name="linked" class="tab-panel">
@@ -465,7 +465,12 @@ export default defineComponent({
 }
 
 .main-tabs {
-  padding: 0.5rem 1rem 0;
+  margin-top: 10px;
+  padding: 0 1rem;
+
+  :deep(.q-tab__label) {
+    font-weight: 500;
+  }
 }
 
 .tab-panels {

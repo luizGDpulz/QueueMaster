@@ -7,10 +7,8 @@ use QueueMaster\Models\Business;
 use QueueMaster\Models\BusinessUser;
 use QueueMaster\Models\QueueAccessCode;
 use QueueMaster\Services\QuotaService;
-use QueueMaster\Models\Plan;
-use QueueMaster\Models\BusinessSubscription;
-use QueueMaster\Models\Establishment;
-use QueueMaster\Models\Professional;
+use QueueMaster\Services\PlanService;
+use QueueMaster\Models\UserPlanSubscription;
 use QueueMaster\Core\Database;
 
 /**
@@ -173,6 +171,26 @@ class BusinessHierarchyTest extends TestCase
         $this->assertEquals(2, BusinessUser::countManagers($businessId));
     }
 
+    public function testBusinessUserCountManagersIncludesEstablishmentManagers(): void
+    {
+        $ownerId = $this->createTestUser('EstOwner', 'est-owner@test.com', 'manager');
+        $managerId = $this->createTestUser('EstManager', 'est-manager@test.com', 'manager');
+        $businessId = $this->createTestBusiness($ownerId, 'Est Manager Count');
+
+        $this->db->execute(
+            "INSERT INTO establishments (name, business_id) VALUES ('Est Count', ?)",
+            [$businessId]
+        );
+        $establishmentId = (int)$this->db->lastInsertId();
+
+        $this->db->execute(
+            "INSERT INTO establishment_users (establishment_id, user_id, role) VALUES (?, ?, 'manager')",
+            [$establishmentId, $managerId]
+        );
+
+        $this->assertEquals(1, BusinessUser::countManagers($businessId));
+    }
+
     public function testBusinessUserAccessDenied(): void
     {
         $ownerId = $this->createTestUser('AccessOwner', 'access-owner@test.com', 'manager');
@@ -288,6 +306,7 @@ class BusinessHierarchyTest extends TestCase
     {
         $userId = $this->createTestUser('EstLimit', 'estlimit@test.com', 'manager');
         $businessId = $this->createTestBusiness($userId, 'Est Limit Test');
+        BusinessUser::addUser($businessId, $userId, 'owner');
 
         // Create a plan with limit of 1 establishment
         $this->db->execute(
@@ -297,8 +316,8 @@ class BusinessHierarchyTest extends TestCase
 
         // Create subscription
         $this->db->execute(
-            "INSERT INTO business_subscriptions (business_id, plan_id, status, starts_at) VALUES (?, ?, 'active', NOW())",
-            [$businessId, $planId]
+            "INSERT INTO user_plan_subscriptions (user_id, plan_id, status, starts_at) VALUES (?, ?, 'active', NOW())",
+            [$userId, $planId]
         );
 
         // First establishment should be allowed
@@ -330,8 +349,8 @@ class BusinessHierarchyTest extends TestCase
         $planId = (int)$this->db->lastInsertId();
 
         $this->db->execute(
-            "INSERT INTO business_subscriptions (business_id, plan_id, status, starts_at) VALUES (?, ?, 'active', NOW())",
-            [$businessId, $planId]
+            "INSERT INTO user_plan_subscriptions (user_id, plan_id, status, starts_at) VALUES (?, ?, 'active', NOW())",
+            [$userId, $planId]
         );
 
         // Adding first manager should work
@@ -360,8 +379,8 @@ class BusinessHierarchyTest extends TestCase
         $planId = (int)$this->db->lastInsertId();
 
         $this->db->execute(
-            "INSERT INTO business_subscriptions (business_id, plan_id, status, starts_at) VALUES (?, ?, 'active', NOW())",
-            [$businessId, $planId]
+            "INSERT INTO user_plan_subscriptions (user_id, plan_id, status, starts_at) VALUES (?, ?, 'active', NOW())",
+            [$userId, $planId]
         );
 
         $result = QuotaService::canCreateEstablishment($businessId);
@@ -369,5 +388,94 @@ class BusinessHierarchyTest extends TestCase
 
         $result = QuotaService::canAddManager($businessId);
         $this->assertTrue($result['allowed']);
+    }
+
+    public function testPlanServiceBlocksDowngradeBelowCurrentUsage(): void
+    {
+        $ownerId = $this->createTestUser('Plan Owner', 'plan-owner@test.com', 'manager');
+        $businessId = $this->createTestBusiness($ownerId, 'Plan Owner Business');
+        BusinessUser::addUser($businessId, $ownerId, 'owner');
+
+        $this->db->execute(
+            "INSERT INTO establishments (name, business_id) VALUES ('Plan Est', ?)",
+            [$businessId]
+        );
+
+        $this->db->execute(
+            "INSERT INTO plans (name, max_businesses, max_establishments_per_business, max_managers, max_professionals_per_establishment)
+             VALUES ('Plan High', 3, 3, 3, 3)"
+        );
+        $highPlanId = (int)$this->db->lastInsertId();
+
+        $this->db->execute(
+            "INSERT INTO plans (name, max_businesses, max_establishments_per_business, max_managers, max_professionals_per_establishment)
+             VALUES ('Plan Low', 1, 1, 1, 1)"
+        );
+        $lowPlanId = (int)$this->db->lastInsertId();
+
+        $planService = new PlanService();
+        $planService->assignPlanToUser($ownerId, $highPlanId);
+
+        $this->expectException(\RuntimeException::class);
+        $planService->assignPlanToUser($ownerId, $lowPlanId);
+    }
+
+    public function testPlanServiceBlocksDeletingPlanWithLinkedManagers(): void
+    {
+        $ownerId = $this->createTestUser('Delete Plan Owner', 'delete-plan-owner@test.com', 'manager');
+        $businessId = $this->createTestBusiness($ownerId, 'Delete Plan Business');
+        BusinessUser::addUser($businessId, $ownerId, 'owner');
+
+        $this->db->execute(
+            "INSERT INTO plans (name, max_businesses) VALUES ('Delete Guard Plan', 1)"
+        );
+        $planId = (int)$this->db->lastInsertId();
+
+        UserPlanSubscription::create([
+            'user_id' => $ownerId,
+            'plan_id' => $planId,
+            'status' => 'active',
+            'starts_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $result = (new PlanService())->canDeletePlan($planId);
+
+        $this->assertFalse($result['allowed']);
+        $this->assertSame(1, (int)($result['active_links'] ?? 0));
+    }
+
+    public function testPlanServiceAllowsAssigningPlanToApprovedManagerWithoutOwnedBusiness(): void
+    {
+        $userId = $this->createTestUser('Approved Manager', 'approved-manager@test.com', 'client');
+        $this->db->execute(
+            "UPDATE users SET manager_access_granted = 1, manager_access_granted_at = NOW(), role = 'manager' WHERE id = ?",
+            [$userId]
+        );
+
+        $this->db->execute(
+            "INSERT INTO plans (name, max_businesses) VALUES ('Approved Manager Plan', 1)"
+        );
+        $planId = (int)$this->db->lastInsertId();
+
+        $subscription = (new PlanService())->assignPlanToUser($userId, $planId);
+
+        $this->assertNotEmpty($subscription['id'] ?? null);
+        $this->assertSame($userId, (int)($subscription['user_id'] ?? 0));
+        $this->assertSame($planId, (int)($subscription['plan_id'] ?? 0));
+    }
+
+    public function testQuotaServiceBlocksBusinessCreationWithoutActivePlan(): void
+    {
+        $userId = $this->createTestUser('No Plan Manager', 'no-plan-manager@test.com', 'manager');
+        $this->db->execute(
+            "UPDATE users SET manager_access_granted = 1, manager_access_granted_at = NOW() WHERE id = ?",
+            [$userId]
+        );
+        $this->db->execute("UPDATE plans SET is_active = 0 WHERE name = 'Free'");
+
+        $result = QuotaService::canCreateBusiness($userId);
+
+        $this->assertFalse($result['allowed']);
+        $this->assertSame('plan_required', $result['error']);
     }
 }
