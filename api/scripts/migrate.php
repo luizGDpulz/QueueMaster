@@ -54,6 +54,13 @@ $dbUser = getenv('DB_USER') ?: 'root';
 $dbPass = getenv('DB_PASS') ?: '';
 $dbName = getenv('DB_NAME') ?: 'queue_master';
 
+function applyDatabaseName(string $sql, string $dbName): string
+{
+    $escapedName = str_replace('`', '``', $dbName);
+
+    return str_replace('`queue_master`', "`{$escapedName}`", $sql);
+}
+
 $command = $argv[1] ?? 'help';
 if (!in_array($command, ['up', 'down', 'help'], true)) {
     echo "Error: Invalid command '{$command}'\n\n";
@@ -107,6 +114,7 @@ if ($command === 'up') {
 
         try {
             $sql = file_get_contents($file);
+            $sql = applyDatabaseName($sql, $dbName);
             $pdo->exec($sql);
             echo "Done\n";
         } catch (PDOException $e) {
@@ -135,6 +143,7 @@ if ($command === 'up') {
 
         try {
             $sql = file_get_contents($file);
+            $sql = applyDatabaseName($sql, $dbName);
             $pdo->exec($sql);
             echo "Done\n";
         } catch (PDOException $e) {

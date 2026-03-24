@@ -251,6 +251,44 @@ Todas via `./scripts/deploy.sh`:
 | **13** | Limpar tokens expirados |
 | **15** | Editar regras de acesso do `.env` |
 
+### Rebuild do Zero
+
+Se você quer começar do zero de verdade, com banco limpo e schema recriado:
+
+```bash
+./scripts/deploy.sh
+# opção 14 -> Nuclear Rebuild
+```
+
+O que essa opção faz agora:
+
+1. Para os containers.
+2. Remove volumes do projeto.
+3. Força remoção dos containers fixos do QueueMaster.
+4. Rebuilda as imagens sem cache.
+5. Sobe tudo de novo.
+6. Roda `php /var/www/api/scripts/migrate.php up`.
+7. Valida se o schema final tem as colunas e tabelas críticas da versão atual.
+
+Se a validação falhar, o script encerra com erro em vez de fingir que o deploy terminou bem.
+
+### Como saber se o banco zerou corretamente
+
+Depois do `Nuclear Rebuild`, o resultado esperado é:
+
+- o script termina com a mensagem de schema validado;
+- o login deixa de retornar erro de coluna ausente;
+- `./scripts/deploy.sh` -> opção `9` mostra os containers rodando normalmente.
+
+Se você quiser checar manualmente:
+
+```bash
+docker compose exec -T app php /var/www/api/scripts/migrate.php up
+docker compose logs --tail=100 app
+```
+
+Se aparecer algo como `Unknown column 'login_blocked_at'`, o banco antigo ainda não foi recriado corretamente.
+
 ### Fluxo de Atualização
 
 ```bash
@@ -259,6 +297,8 @@ git pull origin main
 ./scripts/deploy.sh  # → Opção 12 (Rebuild)
 # Se houver novas migrations: → Opção 6
 ```
+
+> Se a atualização envolver reset completo do banco, use a opção `14` em vez da `12`.
 
 ## 8. Firewall (Oracle Cloud)
 

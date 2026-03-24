@@ -20,6 +20,7 @@ ENV_EXAMPLE="$SCRIPT_DIR/.env.deploy.example"
 COMPOSE_FILE="$REPO_ROOT/docker-compose.yml"
 APP_CONTAINER="queuemaster_app"
 DB_CONTAINER="queuemaster_mariadb"
+REDIS_CONTAINER="queuemaster_redis"
 BACKUP_DIR="$REPO_ROOT/backups"
 
 # ---------------------------------------------------------------------------
@@ -121,11 +122,16 @@ prompt_csv_rule() {
     local current_value="${2:-}"
     local input_value=""
 
-    echo -en "${CYAN}${label}${NC}"
+    echo "" >&2
+    echo -e "${BOLD}Campo: ${label}${NC}" >&2
+    echo "Digite os valores separados por vírgula." >&2
+    echo "Exemplo e-mails: voce@empresa.com,qa@empresa.com" >&2
+    echo "Exemplo domínios: empresa.com,parceiro.com" >&2
+    echo -en "${CYAN}${label}${NC}" >&2
     if [[ -n "$current_value" ]]; then
-        echo -en " [atual: ${current_value}]"
+        echo -en " [atual: ${current_value}]" >&2
     fi
-    echo -en " (Enter mantém, '-' limpa): "
+    echo -en " (Enter mantém, '-' limpa): " >&2
     read -r input_value
 
     if [[ "$input_value" == "-" ]]; then
@@ -208,6 +214,93 @@ configure_access_rules_interactive() {
 
 generate_password() {
     openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24
+}
+
+verify_required_schema() {
+    check_env || return 1
+    load_env
+
+    local schema_db="${DB_NAME:-queue_master}"
+    local missing
+
+    missing=$(docker compose -f "$COMPOSE_FILE" exec -T mariadb \
+        mysql -N -s -u root -p"${DB_ROOT_PASSWORD}" -e "
+            SELECT requirement
+            FROM (
+                SELECT 'users.login_blocked_at' AS requirement
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = '${schema_db}'
+                      AND TABLE_NAME = 'users'
+                      AND COLUMN_NAME = 'login_blocked_at'
+                )
+                UNION ALL
+                SELECT 'users.login_block_reason' AS requirement
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = '${schema_db}'
+                      AND TABLE_NAME = 'users'
+                      AND COLUMN_NAME = 'login_block_reason'
+                )
+                UNION ALL
+                SELECT 'users.login_blocked_by_user_id' AS requirement
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = '${schema_db}'
+                      AND TABLE_NAME = 'users'
+                      AND COLUMN_NAME = 'login_blocked_by_user_id'
+                )
+                UNION ALL
+                SELECT 'users.manager_access_granted' AS requirement
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = '${schema_db}'
+                      AND TABLE_NAME = 'users'
+                      AND COLUMN_NAME = 'manager_access_granted'
+                )
+                UNION ALL
+                SELECT 'users.address_line_1' AS requirement
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = '${schema_db}'
+                      AND TABLE_NAME = 'users'
+                      AND COLUMN_NAME = 'address_line_1'
+                )
+                UNION ALL
+                SELECT 'user_role_requests' AS requirement
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.TABLES
+                    WHERE TABLE_SCHEMA = '${schema_db}'
+                      AND TABLE_NAME = 'user_role_requests'
+                )
+                UNION ALL
+                SELECT 'user_plan_subscriptions' AS requirement
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.TABLES
+                    WHERE TABLE_SCHEMA = '${schema_db}'
+                      AND TABLE_NAME = 'user_plan_subscriptions'
+                )
+            ) AS requirements;
+        " 2>/dev/null || true)
+
+    if [[ -n "$missing" ]]; then
+        print_error "Schema incompleto detectado:"
+        while IFS= read -r item; do
+            [[ -n "$item" ]] && echo "  - $item"
+        done <<< "$missing"
+        print_warn "O banco não está compatível com a versão atual da aplicação."
+        return 1
+    fi
+
+    print_success "Schema validado com as colunas e tabelas esperadas."
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -412,17 +505,12 @@ do_build() {
     docker compose -f "$COMPOSE_FILE" exec -T app php /var/www/api/scripts/migrate.php up || {
         print_error "Falha ao rodar migrations."
         print_warn "Certifique-se de que o banco está acessível."
+        return 1
     }
 
-    # Verify if users table exists (basic check)
     echo ""
-    print_info "Verificando integridade do banco..."
-    if docker compose -f "$COMPOSE_FILE" exec -T mariadb mysql -u root -p"${DB_ROOT_PASSWORD}" -e "USE ${DB_NAME:-queue_master}; SELECT COUNT(*) FROM users;" &>/dev/null; then
-        print_success "Tabelas encontradas!"
-    else
-        print_warn "MESA DE USUÁRIOS NÃO ENCONTRADA!"
-        print_info "Execute a opção 6 para rodar as migrations manualmente."
-    fi
+    print_info "Verificando integridade do schema..."
+    verify_required_schema || return 1
 
     echo ""
     echo -e "${GREEN}════════════════════════════════════════${NC}"
@@ -503,7 +591,8 @@ do_migrations() {
     case "$mig_choice" in
         1)
             print_info "Rodando migrations UP..."
-            docker compose -f "$COMPOSE_FILE" exec app php /var/www/api/scripts/migrate.php up
+            docker compose -f "$COMPOSE_FILE" exec -T app php /var/www/api/scripts/migrate.php up
+            verify_required_schema || return 1
             print_success "Migrations aplicadas!"
             ;;
         2)
@@ -809,18 +898,26 @@ do_edit_access_rules() {
 
         case "$access_choice" in
             1)
+                echo ""
+                print_info "Editando AUTH_ALLOWED_EMAILS"
                 set_env_value "AUTH_ALLOWED_EMAILS" "$(prompt_csv_rule 'Informe os e-mails liberados (x@y.com,z@w.com)' "$current_allowed_emails")"
                 print_success "AUTH_ALLOWED_EMAILS atualizado."
                 ;;
             2)
+                echo ""
+                print_info "Editando AUTH_BLOCKED_EMAILS"
                 set_env_value "AUTH_BLOCKED_EMAILS" "$(prompt_csv_rule 'Informe os e-mails bloqueados (x@y.com,z@w.com)' "$current_blocked_emails")"
                 print_success "AUTH_BLOCKED_EMAILS atualizado."
                 ;;
             3)
+                echo ""
+                print_info "Editando AUTH_ALLOWED_EMAIL_DOMAINS"
                 set_env_value "AUTH_ALLOWED_EMAIL_DOMAINS" "$(prompt_csv_rule 'Informe os domínios liberados (empresa.com,parceiro.com)' "$current_allowed_domains")"
                 print_success "AUTH_ALLOWED_EMAIL_DOMAINS atualizado."
                 ;;
             4)
+                echo ""
+                print_info "Editando AUTH_BLOCKED_EMAIL_DOMAINS"
                 set_env_value "AUTH_BLOCKED_EMAIL_DOMAINS" "$(prompt_csv_rule 'Informe os domínios bloqueados (gmail.com,outlook.com)' "$current_blocked_domains")"
                 print_success "AUTH_BLOCKED_EMAIL_DOMAINS atualizado."
                 ;;
@@ -893,6 +990,10 @@ do_nuclear_rebuild() {
     docker compose -f "$COMPOSE_FILE" down --volumes --remove-orphans 2>/dev/null || true
 
     echo ""
+    print_info "Forçando remoção dos containers fixos do projeto..."
+    docker rm -f "$APP_CONTAINER" "$DB_CONTAINER" "$REDIS_CONTAINER" 2>/dev/null || true
+
+    echo ""
     print_info "Removendo volumes Docker restantes com prefixo 'queuemaster'..."
     docker volume ls --filter name=queuemaster --quiet | xargs -r docker volume rm 2>/dev/null || true
 
@@ -932,6 +1033,10 @@ do_nuclear_rebuild() {
         print_warn "Verifique os logs com a opção 5."
         return 1
     }
+
+    echo ""
+    print_info "Validando schema final..."
+    verify_required_schema || return 1
 
     echo ""
     echo -e "${GREEN}════════════════════════════════════════${NC}"
