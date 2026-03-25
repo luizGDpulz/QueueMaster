@@ -840,12 +840,6 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
-                // POST /api/v1/notifications/fcm-token — Save or update device token
-                $router->post('/fcm-token', function ($request) {
-                    $controller = new NotificationsController();
-                    $controller->saveFcmToken($request);
-                }
-                );
 
                 // GET /api/v1/notifications/{id} — Get single notification
                 $router->get('/{id}', function ($request) {

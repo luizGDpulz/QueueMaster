@@ -7,7 +7,6 @@ use QueueMaster\Core\Response;
 use QueueMaster\Core\Database;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
-use QueueMaster\Models\FcmToken;
 use QueueMaster\Models\Notification;
 use QueueMaster\Models\NotificationPreference;
 use QueueMaster\Services\ContextAccessService;
@@ -15,7 +14,7 @@ use QueueMaster\Services\ContextAccessService;
 /**
  * NotificationsController - Notification Management Endpoints
  * 
- * Handles notification listing and FCM token management
+ * Handles notification listing and notification preferences
  */
 class NotificationsController
 {
@@ -150,54 +149,6 @@ class NotificationsController
             ], $request->requestId);
 
             Response::serverError('Failed to retrieve notification', $request->requestId);
-        }
-    }
-
-    /**
-     * POST /api/v1/notifications/fcm-token
-     * 
-     * Save FCM token for user
-     */
-    public function saveFcmToken(Request $request): void
-    {
-        $data = $request->all();
-        $userId = (int)$request->user['id'];
-
-        // Validate input
-        $errors = Validator::make($data, [
-            'token' => 'required|min:10',
-            'device_id' => 'required',
-        ]);
-
-        if (!empty($errors)) {
-            Response::validationError($errors, $request->requestId);
-            return;
-        }
-
-        $token = trim($data['token']);
-        $deviceId = trim($data['device_id']);
-
-        try {
-            $tokenId = FcmToken::upsert($userId, $deviceId, $token);
-
-            Logger::info('FCM token saved', [
-                'token_id' => $tokenId,
-                'user_id' => $userId,
-                'device_id' => $deviceId,
-            ], $request->requestId);
-
-            Response::success([
-                'message' => 'FCM token saved successfully',
-            ]);
-
-        } catch (\Exception $e) {
-            Logger::error('Failed to save FCM token', [
-                'user_id' => $userId,
-                'device_id' => $deviceId,
-                'error' => $e->getMessage(),
-            ], $request->requestId);
-
-            Response::serverError('Failed to save FCM token', $request->requestId);
         }
     }
 

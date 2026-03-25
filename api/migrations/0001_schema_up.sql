@@ -329,20 +329,6 @@ CREATE TABLE IF NOT EXISTS notifications (
   INDEX idx_notifications_type (type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS fcm_tokens (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  user_id BIGINT UNSIGNED NOT NULL,
-  token VARCHAR(255) NOT NULL,
-  device_id VARCHAR(191) NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_fcm_tokens_user
-    FOREIGN KEY (user_id) REFERENCES users(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-  UNIQUE KEY uq_fcm_user_device (user_id, device_id),
-  INDEX idx_fcm_token_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS notification_preferences (
   user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
   push_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -386,7 +372,7 @@ CREATE TABLE IF NOT EXISTS establishment_users (
 
 CREATE TABLE IF NOT EXISTS plans (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
+  name VARCHAR(100) NOT NULL UNIQUE,
   max_businesses INT NULL COMMENT 'Max businesses per owner (NULL = unlimited)',
   max_establishments_per_business INT NULL COMMENT 'Max establishments per business (NULL = unlimited)',
   max_managers INT NULL COMMENT 'Max managers per business (NULL = unlimited)',
@@ -396,24 +382,22 @@ CREATE TABLE IF NOT EXISTS plans (
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS business_subscriptions (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  business_id BIGINT UNSIGNED NOT NULL,
-  plan_id BIGINT UNSIGNED NOT NULL,
-  status ENUM('active','past_due','cancelled') NOT NULL DEFAULT 'active',
-  starts_at DATETIME NOT NULL,
-  ends_at DATETIME NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_business_subscriptions_business
-    FOREIGN KEY (business_id) REFERENCES businesses(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT fk_business_subscriptions_plan
-    FOREIGN KEY (plan_id) REFERENCES plans(id)
-    ON DELETE RESTRICT ON UPDATE CASCADE,
-  INDEX idx_business_subscriptions_business (business_id),
-  INDEX idx_business_subscriptions_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO plans (
+  name,
+  max_businesses,
+  max_establishments_per_business,
+  max_managers,
+  max_professionals_per_establishment
+) VALUES
+  ('Free', 1, 1, 2, 5),
+  ('Basic', 3, 5, 10, 20),
+  ('Premium', NULL, NULL, NULL, NULL)
+ON DUPLICATE KEY UPDATE
+  max_businesses = VALUES(max_businesses),
+  max_establishments_per_business = VALUES(max_establishments_per_business),
+  max_managers = VALUES(max_managers),
+  max_professionals_per_establishment = VALUES(max_professionals_per_establishment),
+  is_active = TRUE;
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -512,50 +496,3 @@ CREATE TABLE IF NOT EXISTS user_plan_subscriptions (
   INDEX idx_user_plan_subscriptions_status (status),
   INDEX idx_user_plan_subscriptions_user_status (user_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO user_plan_subscriptions (
-  user_id,
-  plan_id,
-  status,
-  starts_at,
-  ends_at,
-  created_at,
-  updated_at
-)
-SELECT
-  b.owner_user_id,
-  bs.plan_id,
-  bs.status,
-  bs.starts_at,
-  bs.ends_at,
-  bs.created_at,
-  bs.updated_at
-FROM business_subscriptions bs
-JOIN businesses b
-  ON b.id = bs.business_id
-WHERE b.owner_user_id IS NOT NULL
-  AND NOT EXISTS (
-    SELECT 1
-    FROM user_plan_subscriptions ups
-    WHERE ups.user_id = b.owner_user_id
-      AND ups.plan_id = bs.plan_id
-      AND ups.status = bs.status
-      AND ups.starts_at = bs.starts_at
-      AND (
-        (ups.ends_at IS NULL AND bs.ends_at IS NULL)
-        OR ups.ends_at = bs.ends_at
-      )
-  );
-
-INSERT INTO plans (
-  name,
-  max_businesses,
-  max_establishments_per_business,
-  max_managers,
-  max_professionals_per_establishment
-) VALUES
-  ('Free', 1, 1, 2, 5),
-  ('Basic', 3, 5, 10, 20),
-  ('Premium', NULL, NULL, NULL, NULL)
-ON DUPLICATE KEY UPDATE
-  name = VALUES(name);

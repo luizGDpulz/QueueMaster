@@ -1306,17 +1306,6 @@ paths:
           $ref: '#/components/responses/Ok'
         '401':
           $ref: '#/components/responses/Unauthorized'
-  /api/v1/notifications/fcm-token:
-    post:
-      tags: [Notifications]
-      summary: Salvar ou atualizar token FCM do dispositivo
-      responses:
-        '200':
-          $ref: '#/components/responses/Ok'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '422':
-          $ref: '#/components/responses/ValidationError'
   /api/v1/notifications/{id}:
     get:
       tags: [Notifications]
