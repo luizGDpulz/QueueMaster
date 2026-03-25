@@ -84,7 +84,7 @@
                   <td>
                     <div class="user-cell">
                       <div class="avatar">
-                        <img v-if="user.avatar_url" :src="user.avatar_url" alt="" referrerpolicy="no-referrer" />
+                        <img v-if="user.has_avatar" :src="resolveUserAvatarUrl(user)" alt="" />
                         <span v-else>{{ getInitials(user.name) }}</span>
                       </div>
                       <div class="meta">
@@ -381,6 +381,7 @@ import { computed, defineComponent, onMounted, ref, watch } from 'vue'
 import { copyToClipboard, openURL, useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
+import { resolveUserAvatarUrl } from 'src/utils/userAvatar'
 
 const emptyPlanForm = () => ({
   name: '',
@@ -767,6 +768,7 @@ export default defineComponent({
       roleFilter,
       roleFilterOptions,
       resolveUserRole,
+      resolveUserAvatarUrl,
       router,
       savePlan,
       savingPlan,

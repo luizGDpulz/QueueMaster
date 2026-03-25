@@ -103,6 +103,7 @@ class RateLimiter
             'X-RateLimit-Limit' => (string)$this->maxRequests,
             'X-RateLimit-Remaining' => (string)max(0, $result['remaining']),
             'X-RateLimit-Reset' => (string)$result['reset'],
+            'X-RateLimit-Window' => (string)$this->windowSeconds,
         ]);
 
         if (!$result['allowed']) {
@@ -113,7 +114,12 @@ class RateLimiter
             ], $request->requestId);
 
             $retryAfter = $result['reset'] - time();
-            Response::rateLimitExceeded($request->requestId, $retryAfter);
+            Response::rateLimitExceeded(
+                $request->requestId,
+                $retryAfter,
+                $this->maxRequests,
+                $this->windowSeconds
+            );
             return;
         }
 

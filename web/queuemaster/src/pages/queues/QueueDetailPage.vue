@@ -24,6 +24,7 @@
           label="Chamar Próximo"
           no-caps
           :loading="callingNext"
+          :disable="callingNext"
           @click="callNext"
         />
       </div>
@@ -107,7 +108,7 @@
             <q-input v-model="accessCode" outlined dense placeholder="Código de acesso" class="code-input" @keyup.enter="joinWithCode">
               <template v-slot:prepend><q-icon name="vpn_key" /></template>
             </q-input>
-            <q-btn color="primary" label="Entrar" no-caps :loading="joining" @click="joinWithCode" />
+            <q-btn color="primary" label="Entrar" no-caps :loading="joining" :disable="joining" @click="joinWithCode" />
           </div>
         </div>
       </template>
@@ -1108,6 +1109,7 @@ import ContextMenu from 'src/components/ui/ContextMenu.vue'
 import StatusPill from 'src/components/ui/StatusPill.vue'
 import UserProfilePreview from 'src/components/ui/UserProfilePreview.vue'
 import { useBreadcrumb } from 'src/composables/useBreadcrumb'
+import { useVisibilityPolling } from 'src/composables/useVisibilityPolling'
 
 export default defineComponent({
   name: 'QueueDetailPage',
@@ -1301,7 +1303,7 @@ export default defineComponent({
 
     const searchUserByEmail = async () => {
       const email = searchEmail.value.trim()
-      if (!email) return
+      if (!email || searchingUser.value) return
       searchingUser.value = true
       searchEmailError.value = ''
       foundUser.value = null
@@ -1986,7 +1988,6 @@ export default defineComponent({
     const onCodeMenuSelect = () => {}
 
     // -- Data fetching --
-    let timer = null
 
     const fetchData = async () => {
       const fetchToken = ++lastFetchToken.value
@@ -2021,6 +2022,12 @@ export default defineComponent({
         }
       }
     }
+
+    const statusPolling = useVisibilityPolling(() => fetchData(), {
+      intervalMs: 30000,
+      enabled: () => Boolean(queueId.value),
+      runOnResume: true,
+    })
 
     const fetchUserRole = async () => {
       try {
@@ -2241,6 +2248,7 @@ export default defineComponent({
 
     // -- Queue actions --
     const callNext = async () => {
+      if (callingNext.value) return
       callingNext.value = true
       try {
         const payload = { establishment_id: queue.value?.establishment_id }
@@ -2257,6 +2265,7 @@ export default defineComponent({
     }
 
     const joinWithCode = async () => {
+      if (joining.value) return
       if (!accessCode.value.trim()) { $q.notify({ type: 'warning', message: 'Insira o código de acesso' }); return }
       joining.value = true
       try {
@@ -2598,11 +2607,11 @@ export default defineComponent({
         fetchQueueServices()
         fetchAccessCodes()
       }
-      timer = setInterval(fetchData, 30000)
+      statusPolling.start()
     })
 
     onUnmounted(() => {
-      if (timer) clearInterval(timer)
+      statusPolling.stop()
       clearDetail()
     })
 

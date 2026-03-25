@@ -146,6 +146,8 @@
                   <q-btn 
                     v-if="queue.status === 'open'" 
                     flat round dense icon="person_add" size="sm" color="primary"
+                    :loading="isJoiningQueue(queue.id)"
+                    :disable="isJoiningQueue(queue.id)"
                     @click.stop="joinQueue(queue)"
                   >
                     <q-tooltip>Entrar na fila</q-tooltip>
@@ -289,6 +291,7 @@ import { defineComponent, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
+import { useSingleFlightAction } from 'src/composables/useSingleFlightAction'
 
 export default defineComponent({
   name: 'QueuesPage',
@@ -296,6 +299,7 @@ export default defineComponent({
   setup() {
     const $q = useQuasar()
     const router = useRouter()
+    const joinQueueAction = useSingleFlightAction()
 
     // State
     const queues = ref([])
@@ -487,7 +491,7 @@ export default defineComponent({
           $q.notify({ type: 'positive', message: 'Fila criada com sucesso' })
         }
         closeDialog()
-        fetchQueues()
+        await fetchQueues()
       } catch (err) {
         console.error('Erro ao salvar:', err)
         $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar' })
@@ -512,15 +516,19 @@ export default defineComponent({
     }
 
     const joinQueue = async (queue) => {
-      try {
-        await api.post(`/queues/${queue.id}/join`)
+      await joinQueueAction.run(queue.id, async () => {
+        try {
+          await api.post(`/queues/${queue.id}/join`)
         $q.notify({ type: 'positive', message: 'Você entrou na fila com sucesso!' })
-        fetchQueues()
-      } catch (err) {
-        console.error('Erro ao entrar na fila:', err)
+          await fetchQueues()
+        } catch (err) {
+          console.error('Erro ao entrar na fila:', err)
         $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao entrar na fila' })
-      }
+        }
+      })
     }
+
+    const isJoiningQueue = (queueId) => joinQueueAction.isRunning(queueId)
 
     const callNext = (queue) => {
       selectedQueue.value = queue
@@ -529,6 +537,7 @@ export default defineComponent({
     }
 
     const executeCallNext = async () => {
+      if (calling.value || !selectedQueue.value) return
       calling.value = true
       try {
         const payload = {
@@ -608,6 +617,7 @@ export default defineComponent({
       saveQueue,
       deleteQueue,
       joinQueue,
+      isJoiningQueue,
       callNext,
       executeCallNext,
       formatDate,

@@ -33,7 +33,7 @@
           <div class="profile-section">
             <div class="profile-card">
               <q-avatar size="100px" class="profile-avatar">
-                <img v-if="user?.avatar_url" :src="user.avatar_url" alt="Avatar" referrerpolicy="no-referrer" />
+                <img v-if="userAvatarUrl" :src="userAvatarUrl" alt="Avatar" />
                 <q-icon v-else name="person" size="50px" />
               </q-avatar>
               <div class="profile-info">
@@ -657,11 +657,11 @@
                   use-input
                   fill-input
                   hide-selected
-                  input-debounce="250"
                   :options="businessOptions"
                   label="Negócio *"
                   :loading="searchingBusinesses"
                   @filter="filterBusinesses"
+                  @popup-show="loadBusinessOptions"
                   @update:model-value="onBusinessSelected"
                 />
 
@@ -674,12 +674,12 @@
                   use-input
                   fill-input
                   hide-selected
-                  input-debounce="250"
                   :options="establishmentRequestOptions"
                   label="Estabelecimento *"
                   :disable="!selectedBusinessId"
                   :loading="searchingEstablishments"
                   @filter="filterEstablishments"
+                  @popup-show="loadEstablishmentOptions"
                 />
 
                 <q-input
@@ -842,7 +842,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { BRAND_PRESETS, loadBrandColor, saveBrandColor, resetBrandColor, isValidHex, normalizeHex } from 'src/utils/brand'
+import { resolveUserAvatarUrl } from 'src/utils/userAvatar'
 import { useNotificationsCenter } from 'src/composables/useNotificationsCenter'
+import { useRemoteSelectSearch } from 'src/composables/useRemoteSelectSearch'
 import NotificationDetailPanel from 'src/components/notifications/NotificationDetailPanel.vue'
 
 export default defineComponent({
@@ -904,6 +906,7 @@ export default defineComponent({
     const verifiedRole = ref(null)
     const roleSummary = ref(createDefaultRoleSummary())
     const loadingUser = ref(true)
+    const userAvatarUrl = computed(() => resolveUserAvatarUrl(user.value))
 
     const isDark = ref(false)
     const brandColor = ref('')
@@ -913,16 +916,12 @@ export default defineComponent({
     const hexErrorMsg = ref('')
 
     const activeRoleOverlay = ref(route.query.panel === 'manager' ? 'manager' : route.query.panel === 'professional' ? 'professional' : '')
-    const businessSearchOptions = ref([])
-    const establishmentSearchOptions = ref([])
     const selectedBusinessId = ref(null)
     const selectedEstablishmentId = ref(null)
     const professionalRequestForm = ref(createEmptyProfessionalRequestForm())
     const managerRequestForm = ref(createEmptyManagerRequestForm())
     const sendingProfessionalRequest = ref(false)
     const sendingManagerRequest = ref(false)
-    const searchingBusinesses = ref(false)
-    const searchingEstablishments = ref(false)
     const invitationSummary = ref({ sent: [], received: [] })
     const roleRequests = ref([])
     const managerRequestActionId = ref(null)
@@ -962,6 +961,36 @@ export default defineComponent({
       acceptInvitation,
       rejectInvitation,
     } = useNotificationsCenter()
+
+    const businessSearch = useRemoteSelectSearch({
+      search: ({ query, signal }) => api.get('/businesses/search', {
+        params: { q: query, limit: 20 },
+        signal,
+        meta: { dedupe: false },
+      }),
+      mapOptions: (response) => (response.data?.data?.businesses || []).map((business) => ({
+        label: business.name,
+        value: business.id,
+        description: business.description || '',
+      })),
+    })
+
+    const establishmentSearch = useRemoteSelectSearch({
+      search: ({ query, signal, contextKey }) => api.get(`/businesses/${contextKey}/discover-establishments`, {
+        params: { q: query, limit: 20 },
+        signal,
+        meta: { dedupe: false },
+      }),
+      mapOptions: (response) => (response.data?.data?.establishments || []).map((establishment) => ({
+        label: establishment.name,
+        value: establishment.id,
+      })),
+    })
+
+    const businessSearchOptions = businessSearch.options
+    const establishmentSearchOptions = establishmentSearch.options
+    const searchingBusinesses = businessSearch.loading
+    const searchingEstablishments = establishmentSearch.loading
 
     const resolvedPrimaryRole = computed(() => {
       if (verifiedRole.value === 'admin' || user.value?.role === 'admin' || user.value?.effective_role === 'admin') {
@@ -1464,27 +1493,32 @@ export default defineComponent({
       router.push(routeTarget)
     }
 
-    const filterBusinesses = async (value, update) => {
-      update(async () => {
-        searchingBusinesses.value = true
-        try {
-          const response = await api.get('/businesses/search', { params: { q: value || '', limit: 20 } })
-          businessSearchOptions.value = (response.data?.data?.businesses || []).map((business) => ({
-            label: business.name,
-            value: business.id,
-            description: business.description || '',
-          }))
-        } catch {
-          businessSearchOptions.value = []
-        } finally {
-          searchingBusinesses.value = false
-        }
+    const notifyRemoteRateLimit = (error) => {
+      if (error?.response?.status !== 429) return
+
+      $q.notify({
+        type: 'warning',
+        message: error.response?.data?.error?.message || 'Voce excedeu o limite de requisicoes. Tente novamente em instantes.',
+      })
+    }
+
+    const loadBusinessOptions = async () => {
+      try {
+        await businessSearch.load('')
+      } catch (error) {
+        notifyRemoteRateLimit(error)
+      }
+    }
+
+    const filterBusinesses = (value, update, abort) => {
+      businessSearch.filter(value, update, abort, {
+        onError: notifyRemoteRateLimit,
       })
     }
 
     const onBusinessSelected = async (businessId) => {
       selectedEstablishmentId.value = null
-      establishmentSearchOptions.value = []
+      establishmentSearch.clear()
       if (businessId) {
         await fetchEstablishmentsForRequest('', businessId)
       }
@@ -1492,29 +1526,37 @@ export default defineComponent({
 
     const fetchEstablishmentsForRequest = async (query = '', businessId = selectedBusinessId.value) => {
       if (!businessId) {
-        establishmentSearchOptions.value = []
-        return
+        establishmentSearch.clear()
+        return []
       }
 
-      searchingEstablishments.value = true
+      return establishmentSearch.load(query, {
+        contextKey: String(businessId),
+      })
+    }
+
+    const loadEstablishmentOptions = async () => {
+      if (!selectedBusinessId.value) return
       try {
-        const response = await api.get(`/businesses/${businessId}/discover-establishments`, {
-          params: { q: query || '', limit: 20 }
-        })
-        establishmentSearchOptions.value = (response.data?.data?.establishments || []).map((establishment) => ({
-          label: establishment.name,
-          value: establishment.id,
-        }))
-      } catch {
-        establishmentSearchOptions.value = []
-      } finally {
-        searchingEstablishments.value = false
+        await fetchEstablishmentsForRequest('', selectedBusinessId.value)
+      } catch (error) {
+        notifyRemoteRateLimit(error)
       }
     }
 
-    const filterEstablishments = async (value, update) => {
-      update(async () => {
-        await fetchEstablishmentsForRequest(value)
+    const filterEstablishments = (value, update, abort) => {
+      if (!selectedBusinessId.value) {
+        establishmentSearch.clear()
+        update(() => {
+          establishmentSearchOptions.value = []
+        })
+        abort?.()
+        return
+      }
+
+      establishmentSearch.filter(value, update, abort, {
+        contextKey: String(selectedBusinessId.value),
+        onError: notifyRemoteRateLimit,
       })
     }
 
@@ -1522,8 +1564,8 @@ export default defineComponent({
       selectedBusinessId.value = null
       selectedEstablishmentId.value = null
       professionalRequestForm.value = createEmptyProfessionalRequestForm()
-      businessSearchOptions.value = []
-      establishmentSearchOptions.value = []
+      businessSearch.clear()
+      establishmentSearch.clear()
     }
 
     const resetManagerRequestForm = () => {
@@ -1762,6 +1804,7 @@ export default defineComponent({
       quasar: $q,
       activeTab,
       user,
+      userAvatarUrl,
       loadingUser,
       roleSummary,
       isDark,
@@ -1829,6 +1872,8 @@ export default defineComponent({
       getInviteStatusLabel,
       filterBusinesses,
       filterEstablishments,
+      loadBusinessOptions,
+      loadEstablishmentOptions,
       onBusinessSelected,
       applyNotificationFilters,
       resetNotificationFilters,

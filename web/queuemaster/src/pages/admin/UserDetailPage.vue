@@ -25,7 +25,7 @@
         <div class="profile-hero__header">
           <div class="profile-hero__identity">
             <div class="profile-avatar">
-              <img v-if="user.avatar_url" :src="user.avatar_url" alt="" referrerpolicy="no-referrer" />
+              <img v-if="userAvatarUrl" :src="userAvatarUrl" alt="" />
               <span v-else>{{ getInitials(user.name) }}</span>
             </div>
 
@@ -440,6 +440,7 @@ import { computed, defineComponent, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import { resolveUserAvatarUrl } from 'src/utils/userAvatar'
 
 export default defineComponent({
   name: 'UserDetailPage',
@@ -525,6 +526,7 @@ export default defineComponent({
     ))
     const showDeleteAction = computed(() => canManageUser.value && (canDeleteUser.value || deleteBlockers.value.length > 0))
     const blockedByLabel = computed(() => accessState.value.blocked_by_name || accessState.value.blocked_by_email || 'Nao informado')
+    const userAvatarUrl = computed(() => resolveUserAvatarUrl(user.value))
     const finalAccessMessage = computed(() => {
       if (accessState.value.can_authenticate) return null
       return environmentState.value.reason || systemState.value.reason || systemState.value.blocked_reason || null
@@ -790,7 +792,8 @@ export default defineComponent({
       systemState,
       unblockUserAccess,
       unblockingUser,
-      user
+      user,
+      userAvatarUrl
     }
   }
 })

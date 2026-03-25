@@ -72,16 +72,14 @@ class User
         $avatarUrl = $googleData['picture'] ?? null;
         $emailVerified = $googleData['email_verified'] ?? false;
 
-        // Download Google avatar and convert to base64
-        $avatarBase64 = null;
-        if ($avatarUrl) {
-            $avatarBase64 = self::downloadAvatarAsBase64($avatarUrl);
-        }
-
         // First, try to find by Google ID
         $user = self::findByGoogleId($googleId);
 
         if ($user) {
+            $avatarBase64 = self::shouldRefreshAvatarCache($user, $avatarUrl)
+                ? self::downloadAvatarAsBase64($avatarUrl)
+                : null;
+
             // Update user info from Google (name, avatar might have changed)
             $profileUpdate = [
                 'name' => $name,
@@ -109,6 +107,10 @@ class User
         $user = self::findByEmail($email);
 
         if ($user) {
+            $avatarBase64 = self::shouldRefreshAvatarCache($user, $avatarUrl)
+                ? self::downloadAvatarAsBase64($avatarUrl)
+                : null;
+
             // Link Google account to existing user
             $linkUpdate = [
                 'google_id' => $googleId,
@@ -133,6 +135,7 @@ class User
         }
 
         // Create new user
+        $avatarBase64 = $avatarUrl ? self::downloadAvatarAsBase64($avatarUrl) : null;
         $createData = [
             'name' => $name,
             'email' => $email,
@@ -443,7 +446,7 @@ class User
      */
     public static function getSafeData(array $user): array
     {
-        // Check before unsetting
+        $userId = isset($user['id']) ? (int)$user['id'] : 0;
         $hasAvatar = !empty($user['avatar_base64'] ?? null) || !empty($user['avatar_url'] ?? null);
         $isGoogleManaged = !empty($user['google_id'] ?? null);
 
@@ -451,6 +454,8 @@ class User
         unset($user['avatar_base64']); // Too large for JSON — use GET /users/{id}/avatar
 
         $user['has_avatar'] = $hasAvatar;
+        $user['avatar_url'] = $hasAvatar && $userId > 0 ? self::getAvatarPath($userId) : null;
+        $user['avatar_path'] = $hasAvatar && $userId > 0 ? self::getAvatarPath($userId) : null;
         $user['auth_provider'] = $isGoogleManaged ? 'google' : 'local';
         $user['is_google_managed_profile'] = $isGoogleManaged;
 
@@ -458,8 +463,8 @@ class User
     }
 
     /**
-     * Get user's avatar as base64 data URI
-     * Falls back to avatar_url if base64 not stored yet
+     * Get user's avatar as base64 data URI.
+     * If only the external source exists, try to cache it locally first.
      * 
      * @param int $id User ID
      * @return string|null Base64 data URI or external URL
@@ -481,7 +486,44 @@ class User
             return $result[0]['avatar_base64'];
         }
 
-        return $result[0]['avatar_url'] ?? null;
+        $avatarUrl = $result[0]['avatar_url'] ?? null;
+        if (empty($avatarUrl)) {
+            return null;
+        }
+
+        $avatarBase64 = self::downloadAvatarAsBase64($avatarUrl);
+        if ($avatarBase64) {
+            self::storeAvatarBase64($id, $avatarBase64);
+            return $avatarBase64;
+        }
+
+        return $avatarUrl;
+    }
+
+    public static function getAvatarPath(int $id): string
+    {
+        return '/users/' . $id . '/avatar';
+    }
+
+    public static function storeAvatarBase64(int $id, string $avatarBase64): int
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where(self::$primaryKey, '=', $id)
+            ->update(['avatar_base64' => $avatarBase64]);
+    }
+
+    private static function shouldRefreshAvatarCache(array $user, ?string $avatarUrl): bool
+    {
+        if (empty($avatarUrl)) {
+            return false;
+        }
+
+        if (empty($user['avatar_base64'])) {
+            return true;
+        }
+
+        return (string)($user['avatar_url'] ?? '') !== (string)$avatarUrl;
     }
 
     /**

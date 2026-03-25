@@ -140,6 +140,7 @@ import { computed, defineComponent, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { loadBrandColor } from 'src/utils/brand'
+import { resolveUserAvatarUrl } from 'src/utils/userAvatar'
 import AppSidebar from 'src/components/AppSidebar.vue'
 import { useBreadcrumb } from 'src/composables/useBreadcrumb'
 import { useNotificationsCenter } from 'src/composables/useNotificationsCenter'
@@ -197,10 +198,7 @@ export default defineComponent({
       const name = user.value?.name || 'U'
       return name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()
     })
-    const userAvatar = computed(() => {
-      if (!user.value?.id) return ''
-      return `${import.meta.env.VITE_API_URL || 'http://localhost/api/v1'}/users/${user.value.id}/avatar`
-    })
+    const userAvatar = computed(() => resolveUserAvatarUrl(user.value))
 
     const fetchCurrentUser = async () => {
       try {
