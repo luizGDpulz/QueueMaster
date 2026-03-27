@@ -28,12 +28,29 @@ let reconnectTimer = null
 let previewTimer = null
 
 const actionableTypes = new Set(['business_invitation'])
+const notificationCenterTypes = new Set([
+  'business_invitation',
+  'professional_request_created',
+  'invitation_accepted',
+  'invitation_rejected',
+  'manager_role_request',
+  'manager_request_created',
+  'manager_request_accepted',
+  'manager_request_rejected',
+  'role_reverted_client',
+])
 
 const notificationTypeOptions = [
   { label: 'Todos os tipos', value: '' },
   { label: 'Convites profissionais', value: 'business_invitation' },
+  { label: 'Pedidos de gerência', value: 'manager_role_request' },
+  { label: 'Gerência criada', value: 'manager_request_created' },
+  { label: 'Gerência aprovada', value: 'manager_request_accepted' },
+  { label: 'Gerência recusada', value: 'manager_request_rejected' },
+  { label: 'Solicitações criadas', value: 'professional_request_created' },
   { label: 'Solicitações aprovadas', value: 'invitation_accepted' },
   { label: 'Solicitações recusadas', value: 'invitation_rejected' },
+  { label: 'Perfil cliente', value: 'role_reverted_client' },
   { label: 'Fila', value: 'queue_called' },
   { label: 'Agendamentos', value: 'appointment_reminder' },
 ]
@@ -60,6 +77,21 @@ function refreshUnreadCount() {
   unreadCount.value = unreadNotifications.value.filter((item) => !item.read_at).length
 }
 
+function applyReadStateToMany(ids) {
+  const targets = new Set(ids.map((id) => Number(id)))
+  const stamp = new Date().toISOString()
+
+  unreadNotifications.value = unreadNotifications.value
+    .map((item) => (targets.has(Number(item.id)) ? { ...item, read_at: stamp, is_read: true } : item))
+    .filter((item) => !item.read_at)
+
+  inboxNotifications.value = inboxNotifications.value.map((item) => (
+    targets.has(Number(item.id)) ? { ...item, read_at: stamp, is_read: true } : item
+  ))
+
+  refreshUnreadCount()
+}
+
 function applyReadState(id) {
   const stamp = new Date().toISOString()
   unreadNotifications.value = unreadNotifications.value.map((item) => (
@@ -71,9 +103,33 @@ function applyReadState(id) {
   refreshUnreadCount()
 }
 
+function removeNotificationsByIds(ids) {
+  const targets = new Set(ids.map((id) => Number(id)))
+  const inboxBefore = inboxNotifications.value.length
+
+  unreadNotifications.value = unreadNotifications.value.filter((item) => !targets.has(Number(item.id)))
+  inboxNotifications.value = inboxNotifications.value.filter((item) => !targets.has(Number(item.id)))
+
+  const removedFromInbox = inboxBefore - inboxNotifications.value.length
+  if (removedFromInbox > 0) {
+    inboxMeta.value = {
+      ...inboxMeta.value,
+      total: Math.max(0, (inboxMeta.value.total || 0) - removedFromInbox),
+    }
+  }
+
+  refreshUnreadCount()
+}
+
 function getNotifIcon(type) {
   const icons = {
     business_invitation: 'business',
+    manager_role_request: 'admin_panel_settings',
+    manager_request_created: 'assignment_ind',
+    manager_request_accepted: 'verified',
+    manager_request_rejected: 'gpp_bad',
+    professional_request_created: 'assignment_turned_in',
+    role_reverted_client: 'person_off',
     invitation_accepted: 'check_circle',
     invitation_rejected: 'cancel',
     appointment_reminder: 'event',
@@ -241,11 +297,45 @@ async function markAllNotificationsRead() {
   }))
 }
 
+async function markNotificationsRead(ids = []) {
+  const normalizedIds = Array.from(new Set((ids || []).map((id) => Number(id)).filter((id) => id > 0)))
+  if (normalizedIds.length === 0) return
+
+  await api.post('/notifications/batch-read', { ids: normalizedIds })
+  applyReadStateToMany(normalizedIds)
+}
+
+async function deleteNotifications(ids = []) {
+  const normalizedIds = Array.from(new Set((ids || []).map((id) => Number(id)).filter((id) => id > 0)))
+  if (normalizedIds.length === 0) return
+
+  await api.post('/notifications/batch-delete', { ids: normalizedIds })
+  removeNotificationsByIds(normalizedIds)
+}
+
+async function fetchNotificationById(id) {
+  if (!id) return null
+
+  const response = await api.get(`/notifications/${id}`)
+  const notification = response.data?.data?.notification || null
+  return notification ? normalizeNotification(notification) : null
+}
+
 function resolveNotificationRoute(notification) {
+  if (notificationCenterTypes.has(notification.type)) {
+    return `/app/settings?tab=notifications&notification=${notification.id}`
+  }
+
   if (notification?.data?.deep_link) return notification.data.deep_link
 
   if (notification.type === 'business_invitation' || notification.type === 'invitation_accepted' || notification.type === 'invitation_rejected') {
     return '/app/businesses'
+  }
+  if (notification.type === 'professional_request_created') {
+    return '/app/settings?tab=roles'
+  }
+  if (notification.type === 'manager_role_request' || notification.type === 'manager_request_created' || notification.type === 'manager_request_accepted' || notification.type === 'manager_request_rejected' || notification.type === 'role_reverted_client') {
+    return '/app/settings?tab=roles'
   }
   if (notification.type === 'appointment_reminder') {
     return '/app/appointments'
@@ -267,20 +357,20 @@ async function openNotification(router, notification) {
   }
 }
 
-async function acceptInvitation(notification) {
+async function acceptInvitation(notification, payload = {}) {
   const invitationId = notification?.data?.invitation_id
   if (!invitationId) return
 
-  await api.post(`/invitations/${invitationId}/accept`)
+  await api.post(`/invitations/${invitationId}/accept`, payload)
   await markNotificationRead(notification)
   await Promise.all([fetchUnreadNotifications(), fetchInbox({ page: inboxMeta.value.page, per_page: inboxMeta.value.per_page })])
 }
 
-async function rejectInvitation(notification) {
+async function rejectInvitation(notification, payload = {}) {
   const invitationId = notification?.data?.invitation_id
   if (!invitationId) return
 
-  await api.post(`/invitations/${invitationId}/reject`)
+  await api.post(`/invitations/${invitationId}/reject`, payload)
   await markNotificationRead(notification)
   await Promise.all([fetchUnreadNotifications(), fetchInbox({ page: inboxMeta.value.page, per_page: inboxMeta.value.per_page })])
 }
@@ -353,8 +443,11 @@ export function useNotificationsCenter() {
     setPushEnabled,
     fetchUnreadNotifications,
     fetchInbox,
+    fetchNotificationById,
     markNotificationRead,
     markAllNotificationsRead,
+    markNotificationsRead,
+    deleteNotifications,
     openNotification,
     acceptInvitation,
     rejectInvitation,

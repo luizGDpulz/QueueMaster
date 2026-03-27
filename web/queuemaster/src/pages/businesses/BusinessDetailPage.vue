@@ -36,7 +36,7 @@
           <q-tab v-if="showProfessionalsTab" name="professionals" icon="badge" label="Profissionais" no-caps />
         </q-tabs>
 
-        <q-separator />
+        <q-separator style="margin-top: 10px;" />
 
         <q-tab-panels v-model="mainTab" animated class="tab-panels">
           <q-tab-panel name="info" class="tab-panel-padded">
@@ -791,7 +791,14 @@ export default defineComponent({
 @import 'src/css/detail-page.scss';
 
 .main-card { padding: 0; overflow: hidden; }
-.main-tabs { padding: 0.5rem 1rem 0; }
+.main-tabs {
+  margin-top: 10px;
+  padding: 0 1rem;
+
+  :deep(.q-tab__label) {
+    font-weight: 500;
+  }
+}
 .tab-panels { background: transparent; min-height: 220px; }
 .tab-panel-padded { padding: 1.5rem; }
 

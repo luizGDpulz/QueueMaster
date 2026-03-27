@@ -174,11 +174,30 @@ class BusinessUser
      */
     public static function countManagers(int $businessId): int
     {
-        $qb = new QueryBuilder();
-        return $qb->select(self::$table)
-            ->where('business_id', '=', $businessId)
-            ->where('role', '=', self::ROLE_MANAGER)
-            ->count();
+        $db = Database::getInstance();
+        $rows = $db->query(
+            "
+            SELECT COUNT(*) AS total
+            FROM (
+                SELECT DISTINCT bu.user_id
+                FROM business_users bu
+                WHERE bu.business_id = ?
+                  AND bu.role = ?
+
+                UNION
+
+                SELECT DISTINCT eu.user_id
+                FROM establishment_users eu
+                JOIN establishments e
+                  ON e.id = eu.establishment_id
+                WHERE e.business_id = ?
+                  AND eu.role = 'manager'
+            ) AS manager_users
+            ",
+            [$businessId, self::ROLE_MANAGER, $businessId]
+        );
+
+        return (int)($rows[0]['total'] ?? 0);
     }
 
     public static function getManagerUserIds(int $businessId): array

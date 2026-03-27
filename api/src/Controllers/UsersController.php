@@ -554,8 +554,8 @@ class UsersController
     /**
      * GET /api/v1/users/{id}/avatar
      * 
-     * Get user's avatar image (served as base64 data URI or redirect to Google URL)
-     * Returns the cached base64 image to avoid hitting Google's servers
+     * Get user's avatar image from the local cache whenever possible.
+     * Older records are self-healed on the first request if only the external URL exists.
      */
     public function getAvatar(Request $request, int $id): void
     {
@@ -580,7 +580,7 @@ class UsersController
                 $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="' . $color . '"/><text x="100" y="100" font-size="80" font-family="Arial,sans-serif" fill="white" text-anchor="middle" dominant-baseline="central">' . htmlspecialchars($initials) . '</text></svg>';
 
                 header('Content-Type: image/svg+xml');
-                header('Cache-Control: public, max-age=3600');
+                header('Cache-Control: public, max-age=604800');
                 echo $svg;
                 exit;
             }
@@ -594,7 +594,7 @@ class UsersController
                     $data = base64_decode($matches[2]);
                     header('Content-Type: ' . $mime);
                     header('Content-Length: ' . strlen($data));
-                    header('Cache-Control: public, max-age=86400');
+                    header('Cache-Control: public, max-age=604800');
                     echo $data;
                     exit;
                 }
@@ -602,7 +602,7 @@ class UsersController
 
             // Fallback: redirect to external URL
             header('Location: ' . $avatar);
-            header('Cache-Control: public, max-age=3600');
+            header('Cache-Control: public, max-age=604800');
             exit;
 
         }

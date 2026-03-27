@@ -17,7 +17,7 @@
 	- Mobile: Kotlin + Jetpack Compose
 	- Database: MariaDB (LAMP standard)
 
-Key characteristics: authentication, roles (admin/attendant/client), multiple queues, scheduling per professional/service, push notifications (FCM), realtime (SSE/WebSocket) for panel/client, priority rules and no-show handling.
+Key characteristics: authentication, roles (admin/attendant/client), multiple queues, scheduling per professional/service, persisted notifications with realtime updates (SSE/WebSocket) for panel/client, priority rules and no-show handling.
 
 ---
 
@@ -188,7 +188,7 @@ Important indexes: `appointments(start_at)`, `queue_entries(queue_id, status, po
 
 ### Notifications
 
-- `POST /api/v1/users/{id}/fcm-token` — save user's FCM token
+- `GET /api/v1/notifications` — list the user's persisted notifications
 - `POST /api/v1/notifications/send` — send notification (internal/admin)
 
 ---
@@ -219,10 +219,10 @@ Recommendation for MVP: implement AJAX polling (via `fetch`/XHR) or SSE dependin
 
 ## 7. Notifications (Mobile + Web)
 
-- Mobile (Kotlin): use Firebase Cloud Messaging (FCM) for push.
+- Mobile (Kotlin): consume persisted notifications through the API and reflect updates via SSE/polling when applicable.
 
-	- App registers FCM token with `POST /api/v1/users/{id}/fcm-token`.
-	- Backend sends pushes when: called, 5min before, appointment reminder, no-show.
+	- App syncs the user's notifications through the authenticated API.
+	- Backend persists events such as called, appointment reminders, and status changes.
 - Web: Web Push (optional) + in-app toasts when SSE/WebSocket notify.
 - Message examples: `You're up next`, `X customers ahead`, `Your appointment starts in 10 minutes`.
 
@@ -275,7 +275,7 @@ Acceptance criteria:
 
 ## 10. Advanced features (future)
 
-- FCM push integrated with templates.
+- Evolve the in-app/browser notification experience with consistent templates.
 - Automated wait-time estimation via simple ML / weighted average.
 - TV panel (display) via WebSocket/SSE.
 - Multi-channel queue entry with QR code.
@@ -294,7 +294,7 @@ Acceptance criteria:
 - CORS: configure allowed origins for the web frontend.
 - Rate limiting: protect critical endpoints (`/auth`, `/join`).
 - Input validation & prepared statements (PDO) to avoid SQL injection.
-- Secure storage and revocation for FCM tokens.
+- Consistent notification synchronization across devices.
 - Logs & audit: record critical actions (call, cancel, mark no-show).
 
 ---
@@ -302,7 +302,7 @@ Acceptance criteria:
 ## 12. Mobile specifics (Kotlin + Jetpack Compose)
 
 - Persist JWT in `EncryptedSharedPreferences`.
-- Use WorkManager to sync FCM tokens and perform background check-ins when needed.
+- Use WorkManager to sync unread notifications and perform background check-ins when needed.
 - Build reactive screens (StateFlow / ViewModel) to reflect SSE/polling updates.
 - Offline handling: show last-known state and attempt reconnects.
 
@@ -336,7 +336,7 @@ Acceptance criteria:
 5. Reconcile priorities (appointment vs walk-in).
 6. Mobile client: login, join queue, create appointment.
 7. In-app notifications via SSE/polling.
-8. FCM push for mobile.
+8. Better notification UX for mobile/web.
 9. Reports and metrics.
 10. Advanced features (QR, calendar integration, estimations).
 
@@ -411,7 +411,7 @@ Recommendation for MVP: implement AJAX polling (via `fetch`/XHR) or SSE dependin
 
 ## 8. Notifications
 
-- Mobile: Firebase Cloud Messaging (FCM)
+- Mobile: in-app notifications synchronized via API
 - Web: in-app toasts via SSE/WebSocket or Web Push (optional)
 
 ## 9. MVP (minimum scope)
@@ -448,3 +448,5 @@ Acceptance criteria
 ---
 
 This document is an English, structured summary of the project scope. For the original Portuguese version, see `docs/PROPOSE.md`.
+
+

@@ -1,109 +1,97 @@
 <template>
-  <q-page class="admin-panel-page">
-    <!-- Header -->
+  <q-page class="admin-page">
     <div class="page-header">
-      <div class="header-left">
-        <h1 class="page-title">Painel de Administração</h1>
-      </div>
-      <div class="header-bottom">
-        <p class="page-subtitle">Gerencie usuários, logs e ferramentas do sistema</p>
-      </div>
+      <h1 class="page-title">Painel de Administracao</h1>
+      <p class="page-subtitle">{{ isAdmin ? 'Gerencie usuarios, logs e ferramentas do sistema.' : 'Visualize o que esta dentro do seu escopo de gestao.' }}</p>
     </div>
 
-    <!-- Tabbed Navigation -->
     <div class="admin-tabs-container soft-card">
       <q-tabs
         v-model="activeTab"
         dense
-        class="admin-tabs rounded-lg"
+        class="admin-tabs"
         active-color="primary"
         indicator-color="primary"
         align="left"
         narrow-indicator
       >
-        <q-tab name="users" icon="group" label="Usuários" no-caps />
+        <q-tab name="users" icon="group" label="Usuarios" no-caps />
         <q-tab name="logs" icon="history" label="Logs" no-caps />
-        <q-tab name="plans" icon="workspace_premium" label="Planos" no-caps />
+        <q-tab v-if="isAdmin" name="plans" icon="workspace_premium" label="Planos" no-caps />
         <q-tab v-if="isAdmin" name="developer" icon="code" label="Developer" no-caps />
       </q-tabs>
 
       <q-separator style="margin-top: 10px;" />
 
       <q-tab-panels v-model="activeTab" animated class="tab-panels">
-        <!-- ================================================================ -->
-        <!-- Tab: Usuários -->
-        <!-- ================================================================ -->
         <q-tab-panel name="users" class="tab-panel">
-          <div class="panel-header">
-            <div class="panel-header-left">
-              <h3>Gerenciamento de Usuários</h3>
-              <p>{{ isAdmin ? 'Administre todos os usuários do sistema' : 'Visualize os usuários vinculados ao seu negócio' }}</p>
+          <div class="panel-head">
+            <div>
+              <h2>Gerenciamento de usuarios</h2>
+              <p>{{ isAdmin ? 'Administre todos os usuarios do sistema.' : 'Visualize os gerentes e profissionais vinculados ao seu escopo.' }}</p>
             </div>
           </div>
 
-          <!-- Role Filter Tabs -->
-          <div class="filter-tabs q-mb-md">
-            <q-tabs v-model="roleFilter" dense no-caps active-color="primary" indicator-color="primary" inline-label>
-              <q-tab name="all" label="Todos" />
-              <q-tab v-if="canSeeManagers" name="manager" label="Gerentes" />
-              <q-tab v-if="canSeeProfessionals" name="professional" label="Profissionais" />
-              <q-tab name="client" label="Clientes" />
-            </q-tabs>
-          </div>
+          <div class="toolbar">
+            <div class="filter-tabs">
+              <q-tabs v-model="roleFilter" dense no-caps active-color="primary" indicator-color="primary" inline-label>
+                <q-tab v-for="option in roleFilterOptions" :key="option.value" :name="option.value" :label="option.label" />
+              </q-tabs>
+            </div>
 
-          <!-- Search -->
-          <div class="search-bar q-mb-md">
             <q-input
               v-model="searchQuery"
               outlined
               dense
-              placeholder="Buscar por nome ou email..."
-              class="search-input"
+              clearable
+              class="search"
+              placeholder="Buscar por nome, email, telefone ou endereco"
             >
-              <template v-slot:prepend>
+              <template #prepend>
                 <q-icon name="search" />
               </template>
             </q-input>
           </div>
 
-          <!-- Loading State -->
-          <div v-if="loading" class="loading-state">
+          <div v-if="loading" class="state">
             <q-spinner-dots color="primary" size="40px" />
-            <p>Carregando usuários...</p>
+            <p>Carregando usuarios...</p>
           </div>
 
-          <!-- Empty State -->
-          <div v-else-if="filteredUsers.length === 0" class="empty-state">
-            <q-icon name="people" size="64px" />
-            <h3>Nenhum usuário encontrado</h3>
-            <p v-if="searchQuery">Tente ajustar sua busca</p>
-            <p v-else>Nenhum usuário cadastrado nesta categoria</p>
+          <div v-else-if="filteredUsers.length === 0" class="state">
+            <q-icon name="group_off" size="52px" />
+            <p>Nenhum usuario encontrado.</p>
           </div>
 
-          <!-- Users Table -->
-          <div v-else class="table-container">
+          <div v-else class="table-wrap">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th class="th-user">Usuário</th>
-                  <th class="th-email">Email</th>
-                  <th class="th-role">Papel</th>
-                  <th class="th-status">Status</th>
-                  <th class="th-created">Criado em</th>
-                  <th v-if="isAdmin" class="th-actions">Ações</th>
+                  <th>Usuario</th>
+                  <th>Email</th>
+                  <th>Papel</th>
+                  <th>Status</th>
+                  <th>Criado em</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="user in filteredUsers" :key="user.id" class="clickable-row" @click="router.push(`/app/admin/users/${user.id}`)">
+                <tr
+                  v-for="user in filteredUsers"
+                  :key="user.id"
+                  class="clickable"
+                  @click="openUserProfile(user.id)"
+                >
                   <td>
-                    <div class="user-info">
-                      <div class="user-avatar-cell">
-                        <img v-if="user.avatar_url" :src="user.avatar_url" class="user-avatar-img" referrerpolicy="no-referrer" />
-                        <div v-else class="user-avatar-initials">{{ getInitials(user.name) }}</div>
+                    <div class="user-cell">
+                      <div class="avatar">
+                        <img v-if="user.has_avatar" :src="resolveUserAvatarUrl(user)" alt="" />
+                        <span v-else>{{ getInitials(user.name) }}</span>
                       </div>
-                      <div class="user-details">
-                        <span class="user-name">{{ user.name }}</span>
-                        <span class="user-id">ID: {{ user.id }}</span>
+                      <div class="meta">
+                        <div class="meta-top">
+                          <strong>{{ user.name }}</strong>
+                        </div>
+                        <span>ID {{ user.id }}</span>
                       </div>
                     </div>
                   </td>
@@ -111,360 +99,77 @@
                     <span class="email-text">{{ user.email }}</span>
                   </td>
                   <td>
-                    <q-badge :color="getRoleColor(user.role)" :label="getRoleLabel(user.role)" />
+                    <q-badge :color="getRoleColor(resolveUserRole(user))" :label="getRoleLabel(resolveUserRole(user))" />
                   </td>
                   <td>
-                    <q-badge :color="user.is_active ? 'positive' : 'negative'" :label="user.is_active ? 'Ativo' : 'Inativo'" />
+                    <q-badge :color="normalizeBoolean(user.is_active) ? 'positive' : 'negative'" :label="normalizeBoolean(user.is_active) ? 'Ativo' : 'Inativo'" />
                   </td>
-                  <td>
-                    <span class="date-text">{{ formatDate(user.created_at) }}</span>
-                  </td>
-                  <td v-if="isAdmin">
-                    <div class="row-actions">
-                      <q-btn flat round dense icon="edit" size="sm" @click.stop="editUser(user)">
-                        <q-tooltip>Editar</q-tooltip>
-                      </q-btn>
-                      <q-btn
-                        v-if="user.id !== currentUserId"
-                        flat round dense icon="delete" size="sm" color="negative"
-                        @click.stop="confirmDeleteUser(user)"
-                      >
-                        <q-tooltip>Excluir</q-tooltip>
-                      </q-btn>
-                    </div>
-                  </td>
+                  <td>{{ formatDate(user.created_at) }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </q-tab-panel>
 
-        <!-- ================================================================ -->
-        <!-- Tab: Logs -->
-        <!-- ================================================================ -->
         <q-tab-panel name="logs" class="tab-panel">
-          <div class="panel-header">
-            <div class="panel-header-left">
-              <h3>Logs do Sistema</h3>
-              <p>{{ isAdmin ? 'Visualize todas as ações registradas no sistema' : 'Visualize as ações dos seus negócios' }}</p>
+          <div class="panel-head">
+            <div>
+              <h2>Logs</h2>
+              <p>{{ isAdmin ? 'Auditoria global do sistema.' : 'Auditoria filtrada pelo seu escopo.' }}</p>
             </div>
-            <div class="panel-header-right">
-              <q-btn
-                outline
-                color="primary"
-                icon="refresh"
-                label="Atualizar"
-                no-caps
-                size="sm"
-                :loading="logsLoading"
-                @click="fetchLogs"
-              />
+            <q-btn outline color="primary" icon="refresh" label="Atualizar" no-caps :loading="logsLoading" @click="fetchLogs" />
+          </div>
+
+          <div class="filters">
+            <q-input v-model="logsSearch" outlined dense clearable stack-label class="filter-field filter-search" label="Busca" placeholder="Buscar" @keyup.enter="fetchLogs">
+              <template #prepend><q-icon name="search" /></template>
+            </q-input>
+            <q-select v-model="logsActionFilter" outlined dense clearable stack-label class="filter-field" emit-value map-options :options="actionOptions" label="Acao" />
+            <q-select v-model="logsEntityFilter" outlined dense clearable stack-label class="filter-field" emit-value map-options :options="entityOptions" label="Entidade" />
+            <q-select v-if="businessOptions.length" v-model="logsBusinessFilter" outlined dense clearable stack-label class="filter-field" emit-value map-options :options="businessOptions" label="Negocio" />
+            <q-input v-model="logsDateFrom" outlined dense stack-label class="filter-field filter-date" type="date" label="De" />
+            <q-input v-model="logsDateTo" outlined dense stack-label class="filter-field filter-date" type="date" label="Ate" />
+            <div class="filter-actions">
+              <q-btn color="primary" icon="filter_list" label="Filtrar" no-caps @click="fetchLogs" />
+              <q-btn v-if="hasActiveFilters" flat color="grey-7" icon="clear_all" label="Limpar" no-caps @click="clearFilters" />
             </div>
           </div>
 
-          <!-- Filters Row -->
-          <div class="logs-filters">
-            <div class="filters-row">
-              <!-- Search -->
-              <q-input
-                v-model="logsSearch"
-                outlined
-                dense
-                placeholder="Buscar nos logs..."
-                class="filter-input filter-search"
-                @keyup.enter="fetchLogs"
-                clearable
-              >
-                <template v-slot:prepend>
-                  <q-icon name="search" />
-                </template>
-              </q-input>
-
-              <!-- Action Filter -->
-              <q-select
-                v-model="logsActionFilter"
-                outlined
-                dense
-                :options="actionOptions"
-                label="Ação"
-                class="filter-input"
-                clearable
-                emit-value
-                map-options
-              />
-
-              <!-- Entity Filter -->
-              <q-select
-                v-model="logsEntityFilter"
-                outlined
-                dense
-                :options="entityOptions"
-                label="Entidade"
-                class="filter-input"
-                clearable
-                emit-value
-                map-options
-              />
-
-              <!-- Business Filter (admin only shows all, manager sees own) -->
-              <q-select
-                v-if="businessOptions.length > 0"
-                v-model="logsBusinessFilter"
-                outlined
-                dense
-                :options="businessOptions"
-                label="Negócio"
-                class="filter-input"
-                clearable
-                emit-value
-                map-options
-              />
-
-              <!-- Date From -->
-              <q-input
-                v-model="logsDateFrom"
-                outlined
-                dense
-                type="date"
-                label="De"
-                class="filter-input filter-date"
-                clearable
-              />
-
-              <!-- Date To -->
-              <q-input
-                v-model="logsDateTo"
-                outlined
-                dense
-                type="date"
-                label="Até"
-                class="filter-input filter-date"
-                clearable
-              />
-
-              <!-- Apply -->
-              <q-btn
-                color="primary"
-                icon="filter_list"
-                label="Filtrar"
-                no-caps
-                dense
-                class="filter-btn"
-                @click="fetchLogs"
-              />
-
-              <!-- Clear -->
-              <q-btn
-                v-if="hasActiveFilters"
-                flat
-                color="grey"
-                icon="clear_all"
-                label="Limpar"
-                no-caps
-                dense
-                class="filter-btn"
-                @click="clearFilters"
-              />
-            </div>
-
-            <!-- Active Filters Chips -->
-            <div v-if="hasActiveFilters" class="active-filters">
-              <q-chip
-                v-if="logsSearch"
-                removable
-                dense
-                color="primary"
-                text-color="white"
-                icon="search"
-                @remove="logsSearch = ''; fetchLogs()"
-              >
-                "{{ logsSearch }}"
-              </q-chip>
-              <q-chip
-                v-if="logsActionFilter"
-                removable
-                dense
-                color="teal"
-                text-color="white"
-                icon="bolt"
-                @remove="logsActionFilter = null; fetchLogs()"
-              >
-                {{ logsActionFilter }}
-              </q-chip>
-              <q-chip
-                v-if="logsEntityFilter"
-                removable
-                dense
-                color="blue"
-                text-color="white"
-                icon="category"
-                @remove="logsEntityFilter = null; fetchLogs()"
-              >
-                {{ logsEntityFilter }}
-              </q-chip>
-              <q-chip
-                v-if="logsBusinessFilter"
-                removable
-                dense
-                color="deep-purple"
-                text-color="white"
-                icon="business"
-                @remove="logsBusinessFilter = null; fetchLogs()"
-              >
-                {{ getBusinessName(logsBusinessFilter) }}
-              </q-chip>
-              <q-chip
-                v-if="logsDateFrom"
-                removable
-                dense
-                color="orange"
-                text-color="white"
-                icon="event"
-                @remove="logsDateFrom = ''; fetchLogs()"
-              >
-                De: {{ logsDateFrom }}
-              </q-chip>
-              <q-chip
-                v-if="logsDateTo"
-                removable
-                dense
-                color="orange"
-                text-color="white"
-                icon="event"
-                @remove="logsDateTo = ''; fetchLogs()"
-              >
-                Até: {{ logsDateTo }}
-              </q-chip>
-            </div>
-          </div>
-
-          <!-- Logs Loading -->
-          <div v-if="logsLoading" class="loading-state">
+          <div v-if="logsLoading" class="state">
             <q-spinner-dots color="primary" size="40px" />
             <p>Carregando logs...</p>
           </div>
 
-          <!-- Logs Empty -->
-          <div v-else-if="logs.length === 0 && !logsLoading" class="empty-state">
-            <q-icon name="receipt_long" size="64px" />
-            <h3>Nenhum log encontrado</h3>
-            <p v-if="hasActiveFilters">Tente ajustar seus filtros</p>
-            <p v-else>Clique em <strong>Atualizar</strong> para carregar os logs</p>
+          <div v-else-if="logs.length === 0" class="state">
+            <q-icon name="receipt_long" size="52px" />
+            <p>Nenhum log encontrado.</p>
           </div>
 
-          <!-- Logs Table -->
-          <div v-else class="table-container">
-            <table class="data-table logs-table">
+          <div v-else class="table-wrap">
+            <table class="data-table">
               <thead>
                 <tr>
-                  <th class="th-datetime">Data / Hora</th>
-                  <th class="th-user">Usuário</th>
-                  <th class="th-action">Ação</th>
-                  <th class="th-entity">Entidade</th>
-                  <th class="th-entity-id">ID</th>
-                  <th class="th-ip">IP</th>
+                  <th>Data</th>
+                  <th>Usuario</th>
+                  <th>Acao</th>
+                  <th>Entidade</th>
+                  <th>Resumo</th>
                 </tr>
               </thead>
               <tbody>
-                <template v-for="log in logs" :key="log.id">
-                  <tr class="clickable-row" :class="{ 'expanded-parent': expandedLogId === log.id }" @click="toggleLogDetail(log.id)">
-                    <td>
-                      <span class="datetime-text">{{ formatDateTime(log.created_at) }}</span>
-                    </td>
-                    <td>
-                      <div v-if="log.user_name" class="user-info">
-                        <div class="user-avatar-cell user-avatar-cell--sm">
-                          <img v-if="log.user_avatar" :src="log.user_avatar" class="user-avatar-img" referrerpolicy="no-referrer" />
-                          <div v-else class="user-avatar-initials user-avatar-initials--sm">{{ getInitials(log.user_name) }}</div>
-                        </div>
-                        <div class="user-details">
-                          <span class="user-name">{{ log.user_name }}</span>
-                          <span class="user-id">{{ log.user_email }}</span>
-                        </div>
-                      </div>
-                      <span v-else class="text-muted">Sistema</span>
-                    </td>
-                    <td>
-                      <q-badge
-                        :color="getActionColor(log.action)"
-                        :label="getActionLabel(log.action)"
-                        class="action-badge"
-                      />
-                    </td>
-                    <td>
-                      <div class="log-entity-block">
-                        <span class="entity-text">{{ getEntityLabel(log.entity) }}</span>
-                        <span class="log-summary-text">{{ getLogSummary(log) }}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span class="entity-id-text">{{ log.entity_id || '-' }}</span>
-                    </td>
-                    <td>
-                      <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <span class="ip-text">{{ log.ip || '-' }}</span>
-                        <q-icon
-                          v-if="log.payload"
-                          :name="expandedLogId === log.id ? 'expand_less' : 'expand_more'"
-                          size="18px"
-                          class="dimmed-icon"
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                  <!-- Inline detail row -->
-                  <tr v-if="expandedLogId === log.id && log.payload" class="detail-row">
-                    <td colspan="6">
-                      <div class="log-detail-content">
-                        <!-- Structured payload display -->
-                        <template v-if="getLogChanges(log).length">
-                          <div class="detail-label">
-                            <q-icon name="compare_arrows" size="16px" />
-                            <span>Alterações</span>
-                          </div>
-                          <div class="changes-list">
-                            <div v-for="change in getLogChanges(log)" :key="change.field" class="change-item">
-                              <span class="change-field">{{ change.label }}</span>
-                              <span class="change-from">{{ formatFieldValue(change.from) }}</span>
-                              <q-icon name="arrow_forward" size="14px" class="change-arrow dimmed-icon" />
-                              <span class="change-to">{{ formatFieldValue(change.to) }}</span>
-                            </div>
-                          </div>
-                          <div v-if="parsedPayload(log.payload)?.entity_name" class="detail-entity-name">
-                            <q-icon name="label" size="14px" />
-                            <span>{{ parsedPayload(log.payload)?.entity_name }}</span>
-                          </div>
-                        </template>
-                        <!-- Simple key-value payload -->
-                        <template v-if="getLogDetails(log).length">
-                          <div class="detail-label">
-                            <q-icon name="data_object" size="16px" />
-                            <span>Detalhes</span>
-                          </div>
-                          <div class="payload-fields">
-                            <div v-for="detail in getLogDetails(log)" :key="detail.key" class="payload-field">
-                              <span class="payload-field-label">{{ detail.label }}</span>
-                              <span class="payload-field-value">{{ formatFieldValue(detail.value) }}</span>
-                            </div>
-                          </div>
-                        </template>
-                        <div v-if="log.user_agent" class="detail-user-agent">
-                          <q-icon name="devices" size="14px" />
-                          <span>{{ log.user_agent }}</span>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                </template>
+                <tr v-for="log in logs" :key="log.id" class="clickable" @click="openPayloadDialog(log)">
+                  <td>{{ formatDateTime(log.created_at) }}</td>
+                  <td>{{ log.user_name || 'Sistema' }}</td>
+                  <td><q-badge :color="getActionColor(log.action)" :label="getActionLabel(log.action)" /></td>
+                  <td>{{ getEntityLabel(log.entity) }}</td>
+                  <td>{{ getLogSummary(log) }}</td>
+                </tr>
               </tbody>
             </table>
           </div>
 
-          <!-- Pagination -->
-          <div v-if="logsTotalPages > 1" class="logs-pagination">
-            <div class="pagination-info">
-              Mostrando {{ ((logsPage - 1) * logsPerPage) + 1 }}–{{ Math.min(logsPage * logsPerPage, logsTotal) }} de {{ logsTotal }} registros
-            </div>
+          <div v-if="logsTotalPages > 1" class="pager">
+            <span>Pagina {{ logsPage }} de {{ logsTotalPages }}</span>
             <q-pagination
               v-model="logsPage"
               :max="logsTotalPages"
@@ -479,45 +184,36 @@
           </div>
         </q-tab-panel>
 
-        <!-- ================================================================ -->
-        <!-- Tab: Planos -->
-        <!-- ================================================================ -->
-        <q-tab-panel name="plans" class="tab-panel">
-          <div class="panel-header">
-            <div class="panel-header-left">
-              <h3>Gerenciamento de Planos</h3>
-              <p>{{ isAdmin ? 'Gerencie os planos do sistema SaaS' : 'Visualize os planos disponíveis' }}</p>
+        <q-tab-panel v-if="isAdmin" name="plans" class="tab-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Planos</h2>
+              <p>Gerencie os planos padrao e personalizados mantendo os bloqueios da nova logica.</p>
             </div>
-            <div v-if="isAdmin" class="panel-header-right">
-              <q-btn color="primary" icon="add" label="Novo Plano" no-caps size="sm" @click="openCreatePlan" />
-            </div>
+            <q-btn color="primary" icon="add" label="Novo plano" no-caps @click="openCreatePlan" />
           </div>
 
-          <!-- Loading -->
-          <div v-if="plansLoading" class="loading-state">
+          <div v-if="plansLoading" class="state">
             <q-spinner-dots color="primary" size="40px" />
             <p>Carregando planos...</p>
           </div>
 
-          <!-- Empty -->
-          <div v-else-if="plans.length === 0" class="empty-state">
-            <q-icon name="workspace_premium" size="64px" />
-            <h3>Nenhum plano encontrado</h3>
-            <p>Comece criando um novo plano</p>
+          <div v-else-if="plans.length === 0" class="state">
+            <q-icon name="workspace_premium" size="52px" />
+            <p>Nenhum plano disponivel.</p>
           </div>
 
-          <!-- Plans Table -->
-          <div v-else class="table-container">
+          <div v-else class="table-wrap">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th class="th-plan">Plano</th>
-                  <th>Negócios</th>
+                  <th>Plano</th>
+                  <th>Negocios</th>
                   <th>Estabelecimentos</th>
                   <th>Gerentes</th>
                   <th>Profissionais</th>
                   <th>Status</th>
-                  <th v-if="isAdmin" class="th-actions">Ações</th>
+                  <th>Acoes</th>
                 </tr>
               </thead>
               <tbody>
@@ -525,22 +221,22 @@
                   <td>
                     <div class="plan-info">
                       <span class="plan-name">{{ plan.name }}</span>
-                      <span class="plan-id">ID: {{ plan.id }}</span>
+                      <span class="plan-id">ID {{ plan.id }} | {{ plan.active_manager_count || 0 }} titular(es)</span>
                     </div>
                   </td>
-                  <td>{{ plan.max_businesses ?? '∞' }}</td>
-                  <td>{{ plan.max_establishments_per_business ?? '∞' }}</td>
-                  <td>{{ plan.max_managers ?? '∞' }}</td>
-                  <td>{{ plan.max_professionals_per_establishment ?? '∞' }}</td>
+                  <td>{{ formatLimit(plan.max_businesses) }}</td>
+                  <td>{{ formatLimit(plan.max_establishments_per_business) }}</td>
+                  <td>{{ formatLimit(plan.max_managers) }}</td>
+                  <td>{{ formatLimit(plan.max_professionals_per_establishment) }}</td>
                   <td>
-                    <q-badge :color="plan.is_active ? 'positive' : 'grey'" :label="plan.is_active ? 'Ativo' : 'Inativo'" />
+                    <q-badge :color="normalizeBoolean(plan.is_active) ? 'positive' : 'grey-7'" :label="normalizeBoolean(plan.is_active) ? 'Ativo' : 'Inativo'" />
                   </td>
-                  <td v-if="isAdmin">
-                    <div class="row-actions">
-                      <q-btn flat round dense icon="edit" size="sm" @click="editPlan(plan)">
+                  <td>
+                    <div class="plan-actions">
+                      <q-btn flat round dense icon="edit" @click="editPlan(plan)">
                         <q-tooltip>Editar</q-tooltip>
                       </q-btn>
-                      <q-btn flat round dense icon="delete" size="sm" color="negative" @click="confirmDeletePlan(plan)">
+                      <q-btn flat round dense icon="delete" color="negative" @click="confirmDeletePlan(plan)">
                         <q-tooltip>Excluir</q-tooltip>
                       </q-btn>
                     </div>
@@ -551,31 +247,30 @@
           </div>
         </q-tab-panel>
 
-        <!-- ================================================================ -->
-        <!-- Tab: Developer (Admin) -->
-        <!-- ================================================================ -->
         <q-tab-panel v-if="isAdmin" name="developer" class="tab-panel">
-          <div class="panel-header">
-            <h3>Developer Tools</h3>
-            <p>Ferramentas de desenvolvimento e depuração</p>
+          <div class="panel-head">
+            <div>
+              <h2>Developer tools</h2>
+              <p>Ferramentas de desenvolvimento e depuracao.</p>
+            </div>
           </div>
 
           <div class="dev-warning">
             <q-icon name="warning" size="20px" />
-            <span>Tokens não ficam expostos no browser. Use o botão abaixo para gerar um token temporário para o Swagger.</span>
+            <span>Tokens nao ficam expostos no browser. Gere um token temporario apenas para uso no Swagger.</span>
           </div>
 
           <div class="token-section">
             <div class="token-header">
               <h4>Token para Swagger</h4>
-              <p>Gera um token JWT de curta duração (5 min) para uso no Swagger UI</p>
+              <p>Gera um token JWT de curta duracao para testar endpoints protegidos.</p>
             </div>
 
             <div v-if="!devToken" class="generate-token-area">
               <q-btn
                 color="primary"
                 icon="vpn_key"
-                label="Gerar Token para Swagger"
+                label="Gerar token para Swagger"
                 no-caps
                 :loading="generatingToken"
                 @click="generateDevToken"
@@ -592,9 +287,11 @@
                 :rows="3"
                 class="token-input"
               >
-                <template v-slot:append>
+                <template #append>
                   <q-btn
-                    flat round dense
+                    flat
+                    round
+                    dense
                     icon="content_copy"
                     @click="copyToken"
                     :color="copiedAccess ? 'positive' : 'primary'"
@@ -605,11 +302,15 @@
               </q-input>
               <p class="token-expiry">
                 <q-icon name="schedule" size="14px" />
-                Expira em 5 minutos. Gere outro se necessário.
+                Expira em 5 minutos. Gere outro se necessario.
               </p>
               <q-btn
-                flat color="primary" icon="refresh"
-                label="Gerar novo" no-caps size="sm"
+                flat
+                color="primary"
+                icon="refresh"
+                label="Gerar novo"
+                no-caps
+                size="sm"
                 class="q-mt-sm"
                 :loading="generatingToken"
                 @click="generateDevToken"
@@ -619,107 +320,77 @@
 
           <q-separator class="q-my-md" />
 
-          <q-btn
-            outline color="primary" icon="open_in_new"
-            label="Abrir Swagger UI"
-            @click="openSwagger" no-caps
-          />
+          <q-btn outline color="primary" icon="open_in_new" label="Abrir Swagger UI" no-caps @click="openSwagger" />
         </q-tab-panel>
       </q-tab-panels>
     </div>
 
-    <!-- Edit User Dialog -->
-    <q-dialog v-model="showEditDialog" persistent>
-      <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>Editar Usuário</h3>
-          <q-btn flat round dense icon="close" @click="showEditDialog = false" />
-        </q-card-section>
-
-        <q-card-section class="dialog-content">
-          <q-input v-model="editForm.name" label="Nome" outlined dense />
-          <q-input v-model="editForm.email" label="Email" outlined dense class="q-mt-md" disable hint="E-mail vinculado ao Google" />
-          <q-input v-model="editForm.phone" label="Telefone" outlined dense class="q-mt-md" />
-          <q-select
-            v-model="editForm.role" label="Papel" outlined dense
-            :options="roleOptions" emit-value map-options class="q-mt-md"
-          />
-          <q-toggle v-model="editForm.is_active" label="Ativo" class="q-mt-md" />
-        </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Cancelar" no-caps @click="showEditDialog = false" />
-          <q-btn color="primary" label="Salvar" no-caps :loading="saving" @click="saveUser" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Delete User Confirmation -->
-    <q-dialog v-model="showDeleteDialog">
-      <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>Confirmar Exclusão</h3>
-        </q-card-section>
-
-        <q-card-section class="dialog-content">
-          <p>Tem certeza que deseja excluir o usuário <strong>{{ selectedUser?.name }}</strong>?</p>
-          <p class="delete-warning">Esta ação não pode ser desfeita.</p>
-        </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
-          <q-btn flat label="Cancelar" no-caps @click="showDeleteDialog = false" />
-          <q-btn color="negative" label="Excluir" no-caps :loading="deleting" @click="deleteUser" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-    <!-- Plan Create/Edit Dialog -->
     <q-dialog v-model="showPlanDialog" persistent>
       <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>{{ isEditingPlan ? 'Editar Plano' : 'Novo Plano' }}</h3>
+        <q-card-section class="dialog-head">
+          <h3>{{ isEditingPlan ? 'Editar plano' : 'Novo plano' }}</h3>
           <q-btn flat round dense icon="close" @click="showPlanDialog = false" />
         </q-card-section>
-
-        <q-card-section class="dialog-content">
-          <q-input v-model="planForm.name" label="Nome do Plano *" outlined dense :rules="[val => !!val || 'Nome é obrigatório']" />
-          <q-input v-model.number="planForm.max_businesses" label="Máx. Negócios" outlined dense type="number" class="q-mt-md" hint="Deixe vazio para ilimitado" clearable />
-          <q-input v-model.number="planForm.max_establishments_per_business" label="Máx. Estabelecimentos / Negócio" outlined dense type="number" class="q-mt-md" hint="Deixe vazio para ilimitado" clearable />
-          <q-input v-model.number="planForm.max_managers" label="Máx. Gerentes" outlined dense type="number" class="q-mt-md" hint="Deixe vazio para ilimitado" clearable />
-          <q-input v-model.number="planForm.max_professionals_per_establishment" label="Máx. Profissionais / Estabelecimento" outlined dense type="number" class="q-mt-md" hint="Deixe vazio para ilimitado" clearable />
-          <q-toggle v-model="planForm.is_active" label="Ativo" class="q-mt-md" />
+        <q-card-section>
+          <q-input v-model="planForm.name" outlined dense label="Nome do plano" />
+          <q-input v-model.number="planForm.max_businesses" outlined dense clearable type="number" label="Max. negocios" class="q-mt-md" />
+          <q-input v-model.number="planForm.max_establishments_per_business" outlined dense clearable type="number" label="Max. estabelecimentos / negocio" class="q-mt-md" />
+          <q-input v-model.number="planForm.max_managers" outlined dense clearable type="number" label="Max. gerentes / negocio" class="q-mt-md" />
+          <q-input v-model.number="planForm.max_professionals_per_establishment" outlined dense clearable type="number" label="Max. profissionais / estabelecimento" class="q-mt-md" />
+          <q-toggle v-model="planForm.is_active" label="Plano ativo" class="q-mt-md" />
         </q-card-section>
-
-        <q-card-actions align="right" class="dialog-actions">
+        <q-card-actions align="right">
           <q-btn flat label="Cancelar" no-caps @click="showPlanDialog = false" />
           <q-btn color="primary" :label="isEditingPlan ? 'Salvar' : 'Criar'" no-caps :loading="savingPlan" @click="savePlan" />
         </q-card-actions>
       </q-card>
     </q-dialog>
 
-    <!-- Plan Delete Confirmation -->
     <q-dialog v-model="showDeletePlanDialog">
       <q-card class="dialog-card">
-        <q-card-section class="dialog-header">
-          <h3>Confirmar Exclusão</h3>
+        <q-card-section class="dialog-head">
+          <h3>Excluir plano</h3>
         </q-card-section>
-        <q-card-section class="dialog-content">
-          <p>Tem certeza que deseja excluir o plano <strong>{{ selectedPlan?.name }}</strong>?</p>
-          <p class="delete-warning">Negócios vinculados a este plano perderão suas restrições.</p>
+        <q-card-section>
+          <p>Deseja excluir <strong>{{ selectedPlan?.name }}</strong>?</p>
+          <p class="muted">Planos com vinculos ativos ou historico de uso sao protegidos pelo backend.</p>
         </q-card-section>
-        <q-card-actions align="right" class="dialog-actions">
+        <q-card-actions align="right">
           <q-btn flat label="Cancelar" no-caps @click="showDeletePlanDialog = false" />
           <q-btn color="negative" label="Excluir" no-caps :loading="deletingPlan" @click="deletePlan" />
         </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showPayloadDialog">
+      <q-card class="dialog-card wide">
+        <q-card-section class="dialog-head">
+          <h3>Detalhes do log</h3>
+          <q-btn flat round dense icon="close" @click="showPayloadDialog = false" />
+        </q-card-section>
+        <q-card-section>
+          <pre class="payload">{{ formatPayload(selectedLog?.payload) || 'Sem payload registrado.' }}</pre>
+        </q-card-section>
       </q-card>
     </q-dialog>
   </q-page>
 </template>
 
 <script>
-import { defineComponent, ref, computed, onMounted, watch } from 'vue'
+import { computed, defineComponent, onMounted, ref, watch } from 'vue'
+import { copyToClipboard, openURL, useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
-import { copyToClipboard, useQuasar } from 'quasar'
+import { resolveUserAvatarUrl } from 'src/utils/userAvatar'
+
+const emptyPlanForm = () => ({
+  name: '',
+  max_businesses: null,
+  max_establishments_per_business: null,
+  max_managers: null,
+  max_professionals_per_establishment: null,
+  is_active: true
+})
 
 export default defineComponent({
   name: 'AdminPanelPage',
@@ -728,48 +399,31 @@ export default defineComponent({
     const $q = useQuasar()
     const router = useRouter()
 
-    // =====================================================
-    // Users tab state
-    // =====================================================
-    const users = ref([])
-    const loading = ref(true)
-    const saving = ref(false)
-    const deleting = ref(false)
-    const searchQuery = ref('')
     const activeTab = ref('users')
-    const roleFilter = ref('all')
     const currentUserRole = ref(null)
-    const currentUserId = ref(null)
 
-    // Dialogs
-    const showEditDialog = ref(false)
-    const showDeleteDialog = ref(false)
-    const selectedUser = ref(null)
+    const users = ref([])
+    const loading = ref(false)
+    const searchQuery = ref('')
+    const roleFilter = ref('all')
 
-    // Edit form
-    const editForm = ref({
-      name: '',
-      email: '',
-      phone: '',
-      role: 'client',
-      is_active: true
-    })
+    const logs = ref([])
+    const logsLoading = ref(false)
+    const logsPage = ref(1)
+    const logsPerPage = ref(25)
+    const logsTotalPages = ref(1)
+    const logsSearch = ref('')
+    const logsActionFilter = ref(null)
+    const logsEntityFilter = ref(null)
+    const logsBusinessFilter = ref(null)
+    const logsDateFrom = ref('')
+    const logsDateTo = ref('')
+    const actionOptions = ref([])
+    const entityOptions = ref([])
+    const businessOptions = ref([])
+    const selectedLog = ref(null)
+    const showPayloadDialog = ref(false)
 
-    const roleOptions = [
-      { label: 'Cliente', value: 'client' },
-      { label: 'Profissional', value: 'professional' },
-      { label: 'Gerente', value: 'manager' },
-      { label: 'Administrador', value: 'admin' }
-    ]
-
-    // Developer tools
-    const devToken = ref('')
-    const copiedAccess = ref(false)
-    const generatingToken = ref(false)
-
-    // =====================================================
-    // Plans tab state
-    // =====================================================
     const plans = ref([])
     const plansLoading = ref(false)
     const showPlanDialog = ref(false)
@@ -778,170 +432,105 @@ export default defineComponent({
     const selectedPlan = ref(null)
     const savingPlan = ref(false)
     const deletingPlan = ref(false)
-    const planForm = ref({
-      name: '',
-      max_businesses: null,
-      max_establishments_per_business: null,
-      max_managers: null,
-      max_professionals_per_establishment: null,
-      is_active: true
-    })
+    const planForm = ref(emptyPlanForm())
 
-    // =====================================================
-    // Logs tab state
-    // =====================================================
-    const logs = ref([])
-    const logsLoading = ref(false)
-    const logsPage = ref(1)
-    const logsPerPage = ref(25)
-    const logsTotal = ref(0)
-    const logsTotalPages = ref(1)
-    const expandedLogId = ref(null)
+    const devToken = ref('')
+    const copiedAccess = ref(false)
+    const generatingToken = ref(false)
 
-    // Filters
-    const logsSearch = ref('')
-    const logsActionFilter = ref(null)
-    const logsEntityFilter = ref(null)
-    const logsBusinessFilter = ref(null)
-    const logsDateFrom = ref('')
-    const logsDateTo = ref('')
-
-    // Filter options (loaded from API)
-    const actionOptions = ref([])
-    const entityOptions = ref([])
-    const businessOptions = ref([])
-
-    // =====================================================
-    // Computed
-    // =====================================================
     const isAdmin = computed(() => currentUserRole.value === 'admin')
-    const canSeeManagers = computed(() => ['admin', 'manager'].includes(currentUserRole.value))
-    const canSeeProfessionals = computed(() => ['admin', 'manager'].includes(currentUserRole.value))
+    const resolveUserRole = (user) => {
+      if (!user || typeof user !== 'object') return null
+      if (user.role === 'admin' || user.effective_role === 'admin') return 'admin'
+      return user.effective_role || user.role || null
+    }
+
+    const roleFilterOptions = computed(() => {
+      const options = [
+        { label: 'Todos', value: 'all' },
+        { label: 'Gerentes', value: 'manager' },
+        { label: 'Profissionais', value: 'professional' }
+      ]
+      if (isAdmin.value) {
+        options.push({ label: 'Clientes', value: 'client' })
+        options.push({ label: 'Admins', value: 'admin' })
+      }
+      return options
+    })
 
     const filteredUsers = computed(() => {
-      let filtered = users.value
-
+      let list = users.value
       if (roleFilter.value !== 'all') {
-        filtered = filtered.filter(u => u.role === roleFilter.value)
+        list = list.filter((user) => resolveUserRole(user) === roleFilter.value)
       }
+      if (!searchQuery.value) return list
 
-      if (searchQuery.value) {
-        const query = searchQuery.value.toLowerCase()
-        filtered = filtered.filter(u =>
-          u.name?.toLowerCase().includes(query) ||
-          u.email?.toLowerCase().includes(query)
-        )
-      }
-
-      return filtered
+      const term = searchQuery.value.toLowerCase()
+      return list.filter((user) => [user.name, user.email, user.phone, user.address_line_1, user.address_line_2]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(term))
     })
 
-    const hasActiveFilters = computed(() => {
-      return !!(logsSearch.value || logsActionFilter.value || logsEntityFilter.value || logsBusinessFilter.value || logsDateFrom.value || logsDateTo.value)
-    })
+    const hasActiveFilters = computed(() => Boolean(
+      logsSearch.value ||
+      logsActionFilter.value ||
+      logsEntityFilter.value ||
+      logsBusinessFilter.value ||
+      logsDateFrom.value ||
+      logsDateTo.value
+    ))
 
-    // =====================================================
-    // Users methods
-    // =====================================================
-    const fetchUsers = async () => {
-      loading.value = true
-      try {
-        const response = await api.get('/users')
-        if (response.data?.success) {
-          users.value = response.data.data?.users || []
-        }
-      } catch (err) {
-        console.error('Erro ao buscar usuários:', err)
-        const msg = err.response?.data?.error?.message || err.message || 'Erro de conexão com a API'
-        if (err.response?.status === 403) {
-          $q.notify({ type: 'warning', message: 'Visualização de usuários: ' + msg, timeout: 5000 })
-          router.push('/app')
-        } else {
-          $q.notify({ type: 'negative', message: 'Erro ao carregar usuários: ' + msg, timeout: 5000 })
-        }
-      } finally {
-        loading.value = false
-      }
+    const normalizeBoolean = (value) => value === true || value === 1 || value === '1'
+
+    const notifyError = (error, fallback) => {
+      $q.notify({ type: 'negative', message: error.response?.data?.error?.message || fallback })
     }
 
     const fetchCurrentUser = async () => {
       try {
         const response = await api.get('/auth/me')
-        if (response.data?.success) {
-          currentUserRole.value = response.data.data.user.role
-          currentUserId.value = response.data.data.user.id
-          if (!['admin', 'manager'].includes(currentUserRole.value)) {
-            $q.notify({ type: 'warning', message: 'Acesso restrito a administradores e gerentes' })
-            router.push('/app')
-          }
+        const user = response.data?.data?.user || {}
+        localStorage.setItem('user', JSON.stringify(user))
+        currentUserRole.value = resolveUserRole(user)
+        if (!['admin', 'manager'].includes(currentUserRole.value)) {
+          $q.notify({ type: 'warning', message: 'Acesso restrito ao painel administrativo.' })
+          router.push('/app')
         }
-      } catch (err) {
-        console.error('Erro ao buscar role:', err)
+      } catch {
+        router.push('/app')
       }
     }
 
-    const editUser = (user) => {
-      selectedUser.value = user
-      editForm.value = {
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        role: user.role || 'client',
-        is_active: user.is_active !== false && user.is_active !== 0
-      }
-      showEditDialog.value = true
-    }
-
-    const confirmDeleteUser = (user) => {
-      selectedUser.value = user
-      showDeleteDialog.value = true
-    }
-
-    const saveUser = async () => {
-      saving.value = true
+    const fetchUsers = async () => {
+      loading.value = true
       try {
-        const payload = {}
-        if (editForm.value.name) payload.name = editForm.value.name
-        if (editForm.value.phone !== undefined) payload.phone = editForm.value.phone
-        if (editForm.value.role) payload.role = editForm.value.role
-
-        await api.put(`/users/${selectedUser.value.id}`, payload)
-        $q.notify({ type: 'positive', message: 'Usuário atualizado com sucesso' })
-        showEditDialog.value = false
-        fetchUsers()
-      } catch (err) {
-        const msg = err.response?.data?.error?.message || 'Erro ao salvar'
-        $q.notify({ type: 'negative', message: msg })
+        const response = await api.get('/admin/users')
+        users.value = response.data?.data?.users || []
+      } catch (error) {
+        notifyError(error, 'Erro ao carregar usuarios.')
       } finally {
-        saving.value = false
+        loading.value = false
       }
     }
 
-    const deleteUser = async () => {
-      deleting.value = true
+    const fetchLogFilters = async () => {
       try {
-        await api.delete(`/users/${selectedUser.value.id}`)
-        $q.notify({ type: 'positive', message: 'Usuário excluído com sucesso' })
-        showDeleteDialog.value = false
-        fetchUsers()
-      } catch (err) {
-        const msg = err.response?.data?.error?.message || 'Erro ao excluir'
-        $q.notify({ type: 'negative', message: msg })
-      } finally {
-        deleting.value = false
+        const response = await api.get('/admin/audit-logs/filters')
+        const data = response.data?.data || {}
+        actionOptions.value = (data.actions || []).map((item) => ({ label: getActionLabel(item), value: item }))
+        entityOptions.value = (data.entities || []).map((item) => ({ label: getEntityLabel(item), value: item }))
+        businessOptions.value = (data.businesses || []).map((item) => ({ label: item.name, value: item.id }))
+      } catch (error) {
+        console.error(error)
       }
     }
 
-    // =====================================================
-    // Logs methods
-    // =====================================================
     const fetchLogs = async () => {
       logsLoading.value = true
       try {
-        const params = {
-          page: logsPage.value,
-          per_page: logsPerPage.value,
-        }
+        const params = { page: logsPage.value, per_page: logsPerPage.value }
         if (logsSearch.value) params.search = logsSearch.value
         if (logsActionFilter.value) params.action = logsActionFilter.value
         if (logsEntityFilter.value) params.entity = logsEntityFilter.value
@@ -950,31 +539,13 @@ export default defineComponent({
         if (logsDateTo.value) params.date_to = logsDateTo.value
 
         const response = await api.get('/admin/audit-logs', { params })
-        if (response.data?.success) {
-          const d = response.data.data
-          logs.value = d.logs || []
-          logsTotal.value = d.total || 0
-          logsTotalPages.value = d.total_pages || 1
-        }
-      } catch (err) {
-        console.error('Erro ao buscar logs:', err)
-        $q.notify({ type: 'negative', message: 'Erro ao carregar logs do sistema' })
+        const data = response.data?.data || {}
+        logs.value = data.logs || []
+        logsTotalPages.value = data.total_pages || 1
+      } catch (error) {
+        notifyError(error, 'Erro ao carregar logs.')
       } finally {
         logsLoading.value = false
-      }
-    }
-
-    const fetchLogFilters = async () => {
-      try {
-        const response = await api.get('/admin/audit-logs/filters')
-        if (response.data?.success) {
-          const d = response.data.data
-          actionOptions.value = (d.actions || []).map(a => ({ label: getActionLabel(a), value: a }))
-          entityOptions.value = (d.entities || []).map(e => ({ label: getEntityLabel(e), value: e }))
-          businessOptions.value = (d.businesses || []).map(b => ({ label: b.name, value: b.id }))
-        }
-      } catch (err) {
-        console.error('Erro ao buscar filtros:', err)
       }
     }
 
@@ -989,60 +560,14 @@ export default defineComponent({
       fetchLogs()
     }
 
-    const toggleLogDetail = (id) => {
-      expandedLogId.value = expandedLogId.value === id ? null : id
-    }
-
-    const getBusinessName = (businessId) => {
-      const opt = businessOptions.value.find(b => b.value === businessId)
-      return opt ? opt.label : `#${businessId}`
-    }
-
-    // =====================================================
-    // Developer tools
-    // =====================================================
-    const generateDevToken = async () => {
-      generatingToken.value = true
-      try {
-        const response = await api.get('/auth/dev-token')
-        if (response.data?.success) {
-          devToken.value = response.data.data.access_token || response.data.data.token || ''
-        }
-      } catch (err) {
-        console.error('Erro ao gerar dev token:', err)
-        $q.notify({ type: 'negative', message: 'Erro ao gerar token. Verifique se você é admin.' })
-      } finally {
-        generatingToken.value = false
-      }
-    }
-
-    const copyToken = async () => {
-      try {
-        await copyToClipboard(devToken.value)
-        copiedAccess.value = true
-        setTimeout(() => { copiedAccess.value = false }, 2000)
-      } catch (err) {
-        console.error('Erro ao copiar:', err)
-      }
-    }
-
-    const openSwagger = () => {
-      window.open('/swagger', '_blank')
-    }
-
-    // =====================================================
-    // Plans methods
-    // =====================================================
     const fetchPlans = async () => {
       plansLoading.value = true
       try {
         const response = await api.get('/admin/plans')
-        if (response.data?.success) {
-          plans.value = response.data.data?.plans || []
-        }
-      } catch (err) {
-        console.error('Erro ao buscar planos:', err)
-        $q.notify({ type: 'negative', message: 'Erro ao carregar planos' })
+        const data = response.data?.data || {}
+        plans.value = data.plans || []
+      } catch (error) {
+        notifyError(error, 'Erro ao carregar planos.')
       } finally {
         plansLoading.value = false
       }
@@ -1050,7 +575,8 @@ export default defineComponent({
 
     const openCreatePlan = () => {
       isEditingPlan.value = false
-      planForm.value = { name: '', max_businesses: null, max_establishments_per_business: null, max_managers: null, max_professionals_per_establishment: null, is_active: true }
+      selectedPlan.value = null
+      planForm.value = emptyPlanForm()
       showPlanDialog.value = true
     }
 
@@ -1063,9 +589,41 @@ export default defineComponent({
         max_establishments_per_business: plan.max_establishments_per_business,
         max_managers: plan.max_managers,
         max_professionals_per_establishment: plan.max_professionals_per_establishment,
-        is_active: plan.is_active !== false && plan.is_active !== 0
+        is_active: normalizeBoolean(plan.is_active)
       }
       showPlanDialog.value = true
+    }
+
+    const normalizePlanPayload = () => {
+      const payload = { ...planForm.value }
+      ;['max_businesses', 'max_establishments_per_business', 'max_managers', 'max_professionals_per_establishment'].forEach((field) => {
+        if (payload[field] === '' || payload[field] === 0) payload[field] = null
+      })
+      return payload
+    }
+
+    const savePlan = async () => {
+      if (!planForm.value.name?.trim()) {
+        $q.notify({ type: 'warning', message: 'Informe o nome do plano.' })
+        return
+      }
+      savingPlan.value = true
+      try {
+        const payload = normalizePlanPayload()
+        if (isEditingPlan.value && selectedPlan.value) {
+          await api.put(`/admin/plans/${selectedPlan.value.id}`, payload)
+          $q.notify({ type: 'positive', message: 'Plano atualizado com sucesso.' })
+        } else {
+          await api.post('/admin/plans', payload)
+          $q.notify({ type: 'positive', message: 'Plano criado com sucesso.' })
+        }
+        showPlanDialog.value = false
+        fetchPlans()
+      } catch (error) {
+        notifyError(error, 'Erro ao salvar plano.')
+      } finally {
+        savingPlan.value = false
+      }
     }
 
     const confirmDeletePlan = (plan) => {
@@ -1073,134 +631,50 @@ export default defineComponent({
       showDeletePlanDialog.value = true
     }
 
-    const savePlan = async () => {
-      if (!planForm.value.name) {
-        $q.notify({ type: 'warning', message: 'Nome é obrigatório' })
-        return
-      }
-      savingPlan.value = true
-      try {
-        const payload = { ...planForm.value }
-        // Convert empty strings/0 to null for unlimited
-        ;['max_businesses', 'max_establishments_per_business', 'max_managers', 'max_professionals_per_establishment'].forEach(k => {
-          if (payload[k] === '' || payload[k] === 0) payload[k] = null
-        })
-
-        if (isEditingPlan.value) {
-          await api.put(`/admin/plans/${selectedPlan.value.id}`, payload)
-          $q.notify({ type: 'positive', message: 'Plano atualizado com sucesso' })
-        } else {
-          await api.post('/admin/plans', payload)
-          $q.notify({ type: 'positive', message: 'Plano criado com sucesso' })
-        }
-        showPlanDialog.value = false
-        fetchPlans()
-      } catch (err) {
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar plano' })
-      } finally {
-        savingPlan.value = false
-      }
-    }
-
     const deletePlan = async () => {
+      if (!selectedPlan.value) return
       deletingPlan.value = true
       try {
         await api.delete(`/admin/plans/${selectedPlan.value.id}`)
-        $q.notify({ type: 'positive', message: 'Plano excluído com sucesso' })
+        $q.notify({ type: 'positive', message: 'Plano excluido com sucesso.' })
         showDeletePlanDialog.value = false
         fetchPlans()
-      } catch (err) {
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao excluir' })
+      } catch (error) {
+        notifyError(error, 'Erro ao excluir plano.')
       } finally {
         deletingPlan.value = false
       }
     }
 
-    // =====================================================
-    // Formatters & Helpers
-    // =====================================================
-    const getRoleLabel = (role) => {
-      const labels = { admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', client: 'Cliente' }
-      return labels[role] || role
-    }
-
-    const getRoleColor = (role) => {
-      const colors = { admin: 'deep-purple', manager: 'blue', professional: 'teal', client: 'grey' }
-      return colors[role] || 'grey'
-    }
-
-    const getInitials = (name) => {
-      if (!name) return '?'
-      return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
-    }
-
-    const formatDate = (dateString) => {
-      if (!dateString) return '-'
-      return new Date(dateString).toLocaleDateString('pt-BR')
-    }
-
-    const formatDateTime = (dateString) => {
-      if (!dateString) return '-'
-      const d = new Date(dateString)
-      return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    }
-
-    const getActionLabel = (action) => {
-      const labels = {
-        create: 'Criar',
-        update: 'Atualizar',
-        delete: 'Excluir',
-        login: 'Login',
-        logout: 'Logout',
-        cancel: 'Cancelar',
-        check_in: 'Check-in',
-        complete: 'Concluir',
-        no_show: 'Não compareceu',
-        queue_join: 'Entrar na fila',
-        queue_leave: 'Sair da fila',
-        queue_call_next: 'Chamar próximo',
-        generate_code: 'Gerar código',
-        add_user: 'Adicionar usuário',
-        remove_user: 'Remover usuário',
+    const generateDevToken = async () => {
+      generatingToken.value = true
+      try {
+        const response = await api.get('/auth/dev-token')
+        devToken.value = response.data?.data?.token || ''
+        $q.notify({ type: 'positive', message: 'Token gerado com sucesso.' })
+      } catch (error) {
+        notifyError(error, 'Erro ao gerar token.')
+      } finally {
+        generatingToken.value = false
       }
-      return labels[action] || action
     }
 
-    const getActionColor = (action) => {
-      const colors = {
-        create: 'positive',
-        update: 'blue',
-        delete: 'negative',
-        login: 'teal',
-        logout: 'grey',
-        cancel: 'orange',
-        check_in: 'cyan',
-        complete: 'positive',
-        no_show: 'red-5',
-        queue_join: 'light-green',
-        queue_leave: 'amber',
-        queue_call_next: 'indigo',
-        generate_code: 'purple',
-        add_user: 'light-blue',
-        remove_user: 'deep-orange',
-      }
-      return colors[action] || 'grey'
+    const copyToken = async () => {
+      if (!devToken.value) return
+      await copyToClipboard(devToken.value)
+      copiedAccess.value = true
+      window.setTimeout(() => {
+        copiedAccess.value = false
+      }, 1500)
+      $q.notify({ type: 'positive', message: 'Token copiado.' })
     }
 
-    const getEntityLabel = (entity) => {
-      const labels = {
-        user: 'Usuário',
-        business: 'Negócio',
-        establishment: 'Estabelecimento',
-        service: 'Serviço',
-        professional: 'Profissional',
-        queue: 'Fila',
-        appointment: 'Agendamento',
-        queue_entry: 'Entrada na fila',
-      }
-      return labels[entity] || entity || '-'
+    const openUserProfile = (userId) => {
+      router.push({ name: 'user-detail', params: { id: userId } })
     }
 
+    const openSwagger = () => openURL(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost'}/swagger`)
+    const openPayloadDialog = (log) => { selectedLog.value = log; showPayloadDialog.value = true }
     const parsedPayload = (payload) => {
       if (!payload) return null
       if (typeof payload === 'string') {
@@ -1208,238 +682,115 @@ export default defineComponent({
       }
       return payload
     }
-
-    const getFieldLabel = (field) => {
-      const labels = {
-        name: 'Nome', email: 'E-mail', role: 'Papel', status: 'Status',
-        phone: 'Telefone', address: 'Endereço', description: 'Descrição',
-        slug: 'Slug', timezone: 'Fuso horário',
-        duration_minutes: 'Duração (min)', price: 'Preço',
-        specialization: 'Especialização',
-        establishment_id: 'Estabelecimento', business_id: 'Negócio',
-        service_id: 'Serviço', professional_id: 'Profissional',
-        start_at: 'Início', entity_name: 'Nome da entidade',
-        target_user_id: 'Usuário alvo', removed_user_id: 'Usuário removido',
-        user_id: 'Usuário', queue_id: 'Fila', position: 'Posição',
-        access_code: 'Código de acesso', ip: 'IP',
-        removed_count: 'Quantidade removida',
-        code: 'Código',
-        code_id: 'Código',
-        entry_id: 'Entrada da fila',
-        professional_user_id: 'Profissional',
-        linked_queue_count: 'Filas impactadas',
-        max_uses: 'Máximo de usos',
-        expires_at: 'Expira em',
-        updated_fields: 'Campos atualizados',
-      }
-      return labels[field] || field
-    }
-
-    const formatFieldValue = (value) => {
-      if (value === null || value === undefined || value === '') return '(vazio)'
-      if (typeof value === 'boolean') return value ? 'Sim' : 'Não'
-      if (Array.isArray(value)) return value.length ? value.join(', ') : '(vazio)'
-      if (typeof value === 'object') return JSON.stringify(value)
-      return String(value)
-    }
-
-    const getLogChanges = (log) => {
-      const payload = parsedPayload(log.payload) || {}
-
-      if (payload.changes && typeof payload.changes === 'object') {
-        return Object.entries(payload.changes).map(([field, change]) => ({
-          field,
-          label: getFieldLabel(field),
-          from: change?.from ?? null,
-          to: change?.to ?? null,
-        }))
-      }
-
-      if (!['create', 'delete'].includes(log.action)) {
-        return []
-      }
-
-      const ignoredKeys = new Set(['entity_name', 'summary', 'changes'])
-      return Object.entries(payload)
-        .filter(([key, value]) => !ignoredKeys.has(key) && value !== undefined)
-        .map(([field, value]) => ({
-          field,
-          label: getFieldLabel(field),
-          from: log.action === 'delete' ? value : null,
-          to: log.action === 'create' ? value : null,
-        }))
-    }
-
-    const getLogDetails = (log) => {
-      const payload = parsedPayload(log.payload) || {}
-      const detailEntries = []
-
-      Object.entries(payload).forEach(([key, value]) => {
-        if (['changes', 'entity_name', 'summary'].includes(key)) return
-        if (getLogChanges(log).some(change => change.field === key)) return
-
-        detailEntries.push({
-          key,
-          label: getFieldLabel(key),
-          value,
-        })
-      })
-
-      return detailEntries
-    }
-
-    const getLogSummary = (log) => {
-      const payload = parsedPayload(log.payload) || {}
-      if (payload.summary) return payload.summary
-
-      const entityLabel = getEntityLabel(log.entity)
-      const actionLabel = getActionLabel(log.action)
-      const entityName = payload.entity_name || payload.name || null
-
-      if (log.action === 'queue_batch_remove' && payload.removed_count) {
-        return `${payload.removed_count} pessoa(s) removida(s) da fila`
-      }
-
-      if (log.action === 'queue_remove') {
-        return 'Pessoa removida da fila'
-      }
-
-      if (log.action === 'delete_code' && payload.code) {
-        return `Código ${payload.code} removido`
-      }
-
-      if (log.action === 'generate_code' && payload.code) {
-        return `Código ${payload.code} gerado`
-      }
-
-      if (log.action === 'queue_call_next') {
-        return 'Próxima pessoa chamada para atendimento'
-      }
-
-      if (log.action === 'queue_join') {
-        return 'Pessoa entrou na fila'
-      }
-
-      if (log.action === 'queue_leave') {
-        return 'Pessoa saiu da fila'
-      }
-
-      if (entityName) {
-        return `${actionLabel} ${entityLabel.toLowerCase()} ${entityName}`
-      }
-
-      return `${actionLabel} ${entityLabel.toLowerCase()}`
-    }
-
     const formatPayload = (payload) => {
-      if (!payload) return ''
       const parsed = parsedPayload(payload)
-      if (!parsed) return ''
-      return JSON.stringify(parsed, null, 2)
+      return parsed ? JSON.stringify(parsed, null, 2) : ''
     }
-
-    // =====================================================
-    // Lifecycle
-    // =====================================================
-    watch(roleFilter, () => { /* handled by computed */ })
-
-    // Load only filters when switching to logs tab (lazy loading: user clicks Atualizar)
-    watch(activeTab, (newTab) => {
-      if (newTab === 'logs' && actionOptions.value.length === 0) {
-        fetchLogFilters()
+    const getLogSummary = (log) => {
+      const payload = parsedPayload(log?.payload) || {}
+      return payload.summary || payload.entity_name || payload.name || `${getActionLabel(log?.action)} ${getEntityLabel(log?.entity).toLowerCase()}`
+    }
+    const getActionLabel = (action) => ({ create: 'Criar', update: 'Atualizar', delete: 'Excluir', login: 'Login', logout: 'Logout', cancel: 'Cancelar', check_in: 'Check-in', complete: 'Concluir', queue_join: 'Entrar na fila', queue_leave: 'Sair da fila', queue_call_next: 'Chamar proximo', add_user: 'Adicionar usuario', remove_user: 'Remover usuario', assign_plan: 'Atribuir plano' }[action] || action || '-')
+    const getActionColor = (action) => ({ create: 'positive', update: 'blue', delete: 'negative', login: 'teal', logout: 'grey-7', cancel: 'orange', check_in: 'cyan', complete: 'positive', queue_join: 'light-green', queue_leave: 'amber', queue_call_next: 'indigo', add_user: 'light-blue', remove_user: 'deep-orange', assign_plan: 'primary' }[action] || 'grey-7')
+    const getEntityLabel = (entity) => ({ user: 'Usuario', business: 'Negocio', establishment: 'Estabelecimento', service: 'Servico', professional: 'Profissional', queue: 'Fila', appointment: 'Agendamento', admin_user_profile: 'Perfil administrativo', user_plan_subscription: 'Assinatura' }[entity] || entity || '-')
+    const getRoleLabel = (role) => ({ admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', client: 'Cliente' }[role] || role || '-')
+    const getRoleColor = (role) => ({ admin: 'deep-orange', manager: 'primary', professional: 'teal', client: 'grey-7' }[role] || 'grey-7')
+    const getInitials = (name) => name ? name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() : '?'
+    const formatDate = (value) => value ? new Date(value).toLocaleDateString('pt-BR') : '-'
+    const formatDateTime = (value) => value ? new Date(value).toLocaleString('pt-BR') : '-'
+    const formatLimit = (value) => (value === null || value === undefined || value === '' ? 'Ilimitado' : value)
+    watch(activeTab, async (tab) => {
+      if (!isAdmin.value && ['plans', 'developer'].includes(tab)) {
+        activeTab.value = 'users'
+        return
       }
-      if (newTab === 'plans' && plans.value.length === 0) {
-        fetchPlans()
-      }
+      if (tab === 'logs' && actionOptions.value.length === 0) await fetchLogFilters()
+      if (tab === 'plans' && isAdmin.value && plans.value.length === 0) await fetchPlans()
     })
 
     onMounted(async () => {
       await fetchCurrentUser()
-      if (['admin', 'manager'].includes(currentUserRole.value)) {
-        await fetchUsers()
-      }
+      if (!['admin', 'manager'].includes(currentUserRole.value)) return
+      await fetchUsers()
     })
 
     return {
-      // Users tab
-      users, loading, saving, deleting, searchQuery,
-      activeTab, roleFilter, currentUserRole, currentUserId,
-      showEditDialog, showDeleteDialog, selectedUser,
-      editForm, roleOptions,
-      // Dev tools
-      devToken, copiedAccess, generatingToken,
-      // Computed
-      isAdmin, canSeeManagers, canSeeProfessionals, filteredUsers, hasActiveFilters,
-      // Users methods
-      editUser, confirmDeleteUser, saveUser, deleteUser,
-      // Dev methods
-      generateDevToken, copyToken, openSwagger,
-      // Plans tab
-      plans, plansLoading, showPlanDialog, showDeletePlanDialog, isEditingPlan,
-      selectedPlan, savingPlan, deletingPlan, planForm,
-      fetchPlans, openCreatePlan, editPlan, confirmDeletePlan, savePlan, deletePlan,
-      // Logs tab
-      logs, logsLoading, logsPage, logsPerPage, logsTotal, logsTotalPages, expandedLogId,
-      logsSearch, logsActionFilter, logsEntityFilter, logsBusinessFilter,
-      logsDateFrom, logsDateTo,
-      actionOptions, entityOptions, businessOptions,
-      fetchLogs, clearFilters, toggleLogDetail, getBusinessName,
-      // Formatters
-      getRoleLabel, getRoleColor, getInitials, formatDate, formatDateTime,
-      getActionLabel, getActionColor, getEntityLabel, formatPayload,
-      parsedPayload, getFieldLabel, formatFieldValue, getLogChanges, getLogDetails, getLogSummary,
-      router
+      actionOptions,
+      activeTab,
+      businessOptions,
+      clearFilters,
+      confirmDeletePlan,
+      copyToken,
+      copiedAccess,
+      deletePlan,
+      deletingPlan,
+      devToken,
+      editPlan,
+      entityOptions,
+      fetchLogs,
+      filteredUsers,
+      formatDate,
+      formatDateTime,
+      formatLimit,
+      formatPayload,
+      generateDevToken,
+      generatingToken,
+      getActionColor,
+      getActionLabel,
+      getEntityLabel,
+      getInitials,
+      getLogSummary,
+      getRoleColor,
+      getRoleLabel,
+      hasActiveFilters,
+      isAdmin,
+      isEditingPlan,
+      loading,
+      logs,
+      logsActionFilter,
+      logsBusinessFilter,
+      logsDateFrom,
+      logsDateTo,
+      logsEntityFilter,
+      logsLoading,
+      logsPage,
+      logsPerPage,
+      logsSearch,
+      logsTotalPages,
+      normalizeBoolean,
+      openUserProfile,
+      openCreatePlan,
+      openPayloadDialog,
+      openSwagger,
+      planForm,
+      plans,
+      plansLoading,
+      roleFilter,
+      roleFilterOptions,
+      resolveUserRole,
+      resolveUserAvatarUrl,
+      router,
+      savePlan,
+      savingPlan,
+      searchQuery,
+      selectedLog,
+      selectedPlan,
+      showDeletePlanDialog,
+      showPayloadDialog,
+      showPlanDialog
     }
   }
 })
 </script>
 
 <style lang="scss" scoped>
-.admin-panel-page {
-  padding: 0 1.5rem 1.5rem;
-}
+.admin-page { padding: 0 1.5rem 1.5rem; }
+.page-header { margin-bottom: 1.5rem; }
+.page-title { margin: 0 0 0.25rem; font-size: 1.5rem; font-weight: 700; color: var(--qm-text-primary); }
+.page-subtitle, .panel-head p, .meta span, .muted, .email-text, .plan-id, .token-header p, .token-expiry { color: var(--qm-text-muted); }
+.page-subtitle { margin: 0; font-size: 0.875rem; }
 
-// Header
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  column-gap: 1rem;
-  row-gap: 0.25rem;
-}
-
-.header-left {
-  flex: 1;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-}
-
-.header-bottom {
-  flex-basis: 100%;
-}
-
-.page-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--qm-text-primary);
-  margin: 0;
-}
-
-.page-subtitle {
-  font-size: 0.875rem;
-  color: var(--qm-text-muted);
-  margin: 0;
-}
-
-// Tabs Container
-.admin-tabs-container {
-  padding: 0;
-  overflow: hidden;
-}
-
+.admin-tabs-container { padding: 0; overflow: hidden; }
 .admin-tabs {
   margin-top: 10px;
   padding: 0 1rem;
@@ -1449,352 +800,84 @@ export default defineComponent({
   }
 }
 
-.tab-panels {
-  background: transparent;
+.tab-panels { background: transparent; }
+.tab-panel { padding: 1.5rem; }
+
+.panel-head h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--qm-text-primary);
 }
 
-.tab-panel {
-  padding: 1.5rem;
-}
-
-// Panel Header
-.panel-header {
+.panel-head,
+.toolbar,
+.filters,
+.pager,
+.filter-actions,
+.dialog-head,
+.plan-actions {
   display: flex;
+  gap: 1rem;
+}
+
+.panel-head,
+.pager,
+.dialog-head {
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 1.5rem;
-
-  h3 {
-    margin: 0 0 0.25rem;
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--qm-text-primary);
-  }
-
-  p {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--qm-text-muted);
-  }
 }
 
-.panel-header-left {
-  flex: 1;
+.toolbar,
+.filters,
+.filter-actions,
+.plan-actions {
+  flex-wrap: wrap;
+  align-items: center;
 }
 
-.panel-header-right {
-  flex-shrink: 0;
+.toolbar {
+  justify-content: space-between;
+  margin-bottom: 1rem;
 }
 
-// Filter Tabs
 .filter-tabs {
   background: var(--qm-bg-secondary);
   border-radius: 10px;
   padding: 0.25rem;
 }
 
-.search-bar {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.search-input {
-  width: 280px;
-  @media (max-width: 600px) { width: 100%; }
-}
-
-// ==========================================
-// Logs Filters
-// ==========================================
-.logs-filters {
-  margin-bottom: 1.25rem;
-}
-
-.filters-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.625rem;
-  align-items: flex-end;
-}
-
-.filter-input {
-  min-width: 140px;
+.filters { margin-bottom: 1rem; }
+.filter-field {
+  min-width: 150px;
   flex: 1;
-  max-width: 200px;
+  max-width: 220px;
 }
 
 .filter-search {
-  min-width: 200px;
+  min-width: 220px;
   max-width: 280px;
 }
 
 .filter-date {
-  min-width: 130px;
-  max-width: 160px;
+  min-width: 140px;
+  max-width: 170px;
 }
 
-.filter-btn {
-  height: 40px;
-}
+.search { width: min(100%, 22rem); }
 
-.active-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  margin-top: 0.75rem;
-}
-
-// ==========================================
-// Logs Table
-// ==========================================
-.logs-table {
-  .th-datetime { min-width: 150px; }
-  .th-user { min-width: 180px; }
-  .th-action { min-width: 120px; }
-  .th-entity { min-width: 120px; }
-  .th-entity-id { min-width: 60px; }
-  .th-ip { min-width: 110px; }
-  .th-details { width: 70px; }
-}
-
-.datetime-text {
-  font-size: 0.8125rem;
-  color: var(--qm-text-secondary);
-  white-space: nowrap;
-}
-
-.action-badge {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.entity-text {
-  font-size: 0.8125rem;
-  color: var(--qm-text-primary);
-  font-weight: 500;
-}
-
-.entity-id-text {
-  font-size: 0.8125rem;
-  color: var(--qm-text-muted);
-  font-family: 'Consolas', 'Monaco', monospace;
-}
-
-.ip-text {
-  font-size: 0.75rem;
-  color: var(--qm-text-muted);
-  font-family: 'Consolas', 'Monaco', monospace;
-}
-
-.text-muted {
-  color: var(--qm-text-muted);
-  font-size: 0.8125rem;
-}
-
-.user-avatar-cell--sm {
-  width: 28px;
-  height: 28px;
-}
-
-.user-avatar-initials--sm {
-  width: 28px;
-  height: 28px;
-  font-size: 0.625rem;
-}
-
-// Detail row
-.detail-row {
-  td {
-    padding: 0 !important;
-    border-bottom: 1px solid var(--qm-border);
-  }
-}
-
-.log-detail-content {
-  padding: 0.75rem 1.5rem 1rem;
-  background: var(--qm-bg-secondary);
-}
-
-.detail-label {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--qm-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.375rem;
-}
-
-.detail-json {
-  background: var(--qm-bg-tertiary, var(--qm-surface));
-  border: 1px solid var(--qm-border);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  font-size: 0.75rem;
-  font-family: 'Consolas', 'Monaco', monospace;
-  color: var(--qm-text-primary);
-  overflow-x: auto;
-  max-height: 200px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin: 0;
-}
-
-.detail-user-agent {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin-top: 0.5rem;
-  font-size: 0.6875rem;
-  color: var(--qm-text-muted);
-}
-
-.detail-entity-name {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--qm-text-muted);
-}
-
-// Structured changes display
-.changes-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-.change-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.625rem;
-  background: var(--qm-bg-tertiary, var(--qm-surface));
-  border: 1px solid var(--qm-border);
-  border-radius: 6px;
-  font-size: 0.8125rem;
-  flex-wrap: wrap;
-}
-
-.change-field {
-  font-weight: 600;
-  color: var(--qm-text-primary);
-  min-width: 120px;
-}
-
-.change-from {
-  color: var(--qm-error, #e53935);
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 0.75rem;
-  text-decoration: line-through;
-  opacity: 0.8;
-}
-
-.change-arrow {
-  flex-shrink: 0;
-}
-
-.dimmed-icon {
-  color: var(--qm-text-muted);
-}
-
-.change-to {
-  color: var(--qm-success, #43a047);
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-// Simple payload fields
-.payload-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.payload-field {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  padding: 0.25rem 0.625rem;
-  font-size: 0.8125rem;
-}
-
-.payload-field-label {
-  font-weight: 600;
-  color: var(--qm-text-muted);
-  min-width: 120px;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.payload-field-value {
-  color: var(--qm-text-primary);
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 0.75rem;
-}
-
-.log-entity-block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.log-summary-text {
-  color: var(--qm-text-muted);
-  font-size: 0.75rem;
-  line-height: 1.35;
-}
-
-// Expanded parent highlight
-tr.expanded-parent {
-  background: var(--qm-bg-secondary) !important;
-  border-bottom-color: transparent !important;
-}
-
-// Pagination
-.logs-pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 1.25rem;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.pagination-info {
-  font-size: 0.8125rem;
-  color: var(--qm-text-muted);
-}
-
-// Loading & Empty States
-.loading-state,
-.empty-state {
+.state {
+  min-height: 14rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4rem 2rem;
-  color: var(--qm-text-muted);
+  gap: 0.75rem;
   text-align: center;
-
-  h3 {
-    margin: 1rem 0 0.5rem;
-    font-size: 1.125rem;
-    color: var(--qm-text-primary);
-  }
-
-  p { margin: 0; font-size: 0.875rem; }
+  color: var(--qm-text-muted);
 }
 
-// Table
-.table-container {
+.table-wrap {
   overflow-x: auto;
   border: 1px solid var(--qm-border);
   border-radius: 12px;
@@ -1803,143 +886,140 @@ tr.expanded-parent {
 .data-table {
   width: 100%;
   border-collapse: collapse;
-
-  th, td { padding: 0.875rem 1.5rem; text-align: left; }
-
-  thead {
-    tr { background: var(--qm-bg-secondary); }
-
-    th {
-      font-size: 0.6875rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--qm-text-muted);
-      border-bottom: 1px solid var(--qm-border);
-    }
-  }
-
-  tbody {
-    tr {
-      border-bottom: 1px solid var(--qm-border);
-      transition: background 0.2s ease;
-      &:last-child { border-bottom: none; }
-      &:hover { background: var(--qm-bg-secondary); }
-    }
-
-    td { font-size: 0.875rem; color: var(--qm-text-primary); }
-  }
 }
 
-.th-user { min-width: 200px; }
-.th-email { min-width: 200px; }
-.th-role { min-width: 120px; }
-.th-status { min-width: 80px; }
-.th-created { min-width: 100px; }
-.th-actions { width: 100px; }
-
-tr.clickable-row { cursor: pointer; }
-
-// User Info Cell
-.user-info { display: flex; align-items: center; gap: 0.75rem; }
-
-// Plan Info Cell
-.plan-info { display: flex; flex-direction: column; gap: 0.125rem; }
-.plan-name { font-weight: 600; color: var(--qm-text-primary); }
-.plan-id { font-size: 0.75rem; color: var(--qm-text-muted); }
-
-.user-avatar-cell {
-  width: 36px; height: 36px;
-  border-radius: 10px; overflow: hidden; flex-shrink: 0;
+.data-table th,
+.data-table td {
+  padding: 0.95rem 1.15rem;
+  text-align: left;
+  vertical-align: top;
 }
 
-.user-avatar-img { width: 100%; height: 100%; object-fit: cover; }
-
-.user-avatar-initials {
-  width: 36px; height: 36px; border-radius: 10px;
-  background: var(--qm-brand); color: var(--qm-brand-contrast);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.75rem; font-weight: 600;
+.data-table thead tr { background: var(--qm-bg-secondary); }
+.data-table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--qm-text-muted);
 }
 
-.user-details { display: flex; flex-direction: column; }
-.user-name { font-weight: 600; font-size: 0.875rem; }
-.user-id { font-size: 0.75rem; color: var(--qm-text-muted); }
-.email-text { font-size: 0.8125rem; color: var(--qm-text-secondary); }
-.date-text { font-size: 0.8125rem; color: var(--qm-text-muted); }
-.row-actions { display: flex; gap: 0.25rem; }
+.data-table tbody tr { border-top: 1px solid var(--qm-border); }
+.clickable { cursor: pointer; transition: background 0.2s ease; }
+.clickable:hover { background: var(--qm-bg-secondary); }
 
-// Developer Section
+.user-cell {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.avatar {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.9rem;
+  overflow: hidden;
+  background: var(--qm-brand);
+  color: var(--qm-brand-contrast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.82rem;
+}
+
+.meta-top {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.email-text {
+  display: inline-block;
+  font-size: 0.875rem;
+}
+
+.plan-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.plan-name {
+  font-weight: 600;
+  color: var(--qm-text-primary);
+}
+
 .dev-warning {
-  display: flex; align-items: center; gap: 0.5rem;
-  font-size: 0.875rem; color: #e8a317;
-  padding: 1rem; background: rgba(255, 152, 0, 0.1);
-  border-radius: 10px; margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #e8a317;
+  padding: 1rem;
+  background: rgba(255, 152, 0, 0.1);
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
 }
 
 .token-section { margin-bottom: 1rem; }
 
-.generate-token-area {
-  padding: 1.5rem; background: var(--qm-bg-tertiary);
-  border-radius: 10px; text-align: center;
-}
-
 .token-header {
   margin-bottom: 0.75rem;
-  h4 { margin: 0 0 0.25rem; font-size: 1rem; font-weight: 600; color: var(--qm-text-primary); }
-  p { margin: 0; font-size: 0.8125rem; color: var(--qm-text-muted); }
+
+  h4 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--qm-text-primary);
+  }
 }
 
-.token-input { font-family: 'Consolas', 'Monaco', monospace; font-size: 0.75rem; }
+.generate-token-area {
+  padding: 1.5rem;
+  background: var(--qm-bg-secondary);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.token-input {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.75rem;
+}
 
 .token-expiry {
-  display: flex; align-items: center; gap: 0.375rem;
-  font-size: 0.75rem; color: var(--qm-text-muted); margin: 0.5rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  margin: 0.5rem 0 0;
 }
 
-// Dialog Styles
-.dialog-card {
-  width: 100%; max-width: 500px;
-  border-radius: 16px; background: var(--qm-bg-primary);
-}
+.dialog-card { width: min(100%, 38rem); border-radius: 18px; }
+.dialog-card.wide { width: min(100%, 52rem); }
+.payload { margin: 0; padding: 1rem; background: var(--qm-bg-secondary); border: 1px solid var(--qm-border); border-radius: 14px; font-size: 0.8rem; white-space: pre-wrap; word-break: break-word; overflow-x: auto; }
 
-.dialog-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--qm-border);
-
-  h3 { margin: 0; font-size: 1.125rem; font-weight: 600; color: var(--qm-text-primary); }
-}
-
-.dialog-content { padding: 1.5rem; }
-
-.dialog-actions {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--qm-border);
-  gap: 0.5rem;
-}
-
-.delete-warning {
-  color: var(--qm-error);
-  font-size: 0.8125rem;
-  margin-top: 0.5rem;
-}
-
-// Responsive
 @media (max-width: 768px) {
-  .filters-row {
-    flex-direction: column;
-  }
-
-  .filter-input,
-  .filter-search,
-  .filter-date {
-    max-width: 100%;
+  .admin-page { padding-inline: 1rem; }
+  .panel-head, .toolbar, .filters, .pager { flex-direction: column; }
+  .filter-field, .filter-search, .filter-date {
     min-width: 100%;
+    max-width: 100%;
   }
-
-  .logs-pagination {
-    flex-direction: column;
-    align-items: center;
-  }
+  .search { width: 100%; }
+  .data-table th, .data-table td { padding: 0.8rem 0.9rem; }
 }
 </style>

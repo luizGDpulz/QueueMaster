@@ -5,6 +5,7 @@ namespace QueueMaster\Middleware;
 use QueueMaster\Core\Request;
 use QueueMaster\Core\Response;
 use QueueMaster\Core\Database;
+use QueueMaster\Services\UserAccessControlService;
 use QueueMaster\Utils\Logger;
 
 /**
@@ -44,6 +45,7 @@ class TokenMiddleware
     {
         $db = Database::getInstance();
         $tokenHash = hash('sha256', $token);
+        $userAccessControlService = new UserAccessControlService();
 
         try {
             $db->beginTransaction();
@@ -51,7 +53,7 @@ class TokenMiddleware
             // Find refresh token with user data
             $sql = "
                 SELECT rt.id as token_id, rt.user_id, rt.expires_at, rt.revoked_at,
-                       u.id, u.name, u.email, u.role, u.created_at
+                       u.id, u.name, u.email, u.role, u.created_at, u.is_active, u.login_blocked_at, u.login_block_reason, u.login_blocked_by_user_id
                 FROM refresh_tokens rt
                 JOIN users u ON u.id = rt.user_id
                 WHERE rt.token_hash = ?
@@ -78,6 +80,16 @@ class TokenMiddleware
             // Check if token is expired
             if (strtotime($result['expires_at']) < time()) {
                 $db->rollback();
+                return null;
+            }
+
+            $systemAccess = $userAccessControlService->evaluateSystemAccess($result);
+            if (!($systemAccess['allowed'] ?? false)) {
+                $db->rollback();
+                Logger::logSecurity('Blocked user attempted refresh token rotation', [
+                    'user_id' => $result['user_id'],
+                    'matched_rule' => $systemAccess['matched_rule'] ?? null,
+                ]);
                 return null;
             }
 

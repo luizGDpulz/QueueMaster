@@ -120,12 +120,31 @@ class AuditLog
             $bindings[] = $searchTerm;
         }
 
-        // Multi-business filter (for managers with multiple businesses)
-        if (!empty($filters['business_ids']) && is_array($filters['business_ids'])) {
-            $placeholders = implode(',', array_fill(0, count($filters['business_ids']), '?'));
-            $where[] = "al.business_id IN ($placeholders)";
-            foreach ($filters['business_ids'] as $bid) {
-                $bindings[] = (int)$bid;
+        // Scoped filter (for managers)
+        if (
+            (!empty($filters['scoped_business_ids']) && is_array($filters['scoped_business_ids']))
+            || (!empty($filters['scoped_establishment_ids']) && is_array($filters['scoped_establishment_ids']))
+        ) {
+            $scopeParts = [];
+
+            if (!empty($filters['scoped_business_ids'])) {
+                $placeholders = implode(',', array_fill(0, count($filters['scoped_business_ids']), '?'));
+                $scopeParts[] = "(al.business_id IN ($placeholders) AND al.establishment_id IS NULL)";
+                foreach ($filters['scoped_business_ids'] as $businessId) {
+                    $bindings[] = (int)$businessId;
+                }
+            }
+
+            if (!empty($filters['scoped_establishment_ids'])) {
+                $placeholders = implode(',', array_fill(0, count($filters['scoped_establishment_ids']), '?'));
+                $scopeParts[] = "al.establishment_id IN ($placeholders)";
+                foreach ($filters['scoped_establishment_ids'] as $establishmentId) {
+                    $bindings[] = (int)$establishmentId;
+                }
+            }
+
+            if (!empty($scopeParts)) {
+                $where[] = '(' . implode(' OR ', $scopeParts) . ')';
             }
         }
 
@@ -174,17 +193,27 @@ class AuditLog
     /**
      * Get distinct action values for filter dropdowns
      */
-    public static function getDistinctActions(?array $businessIds = null): array
+    public static function getDistinctActions(?array $businessIds = null, ?array $establishmentIds = null): array
     {
         $db = Database::getInstance();
         $bindings = [];
 
         $sql = "SELECT DISTINCT action FROM " . self::$table;
 
+        $scopeParts = [];
         if (!empty($businessIds)) {
             $placeholders = implode(',', array_fill(0, count($businessIds), '?'));
-            $sql .= " WHERE business_id IN ($placeholders)";
-            $bindings = array_map('intval', $businessIds);
+            $scopeParts[] = "(business_id IN ($placeholders) AND establishment_id IS NULL)";
+            $bindings = array_merge($bindings, array_map('intval', $businessIds));
+        }
+        if (!empty($establishmentIds)) {
+            $placeholders = implode(',', array_fill(0, count($establishmentIds), '?'));
+            $scopeParts[] = "establishment_id IN ($placeholders)";
+            $bindings = array_merge($bindings, array_map('intval', $establishmentIds));
+        }
+
+        if (!empty($scopeParts)) {
+            $sql .= ' WHERE ' . implode(' OR ', $scopeParts);
         }
 
         $sql .= " ORDER BY action ASC";
@@ -195,17 +224,27 @@ class AuditLog
     /**
      * Get distinct entity values for filter dropdowns
      */
-    public static function getDistinctEntities(?array $businessIds = null): array
+    public static function getDistinctEntities(?array $businessIds = null, ?array $establishmentIds = null): array
     {
         $db = Database::getInstance();
         $bindings = [];
 
         $sql = "SELECT DISTINCT entity FROM " . self::$table . " WHERE entity IS NOT NULL";
 
+        $scopeParts = [];
         if (!empty($businessIds)) {
             $placeholders = implode(',', array_fill(0, count($businessIds), '?'));
-            $sql .= " AND business_id IN ($placeholders)";
-            $bindings = array_map('intval', $businessIds);
+            $scopeParts[] = "(business_id IN ($placeholders) AND establishment_id IS NULL)";
+            $bindings = array_merge($bindings, array_map('intval', $businessIds));
+        }
+        if (!empty($establishmentIds)) {
+            $placeholders = implode(',', array_fill(0, count($establishmentIds), '?'));
+            $scopeParts[] = "establishment_id IN ($placeholders)";
+            $bindings = array_merge($bindings, array_map('intval', $establishmentIds));
+        }
+
+        if (!empty($scopeParts)) {
+            $sql .= ' AND (' . implode(' OR ', $scopeParts) . ')';
         }
 
         $sql .= " ORDER BY entity ASC";

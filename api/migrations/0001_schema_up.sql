@@ -19,14 +19,26 @@ CREATE TABLE IF NOT EXISTS users (
   avatar_base64 MEDIUMTEXT NULL COMMENT 'Avatar image stored as base64 data URI',
   email_verified BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Email verified by provider',
   phone VARCHAR(20) NULL COMMENT 'Contact phone number',
+  address_line_1 VARCHAR(255) NULL COMMENT 'Primary address line',
+  address_line_2 VARCHAR(255) NULL COMMENT 'Secondary address line',
   role ENUM('client','attendant','professional','manager','admin') NOT NULL DEFAULT 'client',
+  manager_access_granted BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Administrative grant for manager access',
+  manager_access_granted_at TIMESTAMP NULL DEFAULT NULL COMMENT 'When manager access was granted',
   is_active BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Account active status',
+  login_blocked_at TIMESTAMP NULL DEFAULT NULL COMMENT 'When login was blocked internally',
+  login_block_reason VARCHAR(500) NULL COMMENT 'Administrative reason for access block',
+  login_blocked_by_user_id BIGINT UNSIGNED NULL COMMENT 'Admin who blocked login access',
   last_login_at TIMESTAMP NULL COMMENT 'Last successful login',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_users_login_blocked_by_user
+    FOREIGN KEY (login_blocked_by_user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_users_email (email),
   INDEX idx_users_google_id (google_id),
-  INDEX idx_users_role (role)
+  INDEX idx_users_role (role),
+  INDEX idx_users_active_blocked (is_active, login_blocked_at),
+  INDEX idx_users_login_blocked_by (login_blocked_by_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS businesses (
@@ -317,20 +329,6 @@ CREATE TABLE IF NOT EXISTS notifications (
   INDEX idx_notifications_type (type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS fcm_tokens (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  user_id BIGINT UNSIGNED NOT NULL,
-  token VARCHAR(255) NOT NULL,
-  device_id VARCHAR(191) NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_fcm_tokens_user
-    FOREIGN KEY (user_id) REFERENCES users(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-  UNIQUE KEY uq_fcm_user_device (user_id, device_id),
-  INDEX idx_fcm_token_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS notification_preferences (
   user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
   push_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -374,7 +372,7 @@ CREATE TABLE IF NOT EXISTS establishment_users (
 
 CREATE TABLE IF NOT EXISTS plans (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
+  name VARCHAR(100) NOT NULL UNIQUE,
   max_businesses INT NULL COMMENT 'Max businesses per owner (NULL = unlimited)',
   max_establishments_per_business INT NULL COMMENT 'Max establishments per business (NULL = unlimited)',
   max_managers INT NULL COMMENT 'Max managers per business (NULL = unlimited)',
@@ -384,24 +382,22 @@ CREATE TABLE IF NOT EXISTS plans (
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS business_subscriptions (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  business_id BIGINT UNSIGNED NOT NULL,
-  plan_id BIGINT UNSIGNED NOT NULL,
-  status ENUM('active','past_due','cancelled') NOT NULL DEFAULT 'active',
-  starts_at DATETIME NOT NULL,
-  ends_at DATETIME NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_business_subscriptions_business
-    FOREIGN KEY (business_id) REFERENCES businesses(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT fk_business_subscriptions_plan
-    FOREIGN KEY (plan_id) REFERENCES plans(id)
-    ON DELETE RESTRICT ON UPDATE CASCADE,
-  INDEX idx_business_subscriptions_business (business_id),
-  INDEX idx_business_subscriptions_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO plans (
+  name,
+  max_businesses,
+  max_establishments_per_business,
+  max_managers,
+  max_professionals_per_establishment
+) VALUES
+  ('Free', 1, 1, 2, 5),
+  ('Basic', 3, 5, 10, 20),
+  ('Premium', NULL, NULL, NULL, NULL)
+ON DUPLICATE KEY UPDATE
+  max_businesses = VALUES(max_businesses),
+  max_establishments_per_business = VALUES(max_establishments_per_business),
+  max_managers = VALUES(max_managers),
+  max_professionals_per_establishment = VALUES(max_professionals_per_establishment),
+  is_active = TRUE;
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -459,15 +455,44 @@ CREATE TABLE IF NOT EXISTS business_invitations (
   INDEX idx_bi_business_status (business_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO plans (
-  name,
-  max_businesses,
-  max_establishments_per_business,
-  max_managers,
-  max_professionals_per_establishment
-) VALUES
-  ('Free', 1, 1, 2, 5),
-  ('Basic', 3, 5, 10, 20),
-  ('Premium', NULL, NULL, NULL, NULL)
-ON DUPLICATE KEY UPDATE
-  name = VALUES(name);
+CREATE TABLE IF NOT EXISTS user_role_requests (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  requested_role ENUM('manager') NOT NULL,
+  status ENUM('pending','accepted','rejected','cancelled') NOT NULL DEFAULT 'pending',
+  message TEXT NULL,
+  payload JSON NULL,
+  reviewed_by_user_id BIGINT UNSIGNED NULL,
+  reviewed_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user_role_requests_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_user_role_requests_reviewed_by
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  INDEX idx_user_role_requests_user (user_id),
+  INDEX idx_user_role_requests_status (status),
+  INDEX idx_user_role_requests_role_status (requested_role, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_plan_subscriptions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  plan_id BIGINT UNSIGNED NOT NULL,
+  status ENUM('active','past_due','cancelled') NOT NULL DEFAULT 'active',
+  starts_at DATETIME NOT NULL,
+  ends_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user_plan_subscriptions_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_user_plan_subscriptions_plan
+    FOREIGN KEY (plan_id) REFERENCES plans(id)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  INDEX idx_user_plan_subscriptions_user (user_id),
+  INDEX idx_user_plan_subscriptions_status (status),
+  INDEX idx_user_plan_subscriptions_user_status (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

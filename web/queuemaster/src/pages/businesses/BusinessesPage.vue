@@ -33,7 +33,7 @@
         <q-tab name="explore" icon="travel_explore" label="Explorar" no-caps />
       </q-tabs>
 
-      <q-separator />
+      <q-separator style="margin-top: 10px;" />
 
       <q-tab-panels v-model="activeTab" animated class="tab-panels">
         <q-tab-panel name="linked" class="tab-panel">
@@ -124,7 +124,7 @@
                   <q-icon name="search" />
                 </template>
                 <template #append>
-                  <q-btn flat dense round icon="send" @click="searchDiscover" />
+                  <q-btn flat dense round icon="send" :loading="searchingDiscover" :disable="searchingDiscover" @click="searchDiscover" />
                 </template>
               </q-input>
             </div>
@@ -225,10 +225,11 @@
 </template>
 
 <script>
-import { computed, defineComponent, onMounted, ref } from 'vue'
+import { computed, defineComponent, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
+import { useRemoteSearch } from 'src/composables/useRemoteSearch'
 
 export default defineComponent({
   name: 'BusinessesPage',
@@ -247,9 +248,17 @@ export default defineComponent({
     const isEditing = ref(false)
     const editingId = ref(null)
     const discoverQuery = ref('')
-    const discoverBusinesses = ref([])
-    const discoverSearched = ref(false)
-    const searchingDiscover = ref(false)
+    const discoverSearch = useRemoteSearch({
+      search: ({ query, signal }) => api.get('/businesses/search', {
+        params: { q: query, limit: 20 },
+        signal,
+      }),
+      mapResults: (response) => response.data?.data?.businesses || [],
+    })
+
+    const discoverBusinesses = discoverSearch.results
+    const discoverSearched = discoverSearch.searched
+    const searchingDiscover = discoverSearch.loading
 
     const form = ref({
       name: '',
@@ -294,16 +303,15 @@ export default defineComponent({
       }
     }
 
-    const searchDiscover = async () => {
-      searchingDiscover.value = true
-      discoverSearched.value = true
+    const notifyDiscoverError = (error) => {
+      $q.notify({ type: 'negative', message: error.response?.data?.error?.message || 'Erro ao buscar resultados' })
+    }
+
+    const searchDiscover = async ({ force = false } = {}) => {
       try {
-        const response = await api.get('/businesses/search', { params: { q: discoverQuery.value, limit: 20 } })
-        discoverBusinesses.value = response.data?.data?.businesses || []
-      } catch (err) {
-        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao buscar resultados' })
-      } finally {
-        searchingDiscover.value = false
+        await discoverSearch.run(discoverQuery.value, { force })
+      } catch (error) {
+        notifyDiscoverError(error)
       }
     }
 
@@ -380,9 +388,34 @@ export default defineComponent({
       admin: 'negative',
     }[role] || 'grey')
 
+    watch(discoverQuery, (value, previousValue) => {
+      if (value === previousValue || activeTab.value !== 'explore') {
+        return
+      }
+
+      discoverSearch.schedule(value, {
+        onError: notifyDiscoverError,
+      })
+    })
+
+    watch(activeTab, (value) => {
+      if (value !== 'explore') {
+        discoverSearch.clear({
+          keepSearched: true,
+          value: discoverBusinesses.value,
+        })
+        return
+      }
+
+      if (discoverSearched.value) {
+        return
+      }
+
+      searchDiscover()
+    })
+
     onMounted(async () => {
       await Promise.all([fetchCurrentUser(), fetchBusinesses()])
-      await searchDiscover()
     })
 
     return {
@@ -465,7 +498,12 @@ export default defineComponent({
 }
 
 .main-tabs {
-  padding: 0.5rem 1rem 0;
+  margin-top: 10px;
+  padding: 0 1rem;
+
+  :deep(.q-tab__label) {
+    font-weight: 500;
+  }
 }
 
 .tab-panels {

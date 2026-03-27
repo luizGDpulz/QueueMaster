@@ -116,35 +116,6 @@
                     <span class="notif-title">{{ notif.title }}</span>
                     <span class="notif-body">{{ notif.body }}</span>
                     <span class="notif-time">{{ formatNotifTime(notif.sent_at || notif.created_at) }}</span>
-
-                    <div
-                      v-if="actionableTypes.has(notif.type) && notif.data?.invitation_id"
-                      class="notif-actions"
-                      @click.stop
-                    >
-                      <q-btn
-                        dense
-                        flat
-                        no-caps
-                        size="sm"
-                        color="positive"
-                        icon="check"
-                        label="Aceitar"
-                        :loading="notificationActionId === notif.id && notificationAction === 'accept'"
-                        @click="handleAcceptNotification(notif)"
-                      />
-                      <q-btn
-                        dense
-                        flat
-                        no-caps
-                        size="sm"
-                        color="negative"
-                        icon="close"
-                        label="Rejeitar"
-                        :loading="notificationActionId === notif.id && notificationAction === 'reject'"
-                        @click="handleRejectNotification(notif)"
-                      />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -169,6 +140,7 @@ import { computed, defineComponent, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { loadBrandColor } from 'src/utils/brand'
+import { resolveUserAvatarUrl } from 'src/utils/userAvatar'
 import AppSidebar from 'src/components/AppSidebar.vue'
 import { useBreadcrumb } from 'src/composables/useBreadcrumb'
 import { useNotificationsCenter } from 'src/composables/useNotificationsCenter'
@@ -188,8 +160,6 @@ export default defineComponent({
     const showNotifications = ref(false)
     const user = ref(null)
     const isDark = ref(false)
-    const notificationActionId = ref(null)
-    const notificationAction = ref('')
 
     const {
       unreadNotifications,
@@ -197,15 +167,12 @@ export default defineComponent({
       unreadLoading,
       previewNotification,
       streamConnected,
-      actionableTypes,
       getNotifIcon,
       formatNotifTime,
       fetchPreferences,
       fetchUnreadNotifications,
       markAllNotificationsRead,
       openNotification,
-      acceptInvitation,
-      rejectInvitation,
       connectStream,
       disconnectStream,
     } = useNotificationsCenter()
@@ -231,10 +198,7 @@ export default defineComponent({
       const name = user.value?.name || 'U'
       return name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()
     })
-    const userAvatar = computed(() => {
-      if (!user.value?.id) return ''
-      return `${import.meta.env.VITE_API_URL || 'http://localhost/api/v1'}/users/${user.value.id}/avatar`
-    })
+    const userAvatar = computed(() => resolveUserAvatarUrl(user.value))
 
     const fetchCurrentUser = async () => {
       try {
@@ -272,28 +236,6 @@ export default defineComponent({
         await openNotification(router, notification)
       } finally {
         showNotifications.value = false
-      }
-    }
-
-    const handleAcceptNotification = async (notification) => {
-      notificationActionId.value = notification.id
-      notificationAction.value = 'accept'
-      try {
-        await acceptInvitation(notification)
-      } finally {
-        notificationActionId.value = null
-        notificationAction.value = ''
-      }
-    }
-
-    const handleRejectNotification = async (notification) => {
-      notificationActionId.value = notification.id
-      notificationAction.value = 'reject'
-      try {
-        await rejectInvitation(notification)
-      } finally {
-        notificationActionId.value = null
-        notificationAction.value = ''
       }
     }
 
@@ -389,17 +331,12 @@ export default defineComponent({
       unreadLoading,
       previewNotification,
       streamConnected,
-      actionableTypes,
       getNotifIcon,
       formatNotifTime,
       toggleNotifications,
       handleNotificationClick,
-      handleAcceptNotification,
-      handleRejectNotification,
       handleMarkAllRead,
       openInbox,
-      notificationActionId,
-      notificationAction,
       currentPageTitle,
       breadcrumbDetail,
       breadcrumbParentPath,

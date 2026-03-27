@@ -14,6 +14,13 @@ use QueueMaster\Models\User;
 
 class ProfessionalMembershipService
 {
+    private UserRoleService $userRoleService;
+
+    public function __construct()
+    {
+        $this->userRoleService = new UserRoleService();
+    }
+
     public function ensureProfessionalRole(int $userId): void
     {
         $user = User::find($userId);
@@ -26,7 +33,7 @@ class ProfessionalMembershipService
             return;
         }
 
-        User::update($userId, ['role' => 'professional']);
+        $this->userRoleService->syncUserRole($userId);
     }
 
     public function ensureBusinessProfessional(int $businessId, int $userId): void
@@ -38,6 +45,7 @@ class ProfessionalMembershipService
 
         if (!BusinessUser::exists($businessId, $userId)) {
             BusinessUser::addUser($businessId, $userId, BusinessUser::ROLE_PROFESSIONAL);
+            $this->userRoleService->syncUserRole($userId);
             return;
         }
 
@@ -71,6 +79,8 @@ class ProfessionalMembershipService
         } else {
             ProfessionalEstablishment::setActive($userId, $establishmentId, true);
         }
+
+        $this->userRoleService->syncUserRole($userId);
 
         $professionalRecord = $this->findProfessionalRecord($establishmentId, $userId);
         if (!$professionalRecord) {

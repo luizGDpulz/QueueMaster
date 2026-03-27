@@ -6,13 +6,13 @@ use QueueMaster\Core\Request;
 use QueueMaster\Core\Response;
 use QueueMaster\Models\Business;
 use QueueMaster\Models\BusinessUser;
-use QueueMaster\Models\BusinessSubscription;
-use QueueMaster\Models\Plan;
 use QueueMaster\Models\Establishment;
-use QueueMaster\Core\Database;
+use QueueMaster\Models\User;
 use QueueMaster\Services\QuotaService;
 use QueueMaster\Services\AuditService;
 use QueueMaster\Services\ContextAccessService;
+use QueueMaster\Services\PlanService;
+use QueueMaster\Services\UserRoleService;
 use QueueMaster\Utils\Logger;
 use QueueMaster\Utils\Validator;
 
@@ -24,10 +24,14 @@ use QueueMaster\Utils\Validator;
 class BusinessController
 {
     private ContextAccessService $accessService;
+    private PlanService $planService;
+    private UserRoleService $userRoleService;
 
     public function __construct()
     {
         $this->accessService = new ContextAccessService();
+        $this->planService = new PlanService();
+        $this->userRoleService = new UserRoleService();
     }
 
     /**
@@ -72,33 +76,7 @@ class BusinessController
             $accessibleBusinessMap = array_flip($accessibleBusinessIds);
 
             $params = [];
-            $searchSql = '';
-            if ($query !== '') {
-                $searchSql = ' AND (b.name LIKE ? OR b.description LIKE ? OR b.slug LIKE ?)';
-                $like = '%' . $query . '%';
-                $params = [$like, $like, $like];
-            }
-
-            $db = Database::getInstance();
-            $businesses = $db->query(
-                "
-                SELECT
-                    b.id,
-                    b.name,
-                    b.slug,
-                    b.description,
-                    b.is_active,
-                    COUNT(DISTINCT CASE WHEN e.is_active = 1 THEN e.id END) AS establishment_count
-                FROM businesses b
-                LEFT JOIN establishments e ON e.business_id = b.id
-                WHERE b.is_active = 1
-                $searchSql
-                GROUP BY b.id, b.name, b.slug, b.description, b.is_active
-                ORDER BY b.name ASC
-                LIMIT $limit
-                ",
-                $params
-            );
+            $businesses = Business::searchDiscoverable($query, $limit);
 
             $results = array_map(function (array $business) use ($accessibleBusinessMap) {
                 $businessId = (int)$business['id'];
@@ -271,10 +249,18 @@ class BusinessController
         $data = $request->all();
         $userId = (int)$request->user['id'];
         $userRole = $request->user['role'] ?? 'client';
+        $currentUser = User::find($userId);
+        $hasManagerGrant = (bool)($currentUser['manager_access_granted'] ?? false);
+        $alreadyOwnsBusiness = $this->userRoleService->userOwnsBusiness($userId);
 
         // Only managers and admins can create businesses
         if (!in_array($userRole, ['manager', 'admin'])) {
             Response::forbidden('Only managers and administrators can create businesses', $request->requestId);
+            return;
+        }
+
+        if ($userRole !== 'admin' && !$hasManagerGrant && !$alreadyOwnsBusiness) {
+            Response::forbidden('Only approved managers can create their own businesses', $request->requestId);
             return;
         }
 
@@ -314,16 +300,14 @@ class BusinessController
             // Add creator as owner in business_users
             BusinessUser::addUser($businessId, $userId, BusinessUser::ROLE_OWNER);
 
-            // Auto-assign Free plan subscription
-            $freePlan = Plan::all(['name' => 'Free'], '', 'ASC', 1);
-            if (!empty($freePlan)) {
-                BusinessSubscription::create([
-                    'business_id' => $businessId,
-                    'plan_id' => $freePlan[0]['id'],
-                    'status' => 'active',
-                    'starts_at' => date('Y-m-d H:i:s'),
-                ]);
+            if ($userRole !== 'admin' && $this->planService->getCurrentSubscriptionForUser($userId) === null) {
+                $freePlan = $this->planService->getDefaultPlan();
+                if ($freePlan) {
+                    $this->planService->assignPlanToUser($userId, (int)$freePlan['id']);
+                }
             }
+
+            $this->userRoleService->syncUserRole($userId);
 
             $business = Business::find($businessId);
 
@@ -593,10 +577,7 @@ class BusinessController
 
             BusinessUser::addUser($id, $targetUserId, $role);
 
-            // Update user's global role if needed
-            if ($user['role'] === 'client') {
-                \QueueMaster\Models\User::update($targetUserId, ['role' => $role === 'manager' ? 'manager' : 'professional']);
-            }
+            $this->userRoleService->syncUserRole($targetUserId);
 
             AuditService::logFromRequest($request, 'add_user', 'business', (string)$id, null, $id, [
                 'target_user_id' => $targetUserId,
@@ -646,48 +627,9 @@ class BusinessController
                 return;
             }
 
-            $db = Database::getInstance();
-            $db->beginTransaction();
+            Business::removeUserFromContexts($id, $userId);
 
-            $establishmentIds = array_map(
-                static fn(array $row): int => (int)$row['id'],
-                Establishment::all(['business_id' => $id])
-            );
-
-            if (!empty($establishmentIds)) {
-                $placeholders = implode(',', array_fill(0, count($establishmentIds), '?'));
-                $params = array_merge([$userId], $establishmentIds);
-
-                $db->execute(
-                    "DELETE FROM queue_professionals
-                     WHERE user_id = ?
-                       AND queue_id IN (
-                           SELECT id FROM queues WHERE establishment_id IN ($placeholders)
-                       )",
-                    $params
-                );
-                $db->execute(
-                    "DELETE FROM establishment_users
-                     WHERE user_id = ?
-                       AND establishment_id IN ($placeholders)",
-                    $params
-                );
-                $db->execute(
-                    "DELETE FROM professional_establishments
-                     WHERE user_id = ?
-                       AND establishment_id IN ($placeholders)",
-                    $params
-                );
-                $db->execute(
-                    "DELETE FROM professionals
-                     WHERE user_id = ?
-                       AND establishment_id IN ($placeholders)",
-                    $params
-                );
-            }
-
-            BusinessUser::removeUser($id, $userId);
-            $db->commit();
+            $this->userRoleService->syncUserRole($userId);
 
             AuditService::logFromRequest($request, 'remove_user', 'business', (string)$id, null, $id, [
                 'removed_user_id' => $userId,
@@ -699,9 +641,6 @@ class BusinessController
             Response::forbidden($e->getMessage(), $request->requestId);
         }
         catch (\Exception $e) {
-            if (isset($db) && $db->inTransaction()) {
-                $db->rollback();
-            }
             Logger::error('Failed to remove user from business', [
                 'business_id' => $id,
                 'error' => $e->getMessage(),

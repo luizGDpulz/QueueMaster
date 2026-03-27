@@ -53,6 +53,7 @@
 <script>
 import { defineComponent, ref, computed, watch } from 'vue'
 import { api } from 'boot/axios'
+import { resolveUserAvatarUrl } from 'src/utils/userAvatar'
 
 /**
  * UserProfilePreview — Floating card with brief user profile info.
@@ -105,10 +106,7 @@ export default defineComponent({
 
     const avatarUrl = computed(() => {
       if (avatarError.value) return null
-      const id = profile.value?.id
-      if (!id) return null
-      const base = import.meta.env.VITE_API_URL || 'http://localhost/api/v1'
-      return `${base}/users/${id}/avatar`
+      return resolveUserAvatarUrl(profile.value) || null
     })
 
     const roleLabel = computed(() => {

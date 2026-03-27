@@ -13,6 +13,7 @@ use QueueMaster\Models\User;
 use QueueMaster\Services\AuditService;
 use QueueMaster\Services\ContextAccessService;
 use QueueMaster\Services\ProfessionalMembershipService;
+use QueueMaster\Services\UserRoleService;
 use QueueMaster\Utils\Logger;
 use QueueMaster\Utils\Validator;
 
@@ -20,11 +21,13 @@ class InvitationsController
 {
     private ContextAccessService $accessService;
     private ProfessionalMembershipService $membershipService;
+    private UserRoleService $userRoleService;
 
     public function __construct()
     {
         $this->accessService = new ContextAccessService();
         $this->membershipService = new ProfessionalMembershipService();
+        $this->userRoleService = new UserRoleService();
     }
 
     /**
@@ -114,7 +117,7 @@ class InvitationsController
                     'business_name' => $business['name'] ?? null,
                     'establishment_id' => $establishment['id'] ?? null,
                     'establishment_name' => $establishment['name'] ?? null,
-                    'deep_link' => '/app/settings?tab=profile&panel=professional',
+                    'deep_link' => '/app/settings?tab=roles&panel=professional',
                 ],
                 'channel' => 'in_app',
                 'sent_at' => date('Y-m-d H:i:s'),
@@ -197,8 +200,17 @@ class InvitationsController
 
         $errors = Validator::make($data, [
             'establishment_id' => 'required|integer',
-            'message' => 'max:2000',
+            'specialty' => 'required|max:120',
+            'experience_summary' => 'required|max:2000',
+            'portfolio_url' => 'max:255',
+            'github_url' => 'max:255',
+            'linkedin_url' => 'max:255',
+            'notes' => 'max:2000',
         ]);
+
+        $portfolioUrl = $this->normalizeOptionalUrl($data['portfolio_url'] ?? null, 'portfolio_url', $errors);
+        $githubUrl = $this->normalizeOptionalUrl($data['github_url'] ?? null, 'github_url', $errors);
+        $linkedinUrl = $this->normalizeOptionalUrl($data['linkedin_url'] ?? null, 'linkedin_url', $errors);
 
         if (!empty($errors)) {
             Response::validationError($errors, $request->requestId);
@@ -236,17 +248,50 @@ class InvitationsController
                 'direction' => BusinessInvitation::DIRECTION_PROFESSIONAL_TO_BUSINESS,
                 'status' => 'pending',
                 'role' => BusinessUser::ROLE_PROFESSIONAL,
-                'message' => $data['message'] ?? null,
+                'message' => $this->buildProfessionalRequestMessage([
+                    'specialty' => $data['specialty'] ?? null,
+                    'experience_summary' => $data['experience_summary'] ?? null,
+                    'portfolio_url' => $portfolioUrl,
+                    'github_url' => $githubUrl,
+                    'linkedin_url' => $linkedinUrl,
+                    'notes' => $data['notes'] ?? null,
+                ]),
+            ]);
+
+            Notification::create([
+                'user_id' => $actorId,
+                'type' => 'professional_request_created',
+                'title' => 'Solicitação profissional criada',
+                'body' => 'Sua solicitação para atuar em ' . ($business['name'] ?? 'o negócio') . ' / ' . ($establishment['name'] ?? 'estabelecimento') . ' foi enviada para análise.',
+                'data' => [
+                    'invitation_id' => $invitationId,
+                    'business_id' => $businessId,
+                    'business_name' => $business['name'] ?? null,
+                    'establishment_id' => (int)$establishment['id'],
+                    'establishment_name' => $establishment['name'] ?? null,
+                    'specialty' => trim((string)($data['specialty'] ?? '')),
+                    'portfolio_url' => $portfolioUrl,
+                    'github_url' => $githubUrl,
+                    'linkedin_url' => $linkedinUrl,
+                    'deep_link' => '/app/settings?tab=roles',
+                ],
+                'channel' => 'in_app',
+                'sent_at' => date('Y-m-d H:i:s'),
             ]);
 
             AuditService::logFromRequest($request, 'request_professional_link', 'business', (string)$businessId, (int)$establishment['id'], $businessId, [
                 'requester_user_id' => $actorId,
                 'establishment_id' => (int)$establishment['id'],
                 'invitation_id' => $invitationId,
+                'specialty' => trim((string)($data['specialty'] ?? '')),
+                'portfolio_url' => $portfolioUrl,
+                'github_url' => $githubUrl,
+                'linkedin_url' => $linkedinUrl,
             ]);
 
             Response::created([
                 'invitation_id' => $invitationId,
+                'notification_type' => 'professional_request_created',
                 'message' => 'Join request sent successfully',
             ]);
         } catch (\InvalidArgumentException $e) {
@@ -356,10 +401,7 @@ class InvitationsController
                     BusinessUser::addUser((int)$invitation['business_id'], $targetProfessionalId, BusinessUser::ROLE_MANAGER);
                 }
 
-                $targetUser = User::find($targetProfessionalId);
-                if ($targetUser && ($targetUser['role'] ?? 'client') !== 'admin') {
-                    User::update($targetProfessionalId, ['role' => 'manager']);
-                }
+                $this->userRoleService->syncUserRole($targetProfessionalId);
             } else {
                 $this->membershipService->ensureProfessionalRole($targetProfessionalId);
                 $this->membershipService->ensureBusinessProfessional((int)$invitation['business_id'], $targetProfessionalId);
@@ -371,6 +413,8 @@ class InvitationsController
                         $targetProfessionalId
                     );
                 }
+
+                $this->userRoleService->syncUserRole($targetProfessionalId);
             }
 
             BusinessInvitation::accept($id);
@@ -380,7 +424,7 @@ class InvitationsController
                 $actorId,
                 true,
                 $business['name'] ?? 'o negócio',
-                $invitation['establishment_id'] ?? null
+                $invitation['establishment_id'] ?? null,
             );
 
             AuditService::logFromRequest($request, 'accept_invitation', 'business_invitation', (string)$id, $invitation['establishment_id'] ?? null, $invitation['business_id'] ?? null, [
@@ -404,6 +448,16 @@ class InvitationsController
     public function reject(Request $request, int $id): void
     {
         $actorId = (int)$request->user['id'];
+        $data = $request->all();
+
+        $errors = Validator::make($data, [
+            'decision_note' => 'max:2000',
+        ]);
+
+        if (!empty($errors)) {
+            Response::validationError($errors, $request->requestId);
+            return;
+        }
 
         try {
             $invitation = BusinessInvitation::find($id);
@@ -423,17 +477,20 @@ class InvitationsController
             }
 
             BusinessInvitation::reject($id);
+            $decisionNote = $this->resolveDecisionNote($data['decision_note'] ?? null);
             $business = Business::find((int)$invitation['business_id']);
             $this->notifyInvitationDecision(
                 $invitation,
                 $actorId,
                 false,
                 $business['name'] ?? 'o negócio',
-                $invitation['establishment_id'] ?? null
+                $invitation['establishment_id'] ?? null,
+                $decisionNote
             );
 
             AuditService::logFromRequest($request, 'reject_invitation', 'business_invitation', (string)$id, $invitation['establishment_id'] ?? null, $invitation['business_id'] ?? null, [
                 'direction' => $invitation['direction'] ?? null,
+                'decision_note' => $decisionNote,
             ]);
 
             Response::success(['message' => 'Invitation rejected']);
@@ -520,7 +577,7 @@ class InvitationsController
         return false;
     }
 
-    private function notifyInvitationDecision(array $invitation, int $actorId, bool $accepted, string $businessName, mixed $establishmentId): void
+    private function notifyInvitationDecision(array $invitation, int $actorId, bool $accepted, string $businessName, mixed $establishmentId, ?string $decisionNote = null): void
     {
         $actor = User::find($actorId);
         $actorName = $actor['name'] ?? 'Um usuário';
@@ -533,6 +590,8 @@ class InvitationsController
             $establishment = Establishment::find((int)$establishmentId);
             $establishmentName = $establishment['name'] ?? null;
         }
+
+        $decisionNote = $accepted ? null : $this->resolveDecisionNote($decisionNote);
 
         Notification::create([
             'user_id' => $targetUserId,
@@ -547,6 +606,7 @@ class InvitationsController
                 'business_name' => $businessName,
                 'establishment_id' => $establishmentId ? (int)$establishmentId : null,
                 'establishment_name' => $establishmentName,
+                'decision_note' => $decisionNote,
                 'deep_link' => '/app/businesses/' . (int)$invitation['business_id'] . '?tab=professionals',
             ],
             'channel' => 'in_app',
@@ -561,5 +621,67 @@ class InvitationsController
         }
 
         return $actorName . ' solicitou vínculo profissional em ' . $businessName . ($establishmentName ? ' / ' . $establishmentName : '');
+    }
+
+    private function buildProfessionalRequestMessage(array $data): string
+    {
+        $sections = [];
+
+        $specialty = trim((string)($data['specialty'] ?? ''));
+        if ($specialty !== '') {
+            $sections[] = 'Área de atuação: ' . $specialty;
+        }
+
+        $experienceSummary = trim((string)($data['experience_summary'] ?? ''));
+        if ($experienceSummary !== '') {
+            $sections[] = 'Resumo profissional: ' . $experienceSummary;
+        }
+
+        $portfolioUrl = trim((string)($data['portfolio_url'] ?? ''));
+        if ($portfolioUrl !== '') {
+            $sections[] = 'Portfólio: ' . $portfolioUrl;
+        }
+
+        $githubUrl = trim((string)($data['github_url'] ?? ''));
+        if ($githubUrl !== '') {
+            $sections[] = 'GitHub: ' . $githubUrl;
+        }
+
+        $linkedinUrl = trim((string)($data['linkedin_url'] ?? ''));
+        if ($linkedinUrl !== '') {
+            $sections[] = 'LinkedIn: ' . $linkedinUrl;
+        }
+
+        $notes = trim((string)($data['notes'] ?? ''));
+        if ($notes !== '') {
+            $sections[] = 'Observações: ' . $notes;
+        }
+
+        return implode("\n\n", $sections);
+    }
+
+    private function normalizeOptionalUrl(mixed $value, string $field, array &$errors): ?string
+    {
+        $url = trim((string)($value ?? ''));
+        if ($url === '') {
+            return null;
+        }
+
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            $errors[$field] = 'Informe uma URL válida';
+            return null;
+        }
+
+        return $url;
+    }
+
+    private function resolveDecisionNote(mixed $value): string
+    {
+        $note = trim((string)($value ?? ''));
+        if ($note !== '') {
+            return $note;
+        }
+
+        return 'No momento esta solicitacao nao foi aprovada. Voce pode revisar seus dados e tentar novamente quando quiser.';
     }
 }

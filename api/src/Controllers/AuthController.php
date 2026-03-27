@@ -12,6 +12,8 @@ use QueueMaster\Utils\Logger;
 use QueueMaster\Models\User;
 use QueueMaster\Models\RefreshToken;
 use QueueMaster\Services\AuditService;
+use QueueMaster\Services\UserAccessControlService;
+use QueueMaster\Services\UserRoleService;
 
 /**
  * AuthController - Authentication Endpoints
@@ -27,6 +29,15 @@ use QueueMaster\Services\AuditService;
  */
 class AuthController
 {
+    private UserRoleService $userRoleService;
+    private UserAccessControlService $userAccessControlService;
+
+    public function __construct()
+    {
+        $this->userRoleService = new UserRoleService();
+        $this->userAccessControlService = new UserAccessControlService();
+    }
+
     /**
      * POST /api/v1/auth/google
      * 
@@ -73,6 +84,33 @@ class AuthController
                 return;
             }
 
+            $email = $this->userAccessControlService->normalizeEmail((string)($googleUser['email'] ?? ''));
+            $environmentAccess = $this->userAccessControlService->evaluateEnvironmentAccess($email);
+            if (!($environmentAccess['allowed'] ?? false)) {
+                Logger::logSecurity('Google login blocked by email access policy', [
+                    'email' => $email,
+                    'matched_rule' => $environmentAccess['matched_rule'] ?? null,
+                    'ip' => $request->getIp(),
+                ], $request->requestId);
+
+                Response::forbidden((string)($environmentAccess['reason'] ?? 'Acesso negado para este ambiente.'), $request->requestId);
+                return;
+            }
+
+            $existingUser = User::findByGoogleId((string)$googleUser['sub']) ?: User::findByEmail($email);
+            $systemAccess = $this->userAccessControlService->evaluateSystemAccess($existingUser);
+            if ($existingUser && !($systemAccess['allowed'] ?? false)) {
+                Logger::logSecurity('Google login blocked by internal user status', [
+                    'user_id' => $existingUser['id'] ?? null,
+                    'email' => $email,
+                    'matched_rule' => $systemAccess['matched_rule'] ?? null,
+                    'ip' => $request->getIp(),
+                ], $request->requestId);
+
+                Response::forbidden((string)($systemAccess['reason'] ?? 'Seu acesso está bloqueado no sistema.'), $request->requestId);
+                return;
+            }
+
             // Find or create user
             $user = User::findOrCreateFromGoogle($googleUser);
             $isNewUser = isset($user['_is_new']) && $user['_is_new'];
@@ -80,6 +118,8 @@ class AuthController
 
             // Update last login timestamp
             User::updateLastLogin((int)$user['id']);
+
+            $user = $this->buildAuthenticatedUserPayload((int)$user['id']);
 
             // Generate tokens
             $accessToken = AuthMiddleware::generateAccessToken($user);
@@ -236,7 +276,7 @@ class AuthController
         ], $request->requestId);
 
         Response::success([
-            'user' => $user,
+            'user' => $this->buildAuthenticatedUserPayload((int)$user['id']),
         ]);
     }
 
@@ -257,8 +297,28 @@ class AuthController
             return;
         }
 
+        $safeUser = User::getSafeData($fullUser);
+
         Response::success([
-            'user' => User::getSafeData($fullUser),
+            'user' => array_merge($safeUser, [
+                'effective_role' => $this->userRoleService->resolveEffectiveRole((int)$request->user['id']),
+                'role_summary' => $this->userRoleService->getRoleSummary((int)$request->user['id']),
+            ]),
+        ]);
+    }
+
+    private function buildAuthenticatedUserPayload(int $userId): array
+    {
+        $fullUser = User::find($userId);
+        if (!$fullUser) {
+            return [];
+        }
+
+        $safeUser = User::getSafeData($fullUser);
+
+        return array_merge($safeUser, [
+            'effective_role' => $this->userRoleService->resolveEffectiveRole($userId),
+            'role_summary' => $this->userRoleService->getRoleSummary($userId),
         ]);
     }
 

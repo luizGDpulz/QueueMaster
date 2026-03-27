@@ -297,6 +297,7 @@ import { defineComponent, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
+import { useRemoteSearch } from 'src/composables/useRemoteSearch'
 
 export default defineComponent({
   name: 'AppointmentsPage',
@@ -346,9 +347,26 @@ export default defineComponent({
 
     // Available slots
     const slotDate = ref('')
-    const availableSlots = ref([])
-    const loadingSlots = ref(false)
-    const slotsSearched = ref(false)
+    const availableSlotsSearch = useRemoteSearch({
+      search: ({ query, signal, contextKey }) => {
+        const [professionalId, serviceId] = String(contextKey || '').split(':')
+
+        return api.get('/appointments/available-slots', {
+          params: {
+            professional_id: professionalId,
+            service_id: serviceId,
+            date: query,
+          },
+          signal,
+        })
+      },
+      mapResults: (response) => response.data?.data?.slots || [],
+      debounceMs: 250,
+      cacheTtlMs: 10000,
+    })
+    const availableSlots = availableSlotsSearch.results
+    const loadingSlots = availableSlotsSearch.loading
+    const slotsSearched = availableSlotsSearch.searched
 
     // Options
     const statusOptions = [
@@ -480,8 +498,7 @@ export default defineComponent({
         start_at: ''
       }
       slotDate.value = ''
-      availableSlots.value = []
-      slotsSearched.value = false
+      availableSlotsSearch.clear()
       showDialog.value = true
     }
 
@@ -494,6 +511,7 @@ export default defineComponent({
         service_id: appointment.service_id,
         start_at: appointment.start_at?.replace(' ', 'T').slice(0, 16) || ''
       }
+      availableSlotsSearch.clear()
       showDialog.value = true
     }
 
@@ -504,39 +522,39 @@ export default defineComponent({
     const onEstablishmentChange = () => {
       form.value.professional_id = null
       form.value.service_id = null
-      availableSlots.value = []
-      slotsSearched.value = false
+      availableSlotsSearch.clear()
     }
 
-    const fetchAvailableSlots = async () => {
-      if (!form.value.professional_id || !form.value.service_id || !slotDate.value) return
-      loadingSlots.value = true
-      slotsSearched.value = false
+    const fetchAvailableSlots = async ({ force = false } = {}) => {
+      if (!form.value.professional_id || !form.value.service_id || !slotDate.value) {
+        availableSlotsSearch.clear()
+        return []
+      }
       try {
-        const response = await api.get('/appointments/available-slots', {
-          params: {
-            professional_id: form.value.professional_id,
-            service_id: form.value.service_id,
-            date: slotDate.value
-          }
+        return await availableSlotsSearch.run(slotDate.value, {
+          contextKey: `${form.value.professional_id}:${form.value.service_id}`,
+          force,
         })
-        if (response.data?.success) {
-          availableSlots.value = response.data.data?.slots || []
-        }
       } catch (err) {
         console.error('Erro ao buscar horários:', err)
-        availableSlots.value = []
-      } finally {
-        loadingSlots.value = false
-        slotsSearched.value = true
+        return []
       }
     }
 
     const onSlotDepsChange = () => {
       form.value.start_at = ''
-      availableSlots.value = []
-      slotsSearched.value = false
-      fetchAvailableSlots()
+
+      if (!form.value.professional_id || !form.value.service_id || !slotDate.value) {
+        availableSlotsSearch.clear()
+        return
+      }
+
+      availableSlotsSearch.schedule(slotDate.value, {
+        contextKey: `${form.value.professional_id}:${form.value.service_id}`,
+        onError: (error) => {
+          console.error('Erro ao buscar horÃ¡rios:', error)
+        },
+      })
     }
 
     const selectSlot = (slot) => {
@@ -698,6 +716,7 @@ export default defineComponent({
       availableSlots,
       loadingSlots,
       slotsSearched,
+      fetchAvailableSlots,
       onSlotDepsChange,
       selectSlot,
       formatSlotTime

@@ -37,7 +37,7 @@ QueueMaster/
 │   ├── Services/              # Business logic
 │   │   ├── QueueService.php   # Transaction-safe queue ops
 │   │   ├── AppointmentService.php # Conflict detection
-│   │   └── NotificationService.php # FCM integration
+│   │   └── NotificationService.php # Database-backed notifications
 │   ├── Builders/              # Query builder
 │   │   └── QueryBuilder.php   # Fluent query builder
 │   ├── Models/                # Data models
@@ -155,9 +155,9 @@ QueueMaster/
 - `POST /api/v1/dashboard/entries/{id}/served` - Mark served
 - `POST /api/v1/dashboard/no-show` - Mark no-show
 
-#### Notifications (3)
+#### Notifications (2)
 - `GET /api/v1/notifications` - List notifications
-- `POST /api/v1/notifications/fcm-token` - Save FCM token
+
 - `POST /api/v1/notifications/{id}/read` - Mark as read
 
 #### Streams (2)
@@ -322,7 +322,7 @@ After seeding, you have:
 3. **Monitor**: Setup application monitoring
 4. **Mobile**: Integrate with Kotlin/Jetpack Compose mobile app
 5. **Web**: Build admin dashboard with HTML/Tailwind/JS
-6. **FCM**: Configure Firebase Cloud Messaging for push notifications
+6. **Notifications**: Expand browser notification UX when needed
 7. **Reports**: Add analytics and reporting endpoints
 8. **Multi-tenant**: Extend for multiple establishments
 
@@ -343,3 +343,5 @@ All code follows PSR-12 style guidelines and includes comprehensive documentatio
 **License:** MIT (see project for details)
 
 **Status:** ✅ Production-Ready MVP
+
+

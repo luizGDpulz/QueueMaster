@@ -127,12 +127,47 @@ class Response
     /**
      * Send rate limit exceeded error
      */
-    public static function rateLimitExceeded(?string $requestId = null, ?int $retryAfter = null): void
+    public static function rateLimitExceeded(
+        ?string $requestId = null,
+        ?int $retryAfter = null,
+        ?int $limit = null,
+        ?int $windowSeconds = null
+        ): void
     {
-        if ($retryAfter) {
+        if ($retryAfter !== null) {
             header("Retry-After: $retryAfter");
         }
-        self::error('RATE_LIMIT_EXCEEDED', 'Too many requests', 429, $requestId);
+
+        $details = [];
+
+        if ($limit !== null) {
+            $details['limit'] = $limit;
+        }
+
+        if ($windowSeconds !== null) {
+            $details['window_seconds'] = $windowSeconds;
+        }
+
+        if ($retryAfter !== null) {
+            $details['retry_after_seconds'] = $retryAfter;
+            $details['retry_after_human'] = self::formatSecondsForHumans($retryAfter);
+        }
+
+        $message = 'Voce excedeu o limite de requisicoes da API.';
+
+        if ($limit !== null && $windowSeconds !== null) {
+            $message = sprintf(
+                'Voce excedeu o limite de %d requisicoes em %s.',
+                $limit,
+                self::formatSecondsForHumans($windowSeconds)
+            );
+        }
+
+        if ($retryAfter !== null) {
+            $message .= ' Tente novamente em ' . self::formatSecondsForHumans($retryAfter) . '.';
+        }
+
+        self::error('RATE_LIMIT_EXCEEDED', $message, 429, $requestId, $details);
     }
 
     /**
@@ -290,5 +325,22 @@ class Response
             http_response_code(204);
             exit;
         }
+    }
+
+    private static function formatSecondsForHumans(int $seconds): string
+    {
+        $safeSeconds = max(0, $seconds);
+
+        if ($safeSeconds < 60) {
+            return $safeSeconds . ' ' . ($safeSeconds === 1 ? 'segundo' : 'segundos');
+        }
+
+        $minutes = (int)ceil($safeSeconds / 60);
+        if ($minutes < 60) {
+            return $minutes . ' ' . ($minutes === 1 ? 'minuto' : 'minutos');
+        }
+
+        $hours = (int)ceil($minutes / 60);
+        return $hours . ' ' . ($hours === 1 ? 'hora' : 'horas');
     }
 }

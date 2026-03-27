@@ -7,6 +7,7 @@ use Firebase\JWT\Key;
 use QueueMaster\Core\Request;
 use QueueMaster\Core\Response;
 use QueueMaster\Core\Database;
+use QueueMaster\Services\UserAccessControlService;
 use QueueMaster\Utils\Logger;
 
 /**
@@ -22,6 +23,13 @@ use QueueMaster\Utils\Logger;
  */
 class AuthMiddleware
 {
+    private UserAccessControlService $userAccessControlService;
+
+    public function __construct()
+    {
+        $this->userAccessControlService = new UserAccessControlService();
+    }
+
     /**
      * Handle authentication
      */
@@ -49,6 +57,26 @@ class AuthMiddleware
             // Continue to next middleware/handler
             $next($request);
 
+        }
+        catch (\DomainException $e) {
+            Logger::logSecurity('Blocked user attempted authenticated access', [
+                'ip' => $request->getIp(),
+                'path' => $request->getPath(),
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::forbidden($e->getMessage(), $request->requestId);
+            return;
+        }
+        catch (\RuntimeException $e) {
+            Logger::error('Authentication validation failed', [
+                'ip' => $request->getIp(),
+                'path' => $request->getPath(),
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Authentication validation failed', $request->requestId);
+            return;
         }
         catch (\Exception $e) {
             Logger::logSecurity('Invalid authentication token', [
@@ -92,7 +120,7 @@ class AuthMiddleware
 
         // Fetch user from database to ensure they still exist and are active
         $db = Database::getInstance();
-        $sql = "SELECT id, name, email, role, created_at FROM users WHERE id = ? LIMIT 1";
+        $sql = "SELECT id, name, email, role, created_at, is_active, login_blocked_at, login_block_reason, login_blocked_by_user_id FROM users WHERE id = ? LIMIT 1";
         $users = $db->query($sql, [$payload['user_id']]);
 
         if (empty($users)) {
@@ -104,6 +132,11 @@ class AuthMiddleware
         // Verify email matches (additional security check)
         if ($user['email'] !== $payload['email']) {
             throw new \Exception('Token user mismatch');
+        }
+
+        $systemAccess = $this->userAccessControlService->evaluateSystemAccess($user);
+        if (!($systemAccess['allowed'] ?? false)) {
+            throw new \DomainException((string)($systemAccess['reason'] ?? 'Seu acesso está bloqueado no sistema.'));
         }
 
         return $user;

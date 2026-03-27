@@ -57,11 +57,9 @@ Visão da estrutura atual do repositório.
 │   │   │   ├── 🐘 AuditLog.php
 │   │   │   ├── 🐘 Business.php
 │   │   │   ├── 🐘 BusinessInvitation.php
-│   │   │   ├── 🐘 BusinessSubscription.php
 │   │   │   ├── 🐘 BusinessUser.php
 │   │   │   ├── 🐘 Establishment.php
 │   │   │   ├── 🐘 EstablishmentUser.php
-│   │   │   ├── 🐘 FcmToken.php
 │   │   │   ├── 🐘 Notification.php
 │   │   │   ├── 🐘 NotificationPreference.php
 │   │   │   ├── 🐘 Plan.php

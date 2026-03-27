@@ -27,6 +27,7 @@ use QueueMaster\Controllers\UsersController;
 use QueueMaster\Controllers\BusinessController;
 use QueueMaster\Controllers\AdminController;
 use QueueMaster\Controllers\InvitationsController;
+use QueueMaster\Controllers\RoleRequestsController;
 use QueueMaster\Controllers\ReportsController;
 use QueueMaster\Stream\SseController;
 use QueueMaster\Middleware\AuthMiddleware;
@@ -827,12 +828,18 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
-                // POST /api/v1/notifications/fcm-token — Save or update device token
-                $router->post('/fcm-token', function ($request) {
+                $router->post('/batch-read', function ($request) {
                     $controller = new NotificationsController();
-                    $controller->saveFcmToken($request);
+                    $controller->batchRead($request);
                 }
                 );
+
+                $router->post('/batch-delete', function ($request) {
+                    $controller = new NotificationsController();
+                    $controller->batchDelete($request);
+                }
+                );
+
 
                 // GET /api/v1/notifications/{id} — Get single notification
                 $router->get('/{id}', function ($request) {
@@ -1017,6 +1024,44 @@ $router->group('/api/v1', function ($router) {
             );
 
             // ========================================================================
+            // Role Request Routes
+            // ========================================================================
+
+            $router->group('/role-requests', function ($router) {
+
+                $router->get('', function ($request) {
+                    $controller = new RoleRequestsController();
+                    $controller->listMine($request);
+                });
+
+                $router->post('/manager', function ($request) {
+                    $controller = new RoleRequestsController();
+                    $controller->requestManagerAccess($request);
+                });
+
+                $router->post('/{id}/cancel', function ($request) {
+                    $controller = new RoleRequestsController();
+                    $controller->cancel($request, (int)$request->getParam('id'));
+                });
+
+                $router->post('/{id}/approve', function ($request) {
+                    $controller = new RoleRequestsController();
+                    $controller->approve($request, (int)$request->getParam('id'));
+                }, [new RoleMiddleware(['admin'])]);
+
+                $router->post('/{id}/reject', function ($request) {
+                    $controller = new RoleRequestsController();
+                    $controller->reject($request, (int)$request->getParam('id'));
+                }, [new RoleMiddleware(['admin'])]);
+
+                $router->post('/revert-to-client', function ($request) {
+                    $controller = new RoleRequestsController();
+                    $controller->revertToClient($request);
+                });
+
+            });
+
+            // ========================================================================
             // Admin Routes
             //
             // C4: Routes are explicitly scoped by role.
@@ -1041,6 +1086,60 @@ $router->group('/api/v1', function ($router) {
                     $controller->auditLogFilters($request);
                 }
                     , [new RoleMiddleware(['admin', 'manager'])]);
+
+                // ---- Admin Users (manager scoped read, admin edit) ---------------
+
+                // GET /api/v1/admin/users — List users visible in admin panel
+                $router->get('/users', function ($request) {
+                    $controller = new AdminController();
+                    $controller->users($request);
+                }
+                    , [new RoleMiddleware(['admin', 'manager'])]);
+
+                // GET /api/v1/admin/users/{id} — Get scoped user profile
+                $router->get('/users/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $controller->getUserProfile($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin', 'manager'])]);
+
+                // PUT /api/v1/admin/users/{id} — Update user profile
+                $router->put('/users/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $controller->updateUserProfile($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
+
+                $router->post('/users/{id}/block', function ($request) {
+                    $controller = new AdminController();
+                    $controller->blockUser($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
+
+                $router->post('/users/{id}/unblock', function ($request) {
+                    $controller = new AdminController();
+                    $controller->unblockUser($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
+
+                $router->post('/users/{id}/revoke-sessions', function ($request) {
+                    $controller = new AdminController();
+                    $controller->revokeUserSessions($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
+
+                $router->delete('/users/{id}', function ($request) {
+                    $controller = new AdminController();
+                    $controller->deleteUser($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
+
+                // PUT /api/v1/admin/users/{id}/plan — Assign plan to manager holder
+                $router->put('/users/{id}/plan', function ($request) {
+                    $controller = new AdminController();
+                    $controller->updateUserPlan($request, (int)$request->getParam('id'));
+                }
+                    , [new RoleMiddleware(['admin'])]);
 
                 // ---- Subscriptions (admin only) -------------------------------------
         
