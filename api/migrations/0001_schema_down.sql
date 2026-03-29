@@ -14,6 +14,7 @@ DROP TABLE IF EXISTS establishment_users;
 DROP TABLE IF EXISTS refresh_tokens;
 DROP TABLE IF EXISTS notification_preferences;
 DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS appointment_requests;
 DROP TABLE IF EXISTS appointments;
 DROP TABLE IF EXISTS queue_services;
 DROP TABLE IF EXISTS queue_access_codes;
