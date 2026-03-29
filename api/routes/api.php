@@ -21,6 +21,7 @@ use QueueMaster\Controllers\ServicesController;
 use QueueMaster\Controllers\ProfessionalsController;
 use QueueMaster\Controllers\QueuesController;
 use QueueMaster\Controllers\AppointmentsController;
+use QueueMaster\Controllers\AppointmentRequestsController;
 use QueueMaster\Controllers\DashboardController;
 use QueueMaster\Controllers\NotificationsController;
 use QueueMaster\Controllers\UsersController;
@@ -636,6 +637,41 @@ $router->group('/api/v1', function ($router) {
             $router->get('', function ($request) {
                     $controller = new AppointmentsController();
                     $controller->list($request);
+                }
+                );
+
+                // GET /api/v1/appointments/requests — List appointment requests
+                $router->get('/requests', function ($request) {
+                    $controller = new AppointmentRequestsController();
+                    $controller->list($request);
+                }
+                );
+
+                // POST /api/v1/appointments/requests — Create appointment request
+                $router->post('/requests', function ($request) {
+                    $controller = new AppointmentRequestsController();
+                    $controller->create($request);
+                }
+                    , [new RateLimiter(20, 60)]);
+
+                // POST /api/v1/appointments/requests/{id}/accept — Accept appointment request
+                $router->post('/requests/{id}/accept', function ($request) {
+                    $controller = new AppointmentRequestsController();
+                    $controller->accept($request, (int)$request->getParam('id'));
+                }
+                );
+
+                // POST /api/v1/appointments/requests/{id}/reject — Reject appointment request
+                $router->post('/requests/{id}/reject', function ($request) {
+                    $controller = new AppointmentRequestsController();
+                    $controller->reject($request, (int)$request->getParam('id'));
+                }
+                );
+
+                // POST /api/v1/appointments/requests/{id}/cancel — Cancel appointment request
+                $router->post('/requests/{id}/cancel', function ($request) {
+                    $controller = new AppointmentRequestsController();
+                    $controller->cancel($request, (int)$request->getParam('id'));
                 }
                 );
 

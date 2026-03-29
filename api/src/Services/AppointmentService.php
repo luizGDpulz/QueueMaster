@@ -3,20 +3,10 @@
 namespace QueueMaster\Services;
 
 use QueueMaster\Core\Database;
+use QueueMaster\Models\Professional;
+use QueueMaster\Models\Service;
 use QueueMaster\Utils\Logger;
 
-/**
- * AppointmentService - Appointment Management with Conflict Detection
- * 
- * Implements transaction-safe appointment creation with conflict checking:
- * - Prevents double-booking same professional/time slot
- * - Validates business logic (times, dates)
- * - Handles check-in and status updates
- * 
- * CONCURRENCY STRATEGY:
- * Uses SELECT ... FOR UPDATE on appointments to lock overlapping time slots
- * during creation, preventing race conditions.
- */
 class AppointmentService
 {
     private Database $db;
@@ -26,116 +16,187 @@ class AppointmentService
         $this->db = Database::getInstance();
     }
 
-    /**
-     * Create appointment with conflict checking
-     * 
-     * Transaction-safe implementation:
-     * 1. Start transaction
-     * 2. Check for overlapping appointments (FOR UPDATE)
-     * 3. If no conflict, insert appointment
-     * 4. Commit transaction
-     * 
-     * @param array $data Appointment data
-     * @return array Created appointment
-     * @throws \Exception
-     */
     public function create(array $data): array
     {
-        $establishmentId = (int)$data['establishment_id'];
-        $professionalId = (int)$data['professional_id'];
-        $serviceId = (int)$data['service_id'];
-        $userId = (int)$data['user_id'];
-        $startAt = $data['start_at']; // Expected format: Y-m-d H:i:s or ISO8601
+        $establishmentId = (int)($data['establishment_id'] ?? 0);
+        $professionalId = (int)($data['professional_id'] ?? 0);
+        $serviceId = (int)($data['service_id'] ?? 0);
+        $userId = (int)($data['user_id'] ?? 0);
+        $startAt = (string)($data['start_at'] ?? '');
+        $notes = isset($data['notes']) ? trim((string)$data['notes']) : null;
+
+        if ($establishmentId <= 0 || $professionalId <= 0 || $serviceId <= 0 || $userId <= 0 || $startAt === '') {
+            throw new \InvalidArgumentException('Missing required appointment data');
+        }
+
+        $startTimestamp = strtotime($startAt);
+        if ($startTimestamp === false) {
+            throw new \Exception('Invalid start_at datetime');
+        }
+
+        $normalizedStartAt = date('Y-m-d H:i:s', $startTimestamp);
+
+        $startedTransaction = false;
 
         try {
-            $this->db->beginTransaction();
-
-            // Validate start time
-            $startTimestamp = strtotime($startAt);
-            if ($startTimestamp === false) {
-                throw new \Exception('Invalid start_at datetime');
+            if (!$this->db->inTransaction()) {
+                $this->db->beginTransaction();
+                $startedTransaction = true;
             }
 
-            // Get service duration
-            $serviceSql = "SELECT duration_minutes FROM services WHERE id = ? LIMIT 1";
-            $services = $this->db->query($serviceSql, [$serviceId]);
-            
-            if (empty($services)) {
-                throw new \Exception('Service not found');
-            }
+            $service = $this->resolveService($serviceId, $establishmentId);
+            $this->resolveProfessional($professionalId, $establishmentId);
 
-            $durationMinutes = (int)$services[0]['duration_minutes'];
+            $durationMinutes = (int)($service['duration_minutes'] ?? 30);
+            $endAt = date('Y-m-d H:i:s', $startTimestamp + ($durationMinutes * 60));
 
-            // Calculate end time
-            $endTimestamp = $startTimestamp + ($durationMinutes * 60);
-            $endAt = date('Y-m-d H:i:s', $endTimestamp);
-
-            // Check for overlapping appointments (lock rows with FOR UPDATE)
-            // An appointment overlaps if:
-            // - Same professional
-            // - NOT cancelled/no_show
-            // - Time ranges overlap: (start1 < end2) AND (end1 > start2)
-            // Standard overlap formula: New [startAt, endAt] overlaps existing [start_at, end_at]
-            $conflictSql = "
-                SELECT id FROM appointments
-                WHERE professional_id = ?
-                  AND status NOT IN ('cancelled', 'no_show')
-                  AND start_at < ?
-                  AND end_at > ?
-                FOR UPDATE
-            ";
-            
-            $conflicts = $this->db->query($conflictSql, [
-                $professionalId,
-                $endAt,      // Existing start_at < new endAt
-                $startAt     // Existing end_at > new startAt
-            ]);
-
+            $conflicts = $this->findConflicts($professionalId, $normalizedStartAt, $endAt);
             if (!empty($conflicts)) {
                 throw new \Exception('Time slot conflict - appointment already exists');
             }
 
-            // Insert appointment
             $insertSql = "
-                INSERT INTO appointments 
-                (establishment_id, professional_id, service_id, user_id, start_at, end_at, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'booked', NOW())
+                INSERT INTO appointments
+                (establishment_id, professional_id, service_id, user_id, start_at, end_at, status, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'booked', ?, NOW())
             ";
-            
+
             $this->db->execute($insertSql, [
                 $establishmentId,
                 $professionalId,
                 $serviceId,
                 $userId,
-                $startAt,
-                $endAt
+                $normalizedStartAt,
+                $endAt,
+                $notes !== '' ? $notes : null,
             ]);
 
             $appointmentId = (int)$this->db->lastInsertId();
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
 
-            $this->db->commit();
-
-            // Fetch created appointment
             $appointment = $this->getAppointment($appointmentId);
+            if (!$appointment) {
+                throw new \RuntimeException('Created appointment could not be loaded');
+            }
 
             Logger::info('Appointment created', [
                 'appointment_id' => $appointmentId,
                 'user_id' => $userId,
                 'professional_id' => $professionalId,
-                'start_at' => $startAt,
+                'service_id' => $serviceId,
+                'start_at' => $normalizedStartAt,
             ]);
 
             return $appointment;
+        } catch (\Exception $e) {
+            if ($startedTransaction && $this->db->inTransaction()) {
+                $this->db->rollback();
+            }
 
+            Logger::error('Appointment creation failed', [
+                'user_id' => $userId,
+                'professional_id' => $professionalId,
+                'service_id' => $serviceId,
+                'start_at' => $startAt,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    public function update(int $appointmentId, array $data, int $actorId): array
+    {
+        $appointment = $this->getAppointmentRaw($appointmentId);
+        if (!$appointment) {
+            throw new \RuntimeException('Appointment not found');
+        }
+
+        $currentStatus = (string)($appointment['status'] ?? 'booked');
+        $updateData = [];
+
+        try {
+            $this->db->beginTransaction();
+
+            $serviceId = isset($data['service_id']) ? (int)$data['service_id'] : (int)$appointment['service_id'];
+            $professionalId = isset($data['professional_id']) ? (int)$data['professional_id'] : (int)$appointment['professional_id'];
+            $startAt = isset($data['start_at']) ? (string)$data['start_at'] : (string)$appointment['start_at'];
+
+            $startTimestamp = strtotime($startAt);
+            if ($startTimestamp === false) {
+                throw new \Exception('Invalid start_at datetime');
+            }
+
+            $normalizedStartAt = date('Y-m-d H:i:s', $startTimestamp);
+            $service = $this->resolveService($serviceId, (int)$appointment['establishment_id']);
+            $this->resolveProfessional($professionalId, (int)$appointment['establishment_id']);
+
+            $durationMinutes = (int)($service['duration_minutes'] ?? 30);
+            $endAt = date('Y-m-d H:i:s', $startTimestamp + ($durationMinutes * 60));
+
+            if (
+                $normalizedStartAt !== (string)$appointment['start_at']
+                || $endAt !== (string)$appointment['end_at']
+                || $serviceId !== (int)$appointment['service_id']
+                || $professionalId !== (int)$appointment['professional_id']
+            ) {
+                $conflicts = $this->findConflicts($professionalId, $normalizedStartAt, $endAt, $appointmentId);
+                if (!empty($conflicts)) {
+                    throw new \Exception('Time slot conflict - appointment already exists');
+                }
+
+                $updateData['start_at'] = $normalizedStartAt;
+                $updateData['end_at'] = $endAt;
+                $updateData['service_id'] = $serviceId;
+                $updateData['professional_id'] = $professionalId;
+            }
+
+            if (isset($data['status'])) {
+                $nextStatus = (string)$data['status'];
+                if ($nextStatus !== $currentStatus) {
+                    $this->assertStatusTransitionAllowed($currentStatus, $nextStatus);
+                    $updateData['status'] = $nextStatus;
+                }
+            }
+
+            if (empty($updateData)) {
+                $this->db->rollback();
+                return $this->getAppointment($appointmentId) ?? $appointment;
+            }
+
+            $setSql = [];
+            $params = [];
+            foreach ($updateData as $column => $value) {
+                $setSql[] = $column . ' = ?';
+                $params[] = $value;
+            }
+            $params[] = $appointmentId;
+
+            $this->db->execute(
+                'UPDATE appointments SET ' . implode(', ', $setSql) . ' WHERE id = ?',
+                $params
+            );
+
+            $this->db->commit();
+
+            Logger::info('Appointment updated', [
+                'appointment_id' => $appointmentId,
+                'actor_id' => $actorId,
+                'updated_fields' => array_keys($updateData),
+            ]);
+
+            return $this->getAppointment($appointmentId) ?? [];
         } catch (\Exception $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollback();
             }
 
-            Logger::error('Appointment creation failed', [
-                'user_id' => $data['user_id'] ?? null,
-                'professional_id' => $data['professional_id'] ?? null,
-                'start_at' => $data['start_at'] ?? null,
+            Logger::error('Appointment update failed', [
+                'appointment_id' => $appointmentId,
+                'actor_id' => $actorId,
+                'payload' => $data,
                 'error' => $e->getMessage(),
             ]);
 
@@ -143,277 +204,287 @@ class AppointmentService
         }
     }
 
-    /**
-     * Check-in appointment
-     */
     public function checkIn(int $appointmentId, int $userId): array
     {
-        try {
-            $appointment = $this->getAppointment($appointmentId);
-
-            if (!$appointment) {
-                throw new \Exception('Appointment not found');
-            }
-
-            // Verify ownership
-            if ($appointment['user_id'] != $userId) {
-                throw new \Exception('Unauthorized');
-            }
-
-            // Verify status
-            if ($appointment['status'] !== 'booked') {
-                throw new \Exception('Cannot check-in appointment in current status');
-            }
-
-            // Check if within grace window
-            $graceBefore = (int)($_ENV['QUEUE_GRACE_BEFORE_MINUTES'] ?? 10);
-            $graceAfter = (int)($_ENV['QUEUE_GRACE_AFTER_MINUTES'] ?? 15);
-            
-            $startTimestamp = strtotime($appointment['start_at']);
-            $now = time();
-            $windowStart = $startTimestamp - ($graceBefore * 60);
-            $windowEnd = $startTimestamp + ($graceAfter * 60);
-
-            if ($now < $windowStart) {
-                throw new \Exception('Too early to check-in');
-            }
-
-            if ($now > $windowEnd) {
-                // Mark as no-show
-                $this->markNoShow($appointmentId);
-                throw new \Exception('Check-in window has passed - marked as no-show');
-            }
-
-            // Update status
-            $sql = "UPDATE appointments SET status = 'checked_in', checkin_at = NOW() WHERE id = ?";
-            $this->db->execute($sql, [$appointmentId]);
-
-            Logger::info('Appointment checked-in', [
-                'appointment_id' => $appointmentId,
-                'user_id' => $userId,
-            ]);
-
-            return $this->getAppointment($appointmentId);
-
-        } catch (\Exception $e) {
-            Logger::error('Check-in failed', [
-                'appointment_id' => $appointmentId,
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-            ]);
-
-            throw $e;
+        $appointment = $this->getAppointmentRaw($appointmentId);
+        if (!$appointment) {
+            throw new \Exception('Appointment not found');
         }
+
+        if ((int)$appointment['user_id'] !== $userId) {
+            throw new \Exception('Unauthorized');
+        }
+
+        if (($appointment['status'] ?? null) !== 'booked') {
+            throw new \Exception('Cannot check-in appointment in current status');
+        }
+
+        $graceBefore = (int)($_ENV['QUEUE_GRACE_BEFORE_MINUTES'] ?? 10);
+        $graceAfter = (int)($_ENV['QUEUE_GRACE_AFTER_MINUTES'] ?? 15);
+
+        $startTimestamp = strtotime((string)$appointment['start_at']);
+        $now = time();
+        $windowStart = $startTimestamp - ($graceBefore * 60);
+        $windowEnd = $startTimestamp + ($graceAfter * 60);
+
+        if ($now < $windowStart) {
+            throw new \Exception('Too early to check-in');
+        }
+
+        if ($now > $windowEnd) {
+            $this->markNoShow($appointmentId);
+            throw new \Exception('Check-in window has passed - marked as no-show');
+        }
+
+        $this->db->execute(
+            "UPDATE appointments SET status = 'checked_in', checkin_at = NOW() WHERE id = ?",
+            [$appointmentId]
+        );
+
+        Logger::info('Appointment checked-in', [
+            'appointment_id' => $appointmentId,
+            'user_id' => $userId,
+        ]);
+
+        return $this->getAppointment($appointmentId) ?? [];
     }
 
-    /**
-     * Cancel appointment
-     */
-    public function cancel(int $appointmentId, int $userId): bool
+    public function cancel(int $appointmentId, int $userId, bool $allowPrivileged = false): bool
     {
-        try {
-            $appointment = $this->getAppointment($appointmentId);
-
-            if (!$appointment) {
-                throw new \Exception('Appointment not found');
-            }
-
-            // Verify ownership
-            if ($appointment['user_id'] != $userId) {
-                throw new \Exception('Unauthorized');
-            }
-
-            // Can only cancel booked or checked_in appointments
-            if (!in_array($appointment['status'], ['booked', 'checked_in'])) {
-                throw new \Exception('Cannot cancel appointment in current status');
-            }
-
-            $sql = "UPDATE appointments SET status = 'cancelled' WHERE id = ?";
-            $this->db->execute($sql, [$appointmentId]);
-
-            Logger::info('Appointment cancelled', [
-                'appointment_id' => $appointmentId,
-                'user_id' => $userId,
-            ]);
-
-            return true;
-
-        } catch (\Exception $e) {
-            Logger::error('Cancel appointment failed', [
-                'appointment_id' => $appointmentId,
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-            ]);
-
-            throw $e;
+        $appointment = $this->getAppointmentRaw($appointmentId);
+        if (!$appointment) {
+            throw new \Exception('Appointment not found');
         }
+
+        if (!$allowPrivileged && (int)$appointment['user_id'] !== $userId) {
+            throw new \Exception('Unauthorized');
+        }
+
+        if (!in_array($appointment['status'], ['booked', 'checked_in'], true)) {
+            throw new \Exception('Cannot cancel appointment in current status');
+        }
+
+        $this->db->execute(
+            "UPDATE appointments SET status = 'cancelled' WHERE id = ?",
+            [$appointmentId]
+        );
+
+        Logger::info('Appointment cancelled', [
+            'appointment_id' => $appointmentId,
+            'user_id' => $userId,
+        ]);
+
+        return true;
     }
 
-    /**
-     * Mark appointment as no-show
-     */
+    public function complete(int $appointmentId): array
+    {
+        $appointment = $this->getAppointmentRaw($appointmentId);
+        if (!$appointment) {
+            throw new \Exception('Appointment not found');
+        }
+
+        if (!in_array($appointment['status'], ['checked_in', 'in_progress'], true)) {
+            throw new \Exception('Cannot complete appointment in current status');
+        }
+
+        $this->markCompleted($appointmentId);
+        return $this->getAppointment($appointmentId) ?? [];
+    }
+
+    public function noShow(int $appointmentId): array
+    {
+        $appointment = $this->getAppointmentRaw($appointmentId);
+        if (!$appointment) {
+            throw new \Exception('Appointment not found');
+        }
+
+        if (!in_array($appointment['status'], ['booked', 'checked_in'], true)) {
+            throw new \Exception('Cannot mark no-show appointment in current status');
+        }
+
+        $this->markNoShow($appointmentId);
+        return $this->getAppointment($appointmentId) ?? [];
+    }
+
     public function markNoShow(int $appointmentId): bool
     {
-        try {
-            $sql = "UPDATE appointments SET status = 'no_show' WHERE id = ?";
-            $this->db->execute($sql, [$appointmentId]);
-
-            Logger::info('Appointment marked as no-show', [
-                'appointment_id' => $appointmentId,
-            ]);
-
-            return true;
-
-        } catch (\Exception $e) {
-            Logger::error('Mark no-show failed', [
-                'appointment_id' => $appointmentId,
-                'error' => $e->getMessage(),
-            ]);
-
-            throw $e;
-        }
+        $this->db->execute("UPDATE appointments SET status = 'no_show' WHERE id = ?", [$appointmentId]);
+        Logger::info('Appointment marked as no-show', ['appointment_id' => $appointmentId]);
+        return true;
     }
 
-    /**
-     * Mark appointment as completed
-     */
     public function markCompleted(int $appointmentId): bool
     {
-        try {
-            $sql = "UPDATE appointments SET status = 'completed' WHERE id = ?";
-            $this->db->execute($sql, [$appointmentId]);
-
-            Logger::info('Appointment marked as completed', [
-                'appointment_id' => $appointmentId,
-            ]);
-
-            return true;
-
-        } catch (\Exception $e) {
-            Logger::error('Mark completed failed', [
-                'appointment_id' => $appointmentId,
-                'error' => $e->getMessage(),
-            ]);
-
-            throw $e;
-        }
+        $this->db->execute("UPDATE appointments SET status = 'completed' WHERE id = ?", [$appointmentId]);
+        Logger::info('Appointment marked as completed', ['appointment_id' => $appointmentId]);
+        return true;
     }
 
-    /**
-     * Get appointment by ID
-     */
     public function getAppointment(int $appointmentId): ?array
     {
-        $sql = "SELECT * FROM appointments WHERE id = ? LIMIT 1";
-        $appointments = $this->db->query($sql, [$appointmentId]);
-        return $appointments[0] ?? null;
+        $rows = $this->db->query(
+            "
+            SELECT
+                a.*,
+                u.name AS user_name,
+                u.email AS user_email,
+                p.name AS professional_name,
+                p.user_id AS professional_user_id,
+                p.specialty AS specialization,
+                s.name AS service_name,
+                e.name AS establishment_name
+            FROM appointments a
+            INNER JOIN users u ON u.id = a.user_id
+            INNER JOIN professionals p ON p.id = a.professional_id
+            INNER JOIN services s ON s.id = a.service_id
+            INNER JOIN establishments e ON e.id = a.establishment_id
+            WHERE a.id = ?
+            LIMIT 1
+            ",
+            [$appointmentId]
+        );
+
+        return $rows[0] ?? null;
     }
 
-    /**
-     * List appointments with filters
-     */
     public function list(array $filters = [], int $page = 1, int $perPage = 20): array
     {
+        $page = max(1, $page);
+        $perPage = min(max(1, $perPage), 100);
         $offset = ($page - 1) * $perPage;
+
         $where = [];
         $params = [];
 
-        if (isset($filters['user_id'])) {
-            $where[] = "user_id = ?";
-            $params[] = $filters['user_id'];
+        if (!empty($filters['user_id'])) {
+            $where[] = 'a.user_id = ?';
+            $params[] = (int)$filters['user_id'];
         }
 
-        if (isset($filters['professional_id'])) {
-            $where[] = "professional_id = ?";
-            $params[] = $filters['professional_id'];
+        if (!empty($filters['professional_id'])) {
+            $where[] = 'a.professional_id = ?';
+            $params[] = (int)$filters['professional_id'];
         }
 
-        if (isset($filters['establishment_id'])) {
-            $where[] = "establishment_id = ?";
-            $params[] = $filters['establishment_id'];
+        if (!empty($filters['professional_user_id'])) {
+            $where[] = 'p.user_id = ?';
+            $params[] = (int)$filters['professional_user_id'];
         }
 
-        if (isset($filters['status'])) {
-            $where[] = "status = ?";
-            $params[] = $filters['status'];
+        if (!empty($filters['establishment_id'])) {
+            $where[] = 'a.establishment_id = ?';
+            $params[] = (int)$filters['establishment_id'];
         }
 
-        if (isset($filters['date'])) {
-            $where[] = "DATE(start_at) = ?";
-            $params[] = $filters['date'];
+        if (!empty($filters['establishment_ids']) && is_array($filters['establishment_ids'])) {
+            $establishmentIds = array_values(array_filter(
+                array_map('intval', $filters['establishment_ids']),
+                static fn(int $id): bool => $id > 0
+            ));
+
+            if (empty($establishmentIds)) {
+                $where[] = '1 = 0';
+            } else {
+                $placeholders = implode(',', array_fill(0, count($establishmentIds), '?'));
+                $where[] = "a.establishment_id IN ($placeholders)";
+                array_push($params, ...$establishmentIds);
+            }
         }
 
-        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+        if (!empty($filters['status'])) {
+            $where[] = 'a.status = ?';
+            $params[] = (string)$filters['status'];
+        }
 
-        // Count total
-        $countSql = "SELECT COUNT(*) as total FROM appointments $whereClause";
-        $countResult = $this->db->query($countSql, $params);
-        $total = (int)$countResult[0]['total'];
+        if (!empty($filters['bucket'])) {
+            if ($filters['bucket'] === 'scheduled') {
+                $where[] = "a.status IN ('booked', 'confirmed', 'checked_in', 'in_progress')";
+            } elseif ($filters['bucket'] === 'completed') {
+                $where[] = "a.status IN ('completed', 'no_show', 'cancelled')";
+            }
+        }
 
-        // Fetch appointments
-        $sql = "
-            SELECT * FROM appointments 
-            $whereClause
-            ORDER BY start_at DESC
+        if (!empty($filters['date'])) {
+            $where[] = 'DATE(a.start_at) = ?';
+            $params[] = (string)$filters['date'];
+        }
+
+        $whereSql = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $countRows = $this->db->query(
+            "SELECT COUNT(*) AS total FROM appointments a INNER JOIN professionals p ON p.id = a.professional_id $whereSql",
+            $params
+        );
+        $total = (int)($countRows[0]['total'] ?? 0);
+
+        $rows = $this->db->query(
+            "
+            SELECT
+                a.*,
+                u.name AS user_name,
+                u.email AS user_email,
+                p.name AS professional_name,
+                p.user_id AS professional_user_id,
+                p.specialty AS specialization,
+                s.name AS service_name,
+                e.name AS establishment_name
+            FROM appointments a
+            INNER JOIN users u ON u.id = a.user_id
+            INNER JOIN professionals p ON p.id = a.professional_id
+            INNER JOIN services s ON s.id = a.service_id
+            INNER JOIN establishments e ON e.id = a.establishment_id
+            $whereSql
+            ORDER BY a.start_at DESC, a.id DESC
             LIMIT ? OFFSET ?
-        ";
-        $params[] = $perPage;
-        $params[] = $offset;
-
-        $appointments = $this->db->query($sql, $params);
+            ",
+            array_merge($params, [$perPage, $offset])
+        );
 
         return [
-            'appointments' => $appointments,
+            'appointments' => $rows,
             'total' => $total,
             'page' => $page,
             'per_page' => $perPage,
-            'total_pages' => ceil($total / $perPage),
+            'total_pages' => max(1, (int)ceil($total / $perPage)),
         ];
     }
 
-    /**
-     * Get available time slots for a professional/service on a specific date
-     */
     public function getAvailableSlots(int $professionalId, int $serviceId, string $date): array
     {
-        // Get service duration
-        $serviceSql = "SELECT duration_minutes FROM services WHERE id = ? LIMIT 1";
-        $services = $this->db->query($serviceSql, [$serviceId]);
-        
-        if (empty($services)) {
+        $service = Service::find($serviceId);
+        if (!$service) {
             throw new \Exception('Service not found');
         }
 
-        $durationMinutes = (int)$services[0]['duration_minutes'];
+        $durationMinutes = (int)($service['duration_minutes'] ?? 30);
+        $startHour = 9;
+        $endHour = 18;
 
-        // Business hours (TODO: make configurable per establishment/professional)
-        $startHour = 9; // 9 AM
-        $endHour = 18;  // 6 PM
-
-        // Get existing appointments for the day
-        $appointmentsSql = "
-            SELECT start_at, end_at FROM appointments
+        $appointments = $this->db->query(
+            "
+            SELECT start_at, end_at
+            FROM appointments
             WHERE professional_id = ?
               AND DATE(start_at) = ?
-              AND status NOT IN ('cancelled', 'no_show')
+              AND status NOT IN ('cancelled', 'no_show', 'completed')
             ORDER BY start_at ASC
-        ";
-        $appointments = $this->db->query($appointmentsSql, [$professionalId, $date]);
+            ",
+            [$professionalId, $date]
+        );
 
-        // Generate available slots
         $slots = [];
         $currentTime = strtotime("$date $startHour:00:00");
         $endTime = strtotime("$date $endHour:00:00");
 
         while ($currentTime < $endTime) {
             $slotEnd = $currentTime + ($durationMinutes * 60);
-            
-            // Check if slot conflicts with existing appointment
             $hasConflict = false;
+
             foreach ($appointments as $appointment) {
-                $appointmentStart = strtotime($appointment['start_at']);
-                $appointmentEnd = strtotime($appointment['end_at']);
-                
+                $appointmentStart = strtotime((string)$appointment['start_at']);
+                $appointmentEnd = strtotime((string)$appointment['end_at']);
+
                 if ($currentTime < $appointmentEnd && $slotEnd > $appointmentStart) {
                     $hasConflict = true;
                     break;
@@ -431,5 +502,84 @@ class AppointmentService
         }
 
         return $slots;
+    }
+
+    private function getAppointmentRaw(int $appointmentId): ?array
+    {
+        $rows = $this->db->query(
+            "SELECT * FROM appointments WHERE id = ? LIMIT 1",
+            [$appointmentId]
+        );
+
+        return $rows[0] ?? null;
+    }
+
+    private function resolveService(int $serviceId, int $establishmentId): array
+    {
+        $service = Service::find($serviceId);
+        if (!$service) {
+            throw new \Exception('Service not found');
+        }
+
+        if ((int)($service['establishment_id'] ?? 0) !== $establishmentId) {
+            throw new \Exception('Invalid service for establishment');
+        }
+
+        return $service;
+    }
+
+    private function resolveProfessional(int $professionalId, int $establishmentId): array
+    {
+        $professional = Professional::find($professionalId);
+        if (!$professional) {
+            throw new \Exception('Professional not found');
+        }
+
+        if ((int)($professional['establishment_id'] ?? 0) !== $establishmentId) {
+            throw new \Exception('Invalid professional for establishment');
+        }
+
+        if (isset($professional['is_active']) && !(bool)$professional['is_active']) {
+            throw new \Exception('Professional is inactive');
+        }
+
+        return $professional;
+    }
+
+    private function findConflicts(int $professionalId, string $startAt, string $endAt, ?int $excludeAppointmentId = null): array
+    {
+        $sql = "
+            SELECT id
+            FROM appointments
+            WHERE professional_id = ?
+              AND status NOT IN ('cancelled', 'no_show', 'completed')
+              AND start_at < ?
+              AND end_at > ?
+        ";
+        $params = [$professionalId, $endAt, $startAt];
+
+        if ($excludeAppointmentId !== null) {
+            $sql .= ' AND id != ?';
+            $params[] = $excludeAppointmentId;
+        }
+
+        $sql .= ' FOR UPDATE';
+
+        return $this->db->query($sql, $params);
+    }
+
+    private function assertStatusTransitionAllowed(string $currentStatus, string $nextStatus): void
+    {
+        $allowedTransitions = [
+            'booked' => ['confirmed'],
+            'confirmed' => ['checked_in'],
+            'checked_in' => ['in_progress'],
+            'in_progress' => ['completed'],
+        ];
+
+        $allowed = $allowedTransitions[$currentStatus] ?? [];
+        if (!in_array($nextStatus, $allowed, true)) {
+            throw new \Exception('Cannot update appointment to the requested status');
+        }
     }
 }
