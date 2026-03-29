@@ -19,8 +19,6 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneIphone
@@ -41,25 +39,32 @@ import androidx.compose.ui.unit.dp
 import br.dev.pulz.queuemaster.mobile.core.design.AppGradients
 import br.dev.pulz.queuemaster.mobile.core.design.AppSpacing
 import br.dev.pulz.queuemaster.mobile.ui.components.QmAvatar
+import br.dev.pulz.queuemaster.mobile.ui.components.QmBrandTopBar
+import br.dev.pulz.queuemaster.mobile.ui.components.QmSectionTitle
 import br.dev.pulz.queuemaster.mobile.ui.theme.Cloud0
 import br.dev.pulz.queuemaster.mobile.ui.theme.Error500
 
 @Composable
 fun ProfileScreen(
+    avatarUrl: String?,
     uiState: ProfileUiState,
+    onAvatarClick: (() -> Unit)?,
     onSignOutClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AppGradients.ScreenGlow)
+            .background(brush = AppGradients.screenGlow())
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(AppSpacing.Xl),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.Lg)
     ) {
-        ProfileHeader()
+        ProfileHeader(
+            avatarUrl = avatarUrl,
+            onAvatarClick = onAvatarClick
+        )
 
         when (uiState) {
             ProfileUiState.Loading -> ProfileStateCard(
@@ -79,7 +84,7 @@ fun ProfileScreen(
                     avatarUrl = profile.avatarUrl
                 )
 
-                ProfileSectionTitle(
+                QmSectionTitle(
                     text = "Informacoes pessoais"
                 )
 
@@ -111,7 +116,7 @@ fun ProfileScreen(
                     }
                 }
 
-                ProfileSectionTitle(
+                QmSectionTitle(
                     text = "Configuracoes da conta"
                 )
 
@@ -150,54 +155,14 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileHeader() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        ) {
-            Box(
-                modifier = Modifier.size(44.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Menu,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-
-        Text(
-            text = "QueueMaster",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = AppSpacing.Md)
-        )
-
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        ) {
-            Box(
-                modifier = Modifier.size(44.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Notifications,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
+private fun ProfileHeader(
+    avatarUrl: String?,
+    onAvatarClick: (() -> Unit)?
+) {
+    QmBrandTopBar(
+        avatarUrl = avatarUrl,
+        onAvatarClick = onAvatarClick
+    )
 }
 
 @Composable
@@ -235,18 +200,6 @@ private fun ProfileIdentity(
                 .padding(top = AppSpacing.Xs)
         )
     }
-}
-
-@Composable
-private fun ProfileSectionTitle(
-    text: String
-) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = AppSpacing.Xs)
-    )
 }
 
 @Composable

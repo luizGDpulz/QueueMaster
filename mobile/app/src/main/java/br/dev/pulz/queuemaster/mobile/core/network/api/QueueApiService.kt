@@ -1,6 +1,7 @@
 package br.dev.pulz.queuemaster.mobile.core.network.api
 
 import br.dev.pulz.queuemaster.mobile.core.network.dto.ApiEnvelopeDto
+import br.dev.pulz.queuemaster.mobile.core.network.dto.queue.CurrentActiveQueueResponseDto
 import br.dev.pulz.queuemaster.mobile.core.network.dto.queue.JoinQueueBodyDto
 import br.dev.pulz.queuemaster.mobile.core.network.dto.queue.JoinQueueResponseDto
 import br.dev.pulz.queuemaster.mobile.core.network.dto.queue.LeaveQueueResponseDto
@@ -13,6 +14,9 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 
 interface QueueApiService {
+    @GET("queues/current")
+    suspend fun getCurrentActiveQueue(): Response<ApiEnvelopeDto<CurrentActiveQueueResponseDto>>
+
     @POST("queues/join")
     suspend fun joinQueueByCode(
         @Body body: JoinQueueBodyDto

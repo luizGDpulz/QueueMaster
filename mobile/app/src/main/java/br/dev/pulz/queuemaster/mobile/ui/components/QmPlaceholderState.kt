@@ -34,7 +34,7 @@ fun QmPlaceholderState(
             modifier = Modifier
                 .size(72.dp)
                 .background(
-                    brush = AppGradients.NeutralPanel,
+                    brush = AppGradients.neutralPanel(),
                     shape = MaterialTheme.shapes.medium
                 ),
             contentAlignment = Alignment.Center

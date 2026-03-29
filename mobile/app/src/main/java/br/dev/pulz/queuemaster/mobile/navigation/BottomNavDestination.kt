@@ -4,7 +4,8 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.ConfirmationNumber
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 import br.dev.pulz.queuemaster.mobile.R
 
@@ -26,8 +27,13 @@ val bottomNavDestinations = listOf(
         icon = Icons.AutoMirrored.Filled.ViewList
     ),
     BottomNavDestination(
-        route = AppRoute.Profile,
-        labelRes = R.string.qm_route_profile,
-        icon = Icons.Filled.Person
+        route = AppRoute.Notifications,
+        labelRes = R.string.qm_route_notifications,
+        icon = Icons.Filled.Notifications
+    ),
+    BottomNavDestination(
+        route = AppRoute.Settings,
+        labelRes = R.string.qm_route_settings,
+        icon = Icons.Filled.Settings
     )
 )

@@ -71,7 +71,7 @@ private fun AvatarFallback(
 ) {
     Box(
         modifier = modifier
-            .background(brush = AppGradients.DarkOrb),
+            .background(brush = AppGradients.darkOrb()),
         contentAlignment = Alignment.Center
     ) {
         Icon(

@@ -4,31 +4,38 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import br.dev.pulz.queuemaster.mobile.core.design.AppGradients
 import br.dev.pulz.queuemaster.mobile.core.design.AppSpacing
 import br.dev.pulz.queuemaster.mobile.core.utils.PreviewData
+import br.dev.pulz.queuemaster.mobile.ui.components.QmBrandTopBar
 import br.dev.pulz.queuemaster.mobile.ui.components.QmCard
 import br.dev.pulz.queuemaster.mobile.ui.components.QmPrimaryButton
 import br.dev.pulz.queuemaster.mobile.ui.components.QmSecondaryButton
 import br.dev.pulz.queuemaster.mobile.ui.components.QmTextField
-import br.dev.pulz.queuemaster.mobile.ui.components.QmTopBar
 
 @Composable
 fun ManualCodeEntryScreen(
+    avatarUrl: String?,
     accessCode: String,
     onAccessCodeChange: (String) -> Unit,
+    onAvatarClick: () -> Unit,
     onBackClick: () -> Unit,
     onContinue: () -> Unit,
     isLoading: Boolean,
@@ -38,17 +45,34 @@ fun ManualCodeEntryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AppGradients.ScreenGlow)
+            .background(brush = AppGradients.screenGlow())
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(AppSpacing.Xl),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.Lg)
     ) {
-        QmTopBar(
-            eyebrow = "Codigo da fila",
-            title = "Digite o codigo para entrar",
-            subtitle = "Use o codigo exibido pelo estabelecimento ou abaixo do QR code para entrar na fila."
+        QmBrandTopBar(
+            avatarUrl = avatarUrl,
+            onAvatarClick = onAvatarClick
         )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBackClick) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Voltar"
+                )
+            }
+            Text(
+                text = "Digite o codigo da fila",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(start = AppSpacing.Xs)
+            )
+        }
 
         QmCard {
             Icon(

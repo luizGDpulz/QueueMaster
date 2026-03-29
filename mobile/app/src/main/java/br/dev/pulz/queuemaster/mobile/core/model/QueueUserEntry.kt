@@ -7,5 +7,8 @@ data class QueueUserEntry(
     val peopleAhead: Int = 0,
     val estimatedWaitMinutes: Int? = null,
     val joinedAt: String? = null,
+    val calledAt: String? = null,
+    val servingSinceMinutes: Int = 0,
+    val professionalName: String? = null,
     val accessCode: String? = null
 )

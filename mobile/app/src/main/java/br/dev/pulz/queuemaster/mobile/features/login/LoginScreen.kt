@@ -1,8 +1,8 @@
 package br.dev.pulz.queuemaster.mobile.features.login
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import br.dev.pulz.queuemaster.mobile.R
 import br.dev.pulz.queuemaster.mobile.core.design.AppGradients
 import br.dev.pulz.queuemaster.mobile.core.design.AppSpacing
+import br.dev.pulz.queuemaster.mobile.ui.components.QmLogo
 
 @Composable
 fun LoginScreen(
@@ -43,7 +44,7 @@ fun LoginScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AppGradients.ScreenGlow)
+            .background(brush = AppGradients.screenGlow())
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(AppSpacing.Xl),
@@ -134,8 +135,7 @@ private fun LoginBrand() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(AppSpacing.Sm)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.qm_logo),
+        QmLogo(
             contentDescription = "Logo QueueMaster",
             modifier = Modifier.size(148.dp)
         )
@@ -233,22 +233,11 @@ private fun GoogleLoginButton(
                     modifier = Modifier.padding(start = AppSpacing.Md)
                 )
             } else {
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    Box(
-                        modifier = Modifier.size(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "G",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.ic_google),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
 
                 Text(
                     text = "Entrar com Google",

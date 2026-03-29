@@ -18,8 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
@@ -30,19 +28,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import br.dev.pulz.queuemaster.mobile.core.design.AppGradients
 import br.dev.pulz.queuemaster.mobile.core.design.AppSpacing
+import br.dev.pulz.queuemaster.mobile.ui.components.QmBrandTopBar
 import br.dev.pulz.queuemaster.mobile.ui.components.QmCard
 import br.dev.pulz.queuemaster.mobile.ui.components.QmPrimaryButton
 import br.dev.pulz.queuemaster.mobile.ui.theme.Cloud0
-import br.dev.pulz.queuemaster.mobile.ui.theme.Ink900
 import br.dev.pulz.queuemaster.mobile.ui.theme.Mist100
+import br.dev.pulz.queuemaster.mobile.ui.theme.Night950
 
 @Composable
 fun JoinQueueScreen(
+    avatarUrl: String?,
     onManualCodeClick: () -> Unit,
     onQueueStatusClick: () -> Unit,
     onProfileClick: () -> Unit,
@@ -53,13 +54,14 @@ fun JoinQueueScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AppGradients.ScreenGlow)
+            .background(brush = AppGradients.screenGlow())
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(AppSpacing.Xl),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.Xl)
     ) {
         JoinQueueHeader(
+            avatarUrl = avatarUrl,
             onProfileClick = onProfileClick
         )
 
@@ -101,59 +103,21 @@ fun JoinQueueScreen(
 
 @Composable
 private fun JoinQueueHeader(
+    avatarUrl: String?,
     onProfileClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        ) {
-            Box(
-                modifier = Modifier.size(44.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Menu,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-
-        Text(
-            text = "QueueMaster",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = AppSpacing.Md)
-        )
-
-        Surface(
-            onClick = onProfileClick,
-            shape = MaterialTheme.shapes.medium,
-            color = Ink900
-        ) {
-            Box(
-                modifier = Modifier.size(44.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = "Abrir perfil",
-                    tint = Cloud0
-                )
-            }
-        }
-    }
+    QmBrandTopBar(
+        avatarUrl = avatarUrl,
+        onAvatarClick = onProfileClick
+    )
 }
 
 @Composable
 private fun JoinQueueHeroCard() {
+    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val qrContainerColor = if (isDarkTheme) Cloud0.copy(alpha = 0.96f) else Mist100
+    val qrIconColor = if (isDarkTheme) Night950 else MaterialTheme.colorScheme.primary
+
     QmCard {
         Box(
             modifier = Modifier
@@ -163,7 +127,7 @@ private fun JoinQueueHeroCard() {
         ) {
             Surface(
                 shape = MaterialTheme.shapes.large,
-                color = Mist100
+                color = qrContainerColor
             ) {
                 Box(
                     modifier = Modifier.size(92.dp),
@@ -172,7 +136,7 @@ private fun JoinQueueHeroCard() {
                     Icon(
                         imageVector = Icons.Filled.QrCode2,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = qrIconColor,
                         modifier = Modifier.size(42.dp)
                     )
                 }

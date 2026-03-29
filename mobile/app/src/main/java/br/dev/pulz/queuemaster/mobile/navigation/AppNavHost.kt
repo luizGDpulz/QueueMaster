@@ -1,8 +1,13 @@
 package br.dev.pulz.queuemaster.mobile.navigation
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -10,13 +15,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import br.dev.pulz.queuemaster.mobile.features.joinqueue.JoinQueueScreen
 import br.dev.pulz.queuemaster.mobile.features.joinqueue.JoinQueueUiState
 import br.dev.pulz.queuemaster.mobile.features.joinqueue.JoinQueueViewModel
@@ -29,12 +37,18 @@ import br.dev.pulz.queuemaster.mobile.features.login.LoginViewModel
 import br.dev.pulz.queuemaster.mobile.features.manualcode.ManualCodeEntryScreen
 import br.dev.pulz.queuemaster.mobile.features.manualcode.ManualCodeEntryViewModel
 import br.dev.pulz.queuemaster.mobile.features.manualcode.ManualCodeUiState
+import br.dev.pulz.queuemaster.mobile.features.notifications.NotificationDetailsScreen
+import br.dev.pulz.queuemaster.mobile.features.notifications.NotificationsScreen
+import br.dev.pulz.queuemaster.mobile.features.notifications.NotificationsUiState
+import br.dev.pulz.queuemaster.mobile.features.notifications.NotificationsViewModel
 import br.dev.pulz.queuemaster.mobile.features.profile.ProfileScreen
 import br.dev.pulz.queuemaster.mobile.features.profile.ProfileUiState
 import br.dev.pulz.queuemaster.mobile.features.profile.ProfileViewModel
 import br.dev.pulz.queuemaster.mobile.features.queuestatus.QueueStatusScreen
 import br.dev.pulz.queuemaster.mobile.features.queuestatus.QueueStatusUiState
 import br.dev.pulz.queuemaster.mobile.features.queuestatus.QueueStatusViewModel
+import br.dev.pulz.queuemaster.mobile.features.settings.SettingsScreen
+import br.dev.pulz.queuemaster.mobile.features.settings.SettingsViewModel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -45,6 +59,8 @@ fun AppNavHost(
     navController: NavHostController,
     pendingJoinPayload: String?,
     onJoinPayloadConsumed: () -> Unit,
+    pendingAppRoute: String?,
+    onPendingAppRouteConsumed: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -59,6 +75,8 @@ fun AppNavHost(
     val manualCodeEntryViewModel: ManualCodeEntryViewModel = viewModel()
     val queueStatusViewModel: QueueStatusViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val notificationsViewModel: NotificationsViewModel = viewModel()
 
     val loginUiState by loginViewModel.uiState.collectAsStateWithLifecycle()
     val joinQueueUiState by joinQueueViewModel.uiState.collectAsStateWithLifecycle()
@@ -67,19 +85,79 @@ fun AppNavHost(
     val queueStatusIsRefreshing by queueStatusViewModel.isRefreshing.collectAsStateWithLifecycle()
     val queueStatusLastUpdatedAt by queueStatusViewModel.lastUpdatedAt.collectAsStateWithLifecycle()
     val profileUiState by profileViewModel.uiState.collectAsStateWithLifecycle()
+    val settingsThemeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
+    val settingsSystemNotificationsEnabled by settingsViewModel.systemNotificationsEnabled.collectAsStateWithLifecycle()
+    val notificationsUiState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
     val authenticatedUser = (loginUiState as? LoginUiState.Authenticated)?.user
+    val headerAvatarUrl = (profileUiState as? ProfileUiState.Loaded)?.profile?.avatarUrl ?: authenticatedUser?.avatarUrl
+    val headerUserName = (profileUiState as? ProfileUiState.Loaded)?.profile?.fullName ?: authenticatedUser?.name
+    val headerUserEmail = (profileUiState as? ProfileUiState.Loaded)?.profile?.email ?: authenticatedUser?.email
     var pendingLeaveNavigation by remember { mutableStateOf(false) }
+    var pendingNotificationsToggle by remember { mutableStateOf(false) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        settingsViewModel.setSystemNotificationsEnabled(granted)
+        pendingNotificationsToggle = false
+    }
+
+    val handleProfileNavigation = remember(navController) {
+        {
+            navController.navigate(AppRoute.Profile.route) {
+                launchSingleTop = true
+            }
+        }
+    }
+
+    val signOutAndReset = remember(
+        coroutineScope,
+        googleSignInManager,
+        joinQueueViewModel,
+        manualCodeEntryViewModel,
+        queueStatusViewModel,
+        profileViewModel,
+        notificationsViewModel,
+        navController,
+        loginViewModel
+    ) {
+        {
+            coroutineScope.launch {
+                googleSignInManager.clearCredentialState()
+            }
+            loginViewModel.signOut()
+            joinQueueViewModel.reset()
+            manualCodeEntryViewModel.reset()
+            queueStatusViewModel.clear()
+            profileViewModel.clear()
+            notificationsViewModel.showUser(null)
+            navController.navigate(AppRoute.Login.route) {
+                popUpTo(navController.graph.id) {
+                    inclusive = true
+                }
+            }
+        }
+    }
 
     LaunchedEffect(authenticatedUser?.id) {
         val authenticatedState = loginUiState as? LoginUiState.Authenticated ?: return@LaunchedEffect
-        queueStatusViewModel.restorePersistedSession(
-            authenticatedUserId = authenticatedState.user.id
-        )
+        val hasActiveQueue = runCatching {
+            queueStatusViewModel.restoreOrFetchActiveSession(
+                authenticatedUserId = authenticatedState.user.id
+            )
+        }.getOrElse { throwable ->
+            if (throwable is br.dev.pulz.queuemaster.mobile.core.network.ApiException && throwable.statusCode == 401) {
+                signOutAndReset()
+                return@LaunchedEffect
+            }
+            queueStatusViewModel.hasActiveQueueSession()
+        }
         profileViewModel.showAuthenticatedUser(
             user = authenticatedState.user
         )
         profileViewModel.refreshProfile()
-        val destination = if (queueStatusViewModel.hasActiveQueueSession()) {
+        notificationsViewModel.showUser(authenticatedState.user.id)
+        val destination = if (hasActiveQueue) {
             AppRoute.QueueStatus.route
         } else {
             AppRoute.JoinQueue.route
@@ -91,6 +169,14 @@ fun AppNavHost(
                 }
             }
         }
+    }
+
+    LaunchedEffect(authenticatedUser?.id, pendingAppRoute) {
+        if (authenticatedUser == null || pendingAppRoute.isNullOrBlank()) return@LaunchedEffect
+        navController.navigate(pendingAppRoute) {
+            launchSingleTop = true
+        }
+        onPendingAppRouteConsumed()
     }
 
     LaunchedEffect(authenticatedUser?.id, pendingJoinPayload) {
@@ -156,16 +242,6 @@ fun AppNavHost(
         modifier = modifier
     ) {
         composable(AppRoute.Login.route) {
-            LaunchedEffect(authenticatedUser?.id) {
-                if (authenticatedUser != null) {
-                    navController.navigate(AppRoute.JoinQueue.route) {
-                        popUpTo(AppRoute.Login.route) {
-                            inclusive = true
-                        }
-                    }
-                }
-            }
-
             LoginScreen(
                 onContinue = {
                     if (activity == null) {
@@ -199,12 +275,27 @@ fun AppNavHost(
 
         composable(AppRoute.JoinQueue.route) {
             JoinQueueScreen(
-                onManualCodeClick = { navController.navigate(AppRoute.ManualCodeEntry.route) },
+                avatarUrl = headerAvatarUrl,
+                onManualCodeClick = {
+                    if (queueStatusViewModel.hasActiveQueueSession()) {
+                        navController.navigate(AppRoute.QueueStatus.route) {
+                            launchSingleTop = true
+                        }
+                    } else {
+                        navController.navigate(AppRoute.ManualCodeEntry.route)
+                    }
+                },
                 onQueueStatusClick = {
                     joinQueueViewModel.reset()
-                    navController.navigate(AppRoute.QrScanner.route)
+                    if (queueStatusViewModel.hasActiveQueueSession()) {
+                        navController.navigate(AppRoute.QueueStatus.route) {
+                            launchSingleTop = true
+                        }
+                    } else {
+                        navController.navigate(AppRoute.QrScanner.route)
+                    }
                 },
-                onProfileClick = { navController.navigate(AppRoute.Profile.route) },
+                onProfileClick = handleProfileNavigation,
                 isJoining = joinQueueUiState is JoinQueueUiState.Loading,
                 errorMessage = (joinQueueUiState as? JoinQueueUiState.Error)?.message
             )
@@ -212,8 +303,10 @@ fun AppNavHost(
 
         composable(AppRoute.QrScanner.route) {
             QrScannerScreen(
+                avatarUrl = headerAvatarUrl,
                 isJoining = joinQueueUiState is JoinQueueUiState.Loading,
                 errorMessage = (joinQueueUiState as? JoinQueueUiState.Error)?.message,
+                onAvatarClick = handleProfileNavigation,
                 onBackClick = {
                     joinQueueViewModel.reset()
                     navController.popBackStack()
@@ -225,8 +318,10 @@ fun AppNavHost(
 
         composable(AppRoute.ManualCodeEntry.route) {
             ManualCodeEntryScreen(
+                avatarUrl = headerAvatarUrl,
                 accessCode = manualCodeEntryViewModel.currentAccessCode(),
                 onAccessCodeChange = manualCodeEntryViewModel::updateAccessCode,
+                onAvatarClick = handleProfileNavigation,
                 onBackClick = { navController.popBackStack() },
                 onContinue = manualCodeEntryViewModel::submit,
                 isLoading = manualCodeUiState is ManualCodeUiState.Loading,
@@ -251,6 +346,7 @@ fun AppNavHost(
             }
 
             QueueStatusScreen(
+                avatarUrl = headerAvatarUrl,
                 uiState = queueStatusUiState,
                 isRefreshing = queueStatusIsRefreshing,
                 lastUpdatedAt = queueStatusLastUpdatedAt,
@@ -264,28 +360,86 @@ fun AppNavHost(
                 onJoinQueueClick = {
                     navController.navigate(AppRoute.JoinQueue.route)
                 },
-                onProfileClick = { navController.navigate(AppRoute.Profile.route) }
+                onProfileClick = handleProfileNavigation
+            )
+        }
+
+        composable(AppRoute.Notifications.route) {
+            NotificationsScreen(
+                avatarUrl = headerAvatarUrl,
+                uiState = notificationsUiState,
+                onAvatarClick = handleProfileNavigation,
+                onMarkAllReadClick = notificationsViewModel::markAllRead,
+                onGroupClick = { contextKey ->
+                    notificationsViewModel.markGroupRead(contextKey)
+                    navController.navigate(AppRoute.NotificationDetails.createRoute(contextKey))
+                }
+            )
+        }
+
+        composable(
+            route = AppRoute.NotificationDetails.route,
+            arguments = listOf(
+                navArgument("contextKey") {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val contextKey = backStackEntry.arguments?.getString("contextKey").orEmpty()
+            val group = remember(contextKey, notificationsUiState) {
+                notificationsViewModel.groupForContext(contextKey)
+            }
+
+            NotificationDetailsScreen(
+                avatarUrl = headerAvatarUrl,
+                group = group,
+                onAvatarClick = handleProfileNavigation,
+                onBackClick = navController::popBackStack,
+                onOpenQueueClick = {
+                    navController.navigate(AppRoute.QueueStatus.route) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(AppRoute.Settings.route) {
+            SettingsScreen(
+                avatarUrl = headerAvatarUrl,
+                userName = headerUserName,
+                userEmail = headerUserEmail,
+                themeMode = settingsThemeMode,
+                systemNotificationsEnabled = settingsSystemNotificationsEnabled,
+                onAvatarClick = handleProfileNavigation,
+                onProfileClick = handleProfileNavigation,
+                onThemeModeSelected = settingsViewModel::setThemeMode,
+                onSystemNotificationsToggle = { enabled ->
+                    if (!enabled) {
+                        settingsViewModel.setSystemNotificationsEnabled(false)
+                    } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                        settingsViewModel.setSystemNotificationsEnabled(true)
+                    } else if (
+                        ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        ) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        settingsViewModel.setSystemNotificationsEnabled(true)
+                    } else if (!pendingNotificationsToggle) {
+                        pendingNotificationsToggle = true
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                },
+                onSignOutClick = signOutAndReset
             )
         }
 
         composable(AppRoute.Profile.route) {
             ProfileScreen(
+                avatarUrl = headerAvatarUrl,
                 uiState = profileUiState,
-                onSignOutClick = {
-                    coroutineScope.launch {
-                        googleSignInManager.clearCredentialState()
-                    }
-                    loginViewModel.signOut()
-                    joinQueueViewModel.reset()
-                    manualCodeEntryViewModel.reset()
-                    queueStatusViewModel.clear()
-                    profileViewModel.clear()
-                    navController.navigate(AppRoute.Login.route) {
-                        popUpTo(navController.graph.id) {
-                            inclusive = true
-                        }
-                    }
-                }
+                onAvatarClick = null,
+                onSignOutClick = signOutAndReset
             )
         }
     }

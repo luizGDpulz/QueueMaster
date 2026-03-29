@@ -11,6 +11,8 @@ import br.dev.pulz.queuemaster.mobile.ui.components.QmAppScaffold
 fun QueueMasterApp(
     pendingJoinPayload: String?,
     onJoinPayloadConsumed: () -> Unit,
+    pendingAppRoute: String?,
+    onPendingAppRouteConsumed: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appState = rememberQueueMasterAppState()
@@ -23,6 +25,8 @@ fun QueueMasterApp(
             navController = appState.navController,
             pendingJoinPayload = pendingJoinPayload,
             onJoinPayloadConsumed = onJoinPayloadConsumed,
+            pendingAppRoute = pendingAppRoute,
+            onPendingAppRouteConsumed = onPendingAppRouteConsumed,
             modifier = Modifier.padding(innerPadding),
         )
     }

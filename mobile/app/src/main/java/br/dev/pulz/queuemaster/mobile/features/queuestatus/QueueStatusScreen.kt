@@ -1,6 +1,5 @@
 package br.dev.pulz.queuemaster.mobile.features.queuestatus
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,20 +29,29 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.dev.pulz.queuemaster.mobile.core.design.AppGradients
 import br.dev.pulz.queuemaster.mobile.core.design.AppSpacing
+import br.dev.pulz.queuemaster.mobile.core.model.QueueUserEntry
+import br.dev.pulz.queuemaster.mobile.ui.components.QmBrandTopBar
+import br.dev.pulz.queuemaster.mobile.ui.components.QmPill
 import br.dev.pulz.queuemaster.mobile.ui.components.QmSecondaryButton
-import br.dev.pulz.queuemaster.mobile.ui.theme.Cloud0
-import br.dev.pulz.queuemaster.mobile.ui.theme.Ink900
+import br.dev.pulz.queuemaster.mobile.ui.theme.Info400
+import br.dev.pulz.queuemaster.mobile.ui.theme.Info500
+import br.dev.pulz.queuemaster.mobile.ui.theme.Success400
+import br.dev.pulz.queuemaster.mobile.ui.theme.Success500
+import br.dev.pulz.queuemaster.mobile.ui.theme.Warning400
+import br.dev.pulz.queuemaster.mobile.ui.theme.Warning500
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @Composable
 fun QueueStatusScreen(
+    avatarUrl: String?,
     uiState: QueueStatusUiState,
     isRefreshing: Boolean,
     lastUpdatedAt: Long?,
@@ -63,15 +70,14 @@ fun QueueStatusScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AppGradients.ScreenGlow)
+            .background(brush = AppGradients.screenGlow())
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(AppSpacing.Xl),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.Lg)
     ) {
         QueueStatusHeader(
-            isRefreshing = isRefreshing,
-            onRefreshClick = onRefreshClick,
+            avatarUrl = avatarUrl,
             onProfileClick = onProfileClick
         )
 
@@ -87,17 +93,19 @@ fun QueueStatusScreen(
             is QueueStatusUiState.Active -> {
                 val queueStatus = uiState.queueStatus
                 val userEntry = queueStatus.userEntry
+                val statusPresentation = remember(userEntry) {
+                    QueueStatusPresentation.from(userEntry)
+                }
 
                 QueueStatusTitle(
                     queueName = queueStatus.queue.name,
-                    queuePlace = queueStatus.queue.establishmentName
+                    queuePlace = queueStatus.queue.establishmentName,
+                    isRefreshing = isRefreshing,
+                    onRefreshClick = onRefreshClick
                 )
 
                 QueuePositionCard(
-                    statusLabel = userEntry?.status ?: "waiting",
-                    position = userEntry?.position,
-                    estimatedWaitMinutes = userEntry?.estimatedWaitMinutes,
-                    peopleAhead = userEntry?.peopleAhead ?: 0
+                    presentation = statusPresentation
                 )
 
                 Row(
@@ -113,12 +121,13 @@ fun QueueStatusScreen(
                     QueueDetailCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Filled.Schedule,
-                        label = "Entrada",
-                        value = userEntry?.joinedAt ?: "Agora"
+                        label = statusPresentation.secondaryDetailLabel,
+                        value = statusPresentation.secondaryDetailValue
                     )
                 }
 
                 QueueNotificationCard(
+                    status = userEntry?.status.orEmpty(),
                     lastUpdatedLabel = lastUpdatedLabel
                 )
 
@@ -128,7 +137,7 @@ fun QueueStatusScreen(
                 )
 
                 Text(
-                    text = "Ao sair da fila, sua posicao e sua estimativa de atendimento serao perdidas.",
+                    text = statusPresentation.footerMessage,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth()
@@ -140,86 +149,53 @@ fun QueueStatusScreen(
 
 @Composable
 private fun QueueStatusHeader(
-    isRefreshing: Boolean,
-    onRefreshClick: () -> Unit,
+    avatarUrl: String?,
     onProfileClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        ) {
-            Box(
-                modifier = Modifier.size(44.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isRefreshing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                } else {
-                    IconButton(onClick = onRefreshClick) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "Atualizar fila",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        }
-
-        Text(
-            text = "QueueMaster",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = AppSpacing.Md)
-        )
-
-        Surface(
-            onClick = onProfileClick,
-            shape = MaterialTheme.shapes.medium,
-            color = Ink900
-        ) {
-            Box(
-                modifier = Modifier.size(44.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = "Abrir perfil",
-                    tint = Cloud0
-                )
-            }
-        }
-    }
+    QmBrandTopBar(
+        avatarUrl = avatarUrl,
+        onAvatarClick = onProfileClick,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable
 private fun QueueStatusTitle(
     queueName: String,
-    queuePlace: String
+    queuePlace: String,
+    isRefreshing: Boolean,
+    onRefreshClick: () -> Unit
 ) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.Xs)
-    ) {
-        Text(
-            text = queueName,
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-
+    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.Xs)) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Text(
+                text = queueName,
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f)
+            )
+
+            if (isRefreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            } else {
+                IconButton(onClick = onRefreshClick) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = "Atualizar fila",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Filled.LocationOn,
                 contentDescription = null,
@@ -238,10 +214,7 @@ private fun QueueStatusTitle(
 
 @Composable
 private fun QueuePositionCard(
-    statusLabel: String,
-    position: Int?,
-    estimatedWaitMinutes: Int?,
-    peopleAhead: Int
+    presentation: QueueStatusPresentation
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -256,18 +229,18 @@ private fun QueuePositionCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             QueueStatusBadge(
-                statusLabel = statusLabel
+                statusLabel = presentation.badgeLabel
             )
 
             Text(
-                text = "SUA POSICAO",
+                text = presentation.heroTitle,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = AppSpacing.Xl)
             )
 
             Text(
-                text = position?.toString() ?: "--",
+                text = presentation.heroValue,
                 style = MaterialTheme.typography.displayLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = AppSpacing.Sm)
@@ -281,13 +254,13 @@ private fun QueuePositionCard(
             ) {
                 QueueMetricColumn(
                     modifier = Modifier.weight(1f),
-                    label = "TEMPO ESTIMADO",
-                    value = estimatedWaitMinutes?.let { "$it min" } ?: "A definir"
+                    label = presentation.primaryMetricLabel,
+                    value = presentation.primaryMetricValue
                 )
                 QueueMetricColumn(
                     modifier = Modifier.weight(1f),
-                    label = "A SUA FRENTE",
-                    value = "$peopleAhead pessoas"
+                    label = presentation.secondaryMetricLabel,
+                    value = presentation.secondaryMetricValue
                 )
             }
         }
@@ -298,30 +271,19 @@ private fun QueuePositionCard(
 private fun QueueStatusBadge(
     statusLabel: String
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = AppSpacing.Md, vertical = AppSpacing.Xs),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = MaterialTheme.shapes.small
-                    )
-            )
-            Text(
-                text = statusLabel.uppercase(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = AppSpacing.Xs)
-            )
-        }
+    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val accent = when (statusLabel.lowercase(Locale.ROOT)) {
+        "chamado" -> if (isDarkTheme) Warning400 else Warning500
+        "em atendimento" -> if (isDarkTheme) Info400 else Info500
+        else -> if (isDarkTheme) Success400 else Success500
     }
+
+    QmPill(
+        text = statusLabel.uppercase(),
+        containerColor = accent.copy(alpha = 0.14f),
+        contentColor = accent,
+        dotColor = accent
+    )
 }
 
 @Composable
@@ -398,6 +360,7 @@ private fun QueueDetailCard(
 
 @Composable
 private fun QueueNotificationCard(
+    status: String,
     lastUpdatedLabel: String?
 ) {
     Surface(
@@ -437,9 +400,7 @@ private fun QueueNotificationCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = lastUpdatedLabel?.let {
-                        "Sua posicao e o tempo estimado sao atualizados automaticamente. Ultima atualizacao as $it."
-                    } ?: "Sua posicao e o tempo estimado sao atualizados automaticamente enquanto voce acompanha a fila.",
+                    text = notificationCopy(status = status, lastUpdatedLabel = lastUpdatedLabel),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = AppSpacing.Xs)
@@ -542,4 +503,111 @@ private fun QueueStatusError(
             )
         }
     }
+}
+
+private data class QueueStatusPresentation(
+    val badgeLabel: String,
+    val heroTitle: String,
+    val heroValue: String,
+    val primaryMetricLabel: String,
+    val primaryMetricValue: String,
+    val secondaryMetricLabel: String,
+    val secondaryMetricValue: String,
+    val secondaryDetailLabel: String,
+    val secondaryDetailValue: String,
+    val footerMessage: String
+) {
+    companion object {
+        fun from(userEntry: QueueUserEntry?): QueueStatusPresentation {
+            val status = userEntry?.status?.lowercase(Locale.ROOT).orEmpty()
+            return when (status) {
+                "called" -> QueueStatusPresentation(
+                    badgeLabel = "Chamado",
+                    heroTitle = "SUA VEZ",
+                    heroValue = "AGORA",
+                    primaryMetricLabel = "CHAMADO EM",
+                    primaryMetricValue = formatEventTime(userEntry?.calledAt) ?: "Agora",
+                    secondaryMetricLabel = "A SUA FRENTE",
+                    secondaryMetricValue = "0 pessoas",
+                    secondaryDetailLabel = if (userEntry?.professionalName.isNullOrBlank()) {
+                        "Atendimento"
+                    } else {
+                        "Profissional"
+                    },
+                    secondaryDetailValue = userEntry?.professionalName ?: "Dirija-se ao atendimento",
+                    footerMessage = "Voce ja foi chamado. Ao sair agora, sua vez sera encerrada."
+                )
+
+                "serving" -> QueueStatusPresentation(
+                    badgeLabel = "Em atendimento",
+                    heroTitle = "ATENDIMENTO",
+                    heroValue = "ATIVO",
+                    primaryMetricLabel = "TEMPO EM ATENDIMENTO",
+                    primaryMetricValue = userEntry?.servingSinceMinutes
+                        ?.takeIf { it > 0 }
+                        ?.let { "$it min" }
+                        ?: "Agora",
+                    secondaryMetricLabel = "PROFISSIONAL",
+                    secondaryMetricValue = userEntry?.professionalName ?: "Equipe QueueMaster",
+                    secondaryDetailLabel = "CHAMADO EM",
+                    secondaryDetailValue = formatEventTime(userEntry?.calledAt)
+                        ?: formatEventTime(userEntry?.joinedAt)
+                        ?: "Agora",
+                    footerMessage = "Seu atendimento esta em andamento. Se sair agora, sua entrada sera encerrada."
+                )
+
+                else -> QueueStatusPresentation(
+                    badgeLabel = "Na fila",
+                    heroTitle = "SUA POSICAO",
+                    heroValue = userEntry?.position?.toString() ?: "--",
+                    primaryMetricLabel = "TEMPO ESTIMADO",
+                    primaryMetricValue = userEntry?.estimatedWaitMinutes
+                        ?.let { "$it min" }
+                        ?: "A definir",
+                    secondaryMetricLabel = "A SUA FRENTE",
+                    secondaryMetricValue = "${userEntry?.peopleAhead ?: 0} pessoas",
+                    secondaryDetailLabel = "Entrada",
+                    secondaryDetailValue = formatEventTime(userEntry?.joinedAt) ?: "Agora",
+                    footerMessage = "Ao sair da fila, sua posicao e sua estimativa de atendimento serao perdidas."
+                )
+            }
+        }
+    }
+}
+
+private fun notificationCopy(status: String, lastUpdatedLabel: String?): String {
+    return when (status.lowercase(Locale.ROOT)) {
+        "called" -> lastUpdatedLabel?.let {
+            "Voce foi chamado. Confira o atendimento o quanto antes. Ultima atualizacao as $it."
+        } ?: "Voce foi chamado. Confira o atendimento o quanto antes."
+
+        "serving" -> lastUpdatedLabel?.let {
+            "Seu atendimento esta em andamento. Os detalhes continuam sendo atualizados. Ultima atualizacao as $it."
+        } ?: "Seu atendimento esta em andamento. Os detalhes continuam sendo atualizados."
+
+        else -> lastUpdatedLabel?.let {
+            "Sua posicao e o tempo estimado sao atualizados automaticamente. Ultima atualizacao as $it."
+        } ?: "Sua posicao e o tempo estimado sao atualizados automaticamente enquanto voce acompanha a fila."
+    }
+}
+
+private fun formatEventTime(rawValue: String?): String? {
+    if (rawValue.isNullOrBlank()) return null
+
+    val inputPatterns = listOf(
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+    )
+
+    inputPatterns.forEach { pattern ->
+        runCatching {
+            val parser = SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
+            parser.parse(rawValue)
+        }.getOrNull()?.let { parsedDate ->
+            return SimpleDateFormat("HH:mm", Locale.forLanguageTag("pt-BR")).format(parsedDate)
+        }
+    }
+
+    return rawValue
 }

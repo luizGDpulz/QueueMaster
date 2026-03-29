@@ -25,6 +25,7 @@ import br.dev.pulz.queuemaster.mobile.core.design.AppGradients
 import br.dev.pulz.queuemaster.mobile.core.design.AppSize
 import br.dev.pulz.queuemaster.mobile.core.design.AppSpacing
 import br.dev.pulz.queuemaster.mobile.ui.theme.Mist100
+import br.dev.pulz.queuemaster.mobile.ui.theme.Mist200
 import br.dev.pulz.queuemaster.mobile.ui.theme.Slate500
 
 @Composable
@@ -43,7 +44,7 @@ fun QmPrimaryButton(
         onClick = onClick,
         enabled = canClick,
         color = Color.Transparent,
-        shadowElevation = 10.dp,
+        shadowElevation = 6.dp,
         shape = MaterialTheme.shapes.large
     ) {
         Box(
@@ -51,7 +52,7 @@ fun QmPrimaryButton(
                 .fillMaxWidth()
                 .heightIn(min = AppSize.ButtonHeight)
                 .background(
-                    brush = if (canClick) AppGradients.PrimaryButton else AppGradients.NeutralPanel,
+                    brush = AppGradients.primaryButton(canClick),
                     shape = MaterialTheme.shapes.large
                 )
                 .padding(horizontal = AppSpacing.Lg, vertical = AppSpacing.Md),
@@ -112,7 +113,7 @@ fun QmSecondaryButton(
         shape = MaterialTheme.shapes.large,
         border = BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant
+            color = if (enabled) MaterialTheme.colorScheme.outlineVariant else Mist200
         )
     ) {
         Row(

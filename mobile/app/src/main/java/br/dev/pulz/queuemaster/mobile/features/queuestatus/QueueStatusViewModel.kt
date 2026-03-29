@@ -3,10 +3,14 @@ package br.dev.pulz.queuemaster.mobile.features.queuestatus
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import br.dev.pulz.queuemaster.mobile.core.model.JoinQueueResult
+import br.dev.pulz.queuemaster.mobile.core.model.QueueStatus
 import br.dev.pulz.queuemaster.mobile.core.network.ApiException
 import br.dev.pulz.queuemaster.mobile.core.network.repository.QueueRepository
 import br.dev.pulz.queuemaster.mobile.core.utils.PersistedQueueSession
+import br.dev.pulz.queuemaster.mobile.core.utils.QueueMasterNotificationManager
 import br.dev.pulz.queuemaster.mobile.core.utils.QueueSessionStore
+import br.dev.pulz.queuemaster.mobile.core.utils.buildQueueNotificationFlowKey
+import br.dev.pulz.queuemaster.mobile.core.utils.withSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +20,7 @@ class QueueStatusViewModel : ViewModel() {
     private val queueRepository = QueueRepository()
     private var activeQueueSession: ActiveQueueSession? = null
     private var restoredUserId: Int? = null
+    private var leaveInFlight = false
 
     private val _uiState = MutableStateFlow<QueueStatusUiState>(
         QueueStatusUiState.NoActiveQueue
@@ -29,20 +34,41 @@ class QueueStatusViewModel : ViewModel() {
     val lastUpdatedAt: StateFlow<Long?> = _lastUpdatedAt.asStateFlow()
 
     fun showJoinedQueue(result: JoinQueueResult, authenticatedUserId: Int) {
+        val notificationFlowKey = buildQueueNotificationFlowKey(
+            entryId = result.entryId,
+            queueId = result.queueId,
+            joinedAt = result.joinedAt
+        )
+
         activeQueueSession = ActiveQueueSession(
             authenticatedUserId = authenticatedUserId,
             queueId = result.queueId,
+            entryId = result.entryId,
             joinedAt = result.joinedAt,
-            accessCode = result.accessCode
+            accessCode = result.accessCode,
+            notificationFlowKey = notificationFlowKey
         )
         QueueSessionStore.save(
             PersistedQueueSession(
                 authenticatedUserId = authenticatedUserId,
                 queueId = result.queueId,
+                entryId = result.entryId,
+                notificationFlowKey = notificationFlowKey,
                 joinedAt = result.joinedAt,
-                accessCode = result.accessCode
+                accessCode = result.accessCode,
+                queueName = result.queueName,
+                lastEntryStatus = result.entryStatus
             )
         )
+        if (result.joinedSuccessfully) {
+            QueueMasterNotificationManager.notifyQueueJoined(
+                userId = authenticatedUserId,
+                queueId = result.queueId,
+                entryId = result.entryId,
+                queueName = result.queueName,
+                flowKey = notificationFlowKey
+            )
+        }
         refresh(showLoading = true)
     }
 
@@ -51,18 +77,29 @@ class QueueStatusViewModel : ViewModel() {
             _uiState.value = QueueStatusUiState.NoActiveQueue
             return
         }
+        val activeQueueName = (_uiState.value as? QueueStatusUiState.Active)?.queueStatus?.queue?.name
 
         viewModelScope.launch {
+            leaveInFlight = true
             _uiState.value = QueueStatusUiState.Loading
             _uiState.value = runCatching {
                 queueRepository.leaveQueue(session.queueId)
             }.fold(
                 onSuccess = {
+                    QueueMasterNotificationManager.notifyQueueLeft(
+                        userId = session.authenticatedUserId,
+                        queueId = session.queueId,
+                        entryId = session.entryId,
+                        queueName = activeQueueName,
+                        flowKey = session.notificationFlowKey
+                    )
                     activeQueueSession = null
                     QueueSessionStore.clear()
+                    leaveInFlight = false
                     QueueStatusUiState.NoActiveQueue
                 },
                 onFailure = { throwable ->
+                    leaveInFlight = false
                     QueueStatusUiState.Error(
                         message = throwable.toQueueStatusMessage()
                     )
@@ -77,6 +114,7 @@ class QueueStatusViewModel : ViewModel() {
             return
         }
         val previousState = _uiState.value
+        val previousQueueStatus = (previousState as? QueueStatusUiState.Active)?.queueStatus
 
         viewModelScope.launch {
             if (showLoading || previousState !is QueueStatusUiState.Active) {
@@ -88,16 +126,50 @@ class QueueStatusViewModel : ViewModel() {
             runCatching {
                 queueRepository.getQueueStatus(
                     queueId = session.queueId,
+                    authenticatedUserId = session.authenticatedUserId,
                     joinedAt = session.joinedAt,
                     accessCode = session.accessCode
                 )
             }.fold(
                 onSuccess = { queueStatus ->
                     if (queueStatus.userEntry == null) {
+                        if (previousQueueStatus?.userEntry != null && !leaveInFlight) {
+                            QueueMasterNotificationManager.notifyQueueCompleted(
+                                userId = session.authenticatedUserId,
+                                queueId = session.queueId,
+                                entryId = session.entryId ?: previousQueueStatus.userEntry?.entryId,
+                                queueName = previousQueueStatus.queue.name,
+                                flowKey = session.notificationFlowKey
+                            )
+                        }
                         activeQueueSession = null
                         QueueSessionStore.clear()
+                        leaveInFlight = false
                         _uiState.value = QueueStatusUiState.NoActiveQueue
                     } else {
+                        handleNotificationTransitions(
+                            session = session,
+                            previousQueueStatus = previousQueueStatus,
+                            currentQueueStatus = queueStatus
+                        )
+                        val updatedSession = session.copy(
+                            entryId = queueStatus.userEntry.entryId
+                        )
+                        activeQueueSession = updatedSession
+                        QueueSessionStore.save(
+                            PersistedQueueSession(
+                                authenticatedUserId = session.authenticatedUserId,
+                                queueId = session.queueId,
+                                entryId = queueStatus.userEntry.entryId,
+                                notificationFlowKey = updatedSession.notificationFlowKey,
+                                joinedAt = session.joinedAt,
+                                accessCode = session.accessCode
+                            ).withSnapshot(
+                                queueName = queueStatus.queue.name,
+                                userEntry = queueStatus.userEntry
+                            )
+                        )
+                        leaveInFlight = false
                         _lastUpdatedAt.value = System.currentTimeMillis()
                         _uiState.value = QueueStatusUiState.Active(queueStatus = queueStatus)
                     }
@@ -106,6 +178,7 @@ class QueueStatusViewModel : ViewModel() {
                     if (throwable is ApiException && throwable.statusCode == 404) {
                         activeQueueSession = null
                         QueueSessionStore.clear()
+                        leaveInFlight = false
                         _uiState.value = QueueStatusUiState.NoActiveQueue
                     } else {
                         if (showLoading || previousState !is QueueStatusUiState.Active) {
@@ -124,21 +197,64 @@ class QueueStatusViewModel : ViewModel() {
 
     fun hasActiveQueueSession(): Boolean = activeQueueSession != null
 
-    fun restorePersistedSession(authenticatedUserId: Int) {
-        if (restoredUserId == authenticatedUserId) return
-        restoredUserId = authenticatedUserId
+    suspend fun restoreOrFetchActiveSession(authenticatedUserId: Int): Boolean {
+        if (restoredUserId == authenticatedUserId && activeQueueSession != null) {
+            return true
+        }
 
-        val persisted = QueueSessionStore.restoreForUser(authenticatedUserId) ?: run {
+        restoredUserId = authenticatedUserId
+        val persisted = QueueSessionStore.restoreForUser(authenticatedUserId)
+        activeQueueSession = persisted?.toActiveQueueSession()
+
+        val currentActiveQueue = try {
+            queueRepository.getCurrentActiveQueue()
+        } catch (throwable: Throwable) {
+            if (persisted != null) {
+                return true
+            }
+            throw throwable
+        }
+
+        if (currentActiveQueue == null) {
             activeQueueSession = null
-            return
+            QueueSessionStore.clear()
+            _uiState.value = QueueStatusUiState.NoActiveQueue
+            return false
+        }
+
+        val notificationFlowKey = persisted?.notificationFlowKey?.takeIf {
+            persisted.queueId == currentActiveQueue.queueId &&
+                persisted.entryId == currentActiveQueue.entryId
+        } ?: buildQueueNotificationFlowKey(
+            entryId = currentActiveQueue.entryId,
+            queueId = currentActiveQueue.queueId,
+            joinedAt = currentActiveQueue.joinedAt
+        )
+        val restoredAccessCode = persisted?.accessCode?.takeIf {
+            persisted.queueId == currentActiveQueue.queueId
         }
 
         activeQueueSession = ActiveQueueSession(
             authenticatedUserId = authenticatedUserId,
-            queueId = persisted.queueId,
-            joinedAt = persisted.joinedAt,
-            accessCode = persisted.accessCode
+            queueId = currentActiveQueue.queueId,
+            entryId = currentActiveQueue.entryId,
+            joinedAt = currentActiveQueue.joinedAt,
+            accessCode = restoredAccessCode,
+            notificationFlowKey = notificationFlowKey
         )
+        QueueSessionStore.save(
+            PersistedQueueSession(
+                authenticatedUserId = authenticatedUserId,
+                queueId = currentActiveQueue.queueId,
+                entryId = currentActiveQueue.entryId,
+                notificationFlowKey = notificationFlowKey,
+                joinedAt = currentActiveQueue.joinedAt,
+                accessCode = restoredAccessCode,
+                queueName = currentActiveQueue.queueName,
+                lastEntryStatus = currentActiveQueue.entryStatus
+            )
+        )
+        return true
     }
 
     fun clear() {
@@ -154,9 +270,42 @@ class QueueStatusViewModel : ViewModel() {
 private data class ActiveQueueSession(
     val authenticatedUserId: Int,
     val queueId: Int,
+    val entryId: Int? = null,
     val joinedAt: String? = null,
-    val accessCode: String? = null
+    val accessCode: String? = null,
+    val notificationFlowKey: String
 )
+
+private fun PersistedQueueSession.toActiveQueueSession(): ActiveQueueSession {
+    return ActiveQueueSession(
+        authenticatedUserId = authenticatedUserId,
+        queueId = queueId,
+        entryId = entryId,
+        joinedAt = joinedAt,
+        accessCode = accessCode,
+        notificationFlowKey = notificationFlowKey ?: buildQueueNotificationFlowKey(
+            entryId = entryId,
+            queueId = queueId,
+            joinedAt = joinedAt
+        )
+    )
+}
+
+private fun QueueStatusViewModel.handleNotificationTransitions(
+    session: ActiveQueueSession,
+    previousQueueStatus: QueueStatus?,
+    currentQueueStatus: QueueStatus
+) {
+    val currentUserEntry = currentQueueStatus.userEntry ?: return
+    QueueMasterNotificationManager.notifyQueueProgress(
+        userId = session.authenticatedUserId,
+        queueId = session.queueId,
+        currentEntry = currentUserEntry,
+        previousEntry = previousQueueStatus?.userEntry,
+        queueName = currentQueueStatus.queue.name,
+        flowKey = session.notificationFlowKey
+    )
+}
 
 private fun Throwable.toQueueStatusMessage(): String {
     return when (this) {

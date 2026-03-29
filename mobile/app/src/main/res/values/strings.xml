@@ -1,7 +1,9 @@
 <resources>
-    <string name="app_name">QueueMaster Mobile</string>
+    <string name="app_name">Queue Master</string>
     <string name="qm_route_login">Login</string>
     <string name="qm_route_join_queue">Entrar</string>
     <string name="qm_route_queue_status">Fila</string>
     <string name="qm_route_profile">Perfil</string>
+    <string name="qm_route_notifications">Alertas</string>
+    <string name="qm_route_settings">Ajustes</string>
 </resources>

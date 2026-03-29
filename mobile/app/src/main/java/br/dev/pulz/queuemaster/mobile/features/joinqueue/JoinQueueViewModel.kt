@@ -43,21 +43,16 @@ class JoinQueueViewModel : ViewModel() {
                     JoinQueueUiState.Success(result = result)
                 },
                 onFailure = { throwable ->
-                    if (throwable is ApiException && throwable.code == "ALREADY_IN_QUEUE") {
-                        val queueId = throwable.details.intValue("queue_id") ?: parsedPayload.queueId
-                        JoinQueueUiState.Success(
-                            result = JoinQueueResult(
-                                queueId = queueId ?: 0,
-                                entryStatus = "waiting",
-                                accessCode = parsedPayload.accessCode,
-                                joinedSuccessfully = true
-                            )
-                        )
-                    } else {
-                        JoinQueueUiState.Error(
-                            message = throwable.toJoinQueueMessage()
-                        )
-                    }
+                    val apiError = throwable as? ApiException
+                    val existingQueueResult = apiError?.toExistingActiveQueueResult(
+                        fallbackQueueId = parsedPayload.queueId
+                    )
+
+                    existingQueueResult?.let { result ->
+                        JoinQueueUiState.Success(result = result)
+                    } ?: JoinQueueUiState.Error(
+                        message = throwable.toJoinQueueMessage()
+                    )
                 }
             )
         }
@@ -79,6 +74,30 @@ private fun Map<String, Any?>.intValue(key: String): Int? {
     }
 }
 
+private fun Map<String, Any?>.stringValue(key: String): String? {
+    return (this[key] as? String)
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+}
+
+private fun ApiException.toExistingActiveQueueResult(
+    fallbackQueueId: Int?
+): JoinQueueResult? {
+    if (code != "ALREADY_IN_QUEUE" && code != "ALREADY_IN_ACTIVE_QUEUE") {
+        return null
+    }
+
+    val resolvedQueueId = details.intValue("queue_id") ?: fallbackQueueId ?: return null
+    return JoinQueueResult(
+        queueId = resolvedQueueId,
+        entryId = details.intValue("entry_id"),
+        queueName = details.stringValue("queue_name"),
+        entryStatus = details.stringValue("entry_status") ?: "waiting",
+        accessCode = null,
+        joinedSuccessfully = false
+    )
+}
+
 private fun Throwable.toJoinQueueMessage(): String {
     return when (this) {
         is ApiException -> {
@@ -86,6 +105,7 @@ private fun Throwable.toJoinQueueMessage(): String {
                 "INVALID_CODE" -> "Esse QR code nao e valido ou ja expirou."
                 "QUEUE_CLOSED" -> "Essa fila esta fechada no momento."
                 "NOT_FOUND" -> "Nao encontramos a fila indicada por esse QR code."
+                "ALREADY_IN_ACTIVE_QUEUE" -> "Voce ja possui uma fila ativa no momento."
                 else -> message.ifBlank { "Nao foi possivel entrar na fila agora." }
             }
         }

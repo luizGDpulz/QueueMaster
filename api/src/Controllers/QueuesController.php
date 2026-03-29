@@ -270,18 +270,28 @@ class QueuesController
             }
         }
 
-        $existingEntry = $this->findLatestActiveEntryForUser($id, $userId);
-        if ($existingEntry) {
+        $activeEntry = $this->findLatestActiveEntryForAnyQueue($userId);
+        if ($activeEntry) {
+            $activeQueueId = (int)$activeEntry['queue_id'];
+            $activeQueueName = $activeQueueId === $id
+                ? ($queue['name'] ?? null)
+                : (Queue::find($activeQueueId)['name'] ?? null);
+            $errorCode = $activeQueueId === $id ? 'ALREADY_IN_QUEUE' : 'ALREADY_IN_ACTIVE_QUEUE';
+            $errorMessage = $activeQueueId === $id
+                ? 'Este usuario ja possui uma entrada ativa nesta fila'
+                : 'Este usuario ja possui uma entrada ativa em outra fila';
+
             Response::error(
-                'ALREADY_IN_QUEUE',
-                'Este usuario ja possui uma entrada ativa nesta fila',
+                $errorCode,
+                $errorMessage,
                 409,
                 $request->requestId,
                 [
-                    'queue_id' => $id,
-                    'entry_id' => (int)$existingEntry['id'],
-                    'entry_status' => $existingEntry['status'] ?? null,
-                    'access_code' => $data['access_code'] ?? null,
+                    'queue_id' => $activeQueueId,
+                    'queue_name' => $activeQueueName,
+                    'entry_id' => (int)$activeEntry['id'],
+                    'entry_status' => $activeEntry['status'] ?? null,
+                    'requested_queue_id' => $id,
                 ]
             );
             return;
@@ -428,10 +438,15 @@ class QueuesController
                 if ($userId && !empty($entry['user_id']) && (int)$entry['user_id'] === $userId) {
                     $userEntry = [
                         'entry_id' => (int)$entry['id'],
+                        'status' => $entry['status'] ?? 'waiting',
                         'position' => $visiblePosition,
                         'queue_position' => $visiblePosition,
                         'people_ahead' => $idx,
                         'estimated_wait_minutes' => max(0, $idx * $serviceDuration),
+                        'joined_at' => $entry['created_at'] ?? null,
+                        'called_at' => $entry['called_at'] ?? null,
+                        'serving_since_minutes' => 0,
+                        'professional_name' => null,
                     ];
                 }
             }
@@ -469,6 +484,21 @@ class QueuesController
                 if (!$canViewPeopleDetails) {
                     $es['user_name'] = 'Pessoa em atendimento';
                     unset($es['user_email'], $es['professional_email']);
+                }
+
+                if ($userId && !empty($es['user_id']) && (int)$es['user_id'] === $userId) {
+                    $userEntry = [
+                        'entry_id' => (int)$es['id'],
+                        'status' => $es['status'] ?? 'serving',
+                        'position' => null,
+                        'queue_position' => null,
+                        'people_ahead' => 0,
+                        'estimated_wait_minutes' => 0,
+                        'joined_at' => $es['created_at'] ?? null,
+                        'called_at' => $es['called_at'] ?? null,
+                        'serving_since_minutes' => (int)($es['serving_since_minutes'] ?? 0),
+                        'professional_name' => $es['professional_name'] ?? null,
+                    ];
                 }
             }
             unset($es);
@@ -549,6 +579,68 @@ class QueuesController
             ], $request->requestId);
 
             Response::serverError('Failed to retrieve queue status', $request->requestId);
+        }
+    }
+
+    /**
+     * GET /api/v1/queues/current
+     *
+     * Return the current user's latest active queue entry across all queues.
+     */
+    public function current(Request $request): void
+    {
+        $userId = (int)$request->user['id'];
+
+        try {
+            $activeEntry = $this->findLatestActiveEntryForAnyQueue($userId);
+            if (!$activeEntry) {
+                Response::error('NO_ACTIVE_QUEUE', 'No active queue found', 404, $request->requestId);
+                return;
+            }
+
+            $queue = Queue::find((int)$activeEntry['queue_id']);
+            if (!$queue) {
+                Response::notFound('Queue not found', $request->requestId);
+                return;
+            }
+
+            $establishmentName = null;
+            if (!empty($queue['establishment_id'])) {
+                $establishment = Establishment::find((int)$queue['establishment_id']);
+                $establishmentName = $establishment['name'] ?? null;
+            }
+
+            $serviceName = null;
+            if (!empty($queue['service_id'])) {
+                $service = Service::find((int)$queue['service_id']);
+                $serviceName = $service['name'] ?? null;
+            }
+
+            Response::success([
+                'queue' => [
+                    'id' => (int)$queue['id'],
+                    'name' => $queue['name'],
+                    'establishment_name' => $establishmentName,
+                    'service_name' => $serviceName,
+                    'status' => $queue['status'] ?? null,
+                ],
+                'entry' => [
+                    'id' => (int)$activeEntry['id'],
+                    'queue_id' => (int)$activeEntry['queue_id'],
+                    'status' => $activeEntry['status'] ?? 'waiting',
+                    'position' => isset($activeEntry['position']) ? (int)$activeEntry['position'] : null,
+                    'created_at' => $activeEntry['created_at'] ?? null,
+                    'called_at' => $activeEntry['called_at'] ?? null,
+                ],
+            ]);
+        }
+        catch (\Exception $e) {
+            Logger::error('Failed to get current active queue', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ], $request->requestId);
+
+            Response::serverError('Failed to retrieve current active queue', $request->requestId);
         }
     }
 
@@ -2323,6 +2415,24 @@ class QueuesController
             ->where('user_id', '=', $userId)
             ->orderBy('created_at', 'DESC')
             ->limit(10)
+            ->get();
+
+        foreach ($entries as $entry) {
+            if (in_array($entry['status'] ?? null, ['waiting', 'called', 'serving'], true)) {
+                return $entry;
+            }
+        }
+
+        return null;
+    }
+
+    private function findLatestActiveEntryForAnyQueue(int $userId): ?array
+    {
+        $entries = (new QueryBuilder())
+            ->select('queue_entries')
+            ->where('user_id', '=', $userId)
+            ->orderBy('created_at', 'DESC')
+            ->limit(20)
             ->get();
 
         foreach ($entries as $entry) {

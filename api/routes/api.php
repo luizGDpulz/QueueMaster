@@ -436,6 +436,12 @@ $router->group('/api/v1', function ($router) {
                     , [new RateLimiter(30, 60)]);
 
                 // POST /api/v1/queues/join — Join queue by access_code without explicit queue_id
+                $router->get('/current', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->current($request);
+                }
+                    , [new RateLimiter(30, 60)]);
+
                 $router->post('/join', function ($request) {
                     $controller = new QueuesController();
                     $controller->join($request, null);

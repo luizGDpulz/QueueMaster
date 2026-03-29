@@ -56,22 +56,15 @@ class ManualCodeEntryViewModel : ViewModel() {
                     )
                 },
                 onFailure = { throwable ->
-                    if (throwable is ApiException && throwable.code == "ALREADY_IN_QUEUE") {
-                        val queueId = throwable.details.intValue("queue_id")
-                        ManualCodeUiState.Success(
-                            result = JoinQueueResult(
-                                queueId = queueId ?: 0,
-                                entryStatus = "waiting",
-                                accessCode = currentCode,
-                                joinedSuccessfully = true
-                            )
-                        )
-                    } else {
-                        ManualCodeUiState.Error(
-                            message = throwable.toManualCodeMessage(),
-                            attemptedCode = currentCode
-                        )
-                    }
+                    val apiError = throwable as? ApiException
+                    val existingQueueResult = apiError?.toExistingActiveQueueResult()
+
+                    existingQueueResult?.let { result ->
+                        ManualCodeUiState.Success(result = result)
+                    } ?: ManualCodeUiState.Error(
+                        message = throwable.toManualCodeMessage(),
+                        attemptedCode = currentCode
+                    )
                 }
             )
         }
@@ -106,6 +99,28 @@ private fun Map<String, Any?>.intValue(key: String): Int? {
     }
 }
 
+private fun Map<String, Any?>.stringValue(key: String): String? {
+    return (this[key] as? String)
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+}
+
+private fun ApiException.toExistingActiveQueueResult(): JoinQueueResult? {
+    if (code != "ALREADY_IN_QUEUE" && code != "ALREADY_IN_ACTIVE_QUEUE") {
+        return null
+    }
+
+    val resolvedQueueId = details.intValue("queue_id") ?: return null
+    return JoinQueueResult(
+        queueId = resolvedQueueId,
+        entryId = details.intValue("entry_id"),
+        queueName = details.stringValue("queue_name"),
+        entryStatus = details.stringValue("entry_status") ?: "waiting",
+        accessCode = null,
+        joinedSuccessfully = false
+    )
+}
+
 private fun Throwable.toManualCodeMessage(): String {
     return when (this) {
         is ApiException -> {
@@ -113,6 +128,7 @@ private fun Throwable.toManualCodeMessage(): String {
                 "INVALID_CODE" -> "Esse codigo nao e valido ou ja expirou."
                 "QUEUE_CLOSED" -> "A fila vinculada a esse codigo esta fechada."
                 "NOT_FOUND" -> "Nao encontramos a fila vinculada a esse codigo."
+                "ALREADY_IN_ACTIVE_QUEUE" -> "Voce ja possui uma fila ativa no momento."
                 "HTTP_404" -> "A entrada manual por codigo ainda nao esta publicada no servidor."
                 "HTTP_401" -> "Sua sessao expirou. Entre novamente para continuar."
                 else -> message.ifBlank { "Nao foi possivel entrar na fila com esse codigo." }

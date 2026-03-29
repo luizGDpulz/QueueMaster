@@ -4,15 +4,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import br.dev.pulz.queuemaster.mobile.core.model.AppThemeMode
 
 private val DarkColorScheme = darkColorScheme(
     primary = Cloud0,
     onPrimary = Ink900,
-    primaryContainer = Night700,
+    primaryContainer = Cloud0.copy(alpha = 0.1f),
     onPrimaryContainer = Cloud0,
     secondary = Night300,
     onSecondary = Night900,
-    tertiary = Mist300,
+    tertiary = Info400,
     onTertiary = Night900,
     background = Night950,
     onBackground = Cloud0,
@@ -22,26 +23,26 @@ private val DarkColorScheme = darkColorScheme(
     onSurfaceVariant = Night300,
     outline = Night700,
     outlineVariant = Night800,
-    error = Error500
+    error = Error400
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Ink900,
+    primary = Ink800,
     onPrimary = Cloud0,
-    primaryContainer = Mist100,
+    primaryContainer = Ink800.copy(alpha = 0.08f),
     onPrimaryContainer = Ink900,
     secondary = Slate600,
     onSecondary = Cloud0,
-    tertiary = Mist300,
-    onTertiary = Ink900,
+    tertiary = Info500,
+    onTertiary = Cloud0,
     background = Mist50,
     onBackground = Ink900,
     surface = Cloud0,
     onSurface = Ink900,
-    surfaceVariant = Mist100,
+    surfaceVariant = Mist300,
     onSurfaceVariant = Slate600,
     outline = Mist200,
-    outlineVariant = Mist300,
+    outlineVariant = Mist200,
     error = Error500
 )
 
@@ -58,4 +59,12 @@ fun QueueMasterMobileTheme(
         shapes = QueueMasterShapes,
         content = content
     )
+}
+
+fun AppThemeMode.shouldUseDarkTheme(systemInDarkTheme: Boolean): Boolean {
+    return when (this) {
+        AppThemeMode.System -> systemInDarkTheme
+        AppThemeMode.Light -> false
+        AppThemeMode.Dark -> true
+    }
 }

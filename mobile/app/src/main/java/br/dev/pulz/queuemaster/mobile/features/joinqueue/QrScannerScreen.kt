@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -52,8 +53,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import br.dev.pulz.queuemaster.mobile.core.design.AppGradients
 import br.dev.pulz.queuemaster.mobile.core.design.AppSpacing
+import br.dev.pulz.queuemaster.mobile.ui.components.QmBrandTopBar
 import br.dev.pulz.queuemaster.mobile.ui.components.QmPlaceholderState
-import br.dev.pulz.queuemaster.mobile.ui.components.QmTopBar
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -63,8 +64,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 @Composable
 fun QrScannerScreen(
+    avatarUrl: String?,
     isJoining: Boolean,
     errorMessage: String?,
+    onAvatarClick: () -> Unit,
     onBackClick: () -> Unit,
     onPayloadScanned: (String) -> Unit,
     onError: (String) -> Unit,
@@ -99,24 +102,33 @@ fun QrScannerScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AppGradients.ScreenGlow)
+            .background(brush = AppGradients.screenGlow())
             .statusBarsPadding()
             .padding(AppSpacing.Xl),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.Lg)
     ) {
-        QmTopBar(
-            eyebrow = "Escanear fila",
-            title = "Aponte a camera para o QR code",
-            subtitle = "O leitor funciona dentro do app e entra na fila assim que reconhecer um QR valido.",
-            actions = {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Voltar"
-                    )
-                }
-            }
+        QmBrandTopBar(
+            avatarUrl = avatarUrl,
+            onAvatarClick = onAvatarClick
         )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBackClick) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Voltar"
+                )
+            }
+            Text(
+                text = "Escanear QR code",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(start = AppSpacing.Xs)
+            )
+        }
 
         if (hasCameraPermission) {
             QrScannerCameraCard(
