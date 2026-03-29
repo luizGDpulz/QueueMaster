@@ -51,6 +51,11 @@ const notificationTypeOptions = [
   { label: 'Solicitações aprovadas', value: 'invitation_accepted' },
   { label: 'Solicitações recusadas', value: 'invitation_rejected' },
   { label: 'Perfil cliente', value: 'role_reverted_client' },
+  { label: 'Solicitação de agendamento criada', value: 'appointment_request_created' },
+  { label: 'Solicitação de agendamento recebida', value: 'appointment_request_received' },
+  { label: 'Solicitação de agendamento aceita', value: 'appointment_request_accepted' },
+  { label: 'Solicitação de agendamento recusada', value: 'appointment_request_rejected' },
+  { label: 'Agendamento confirmado', value: 'appointment_created' },
   { label: 'Fila', value: 'queue_called' },
   { label: 'Agendamentos', value: 'appointment_reminder' },
 ]
@@ -132,6 +137,11 @@ function getNotifIcon(type) {
     role_reverted_client: 'person_off',
     invitation_accepted: 'check_circle',
     invitation_rejected: 'cancel',
+    appointment_request_created: 'outbox',
+    appointment_request_received: 'mail',
+    appointment_request_accepted: 'task_alt',
+    appointment_request_rejected: 'event_busy',
+    appointment_created: 'event_available',
     appointment_reminder: 'event',
     queue_called: 'notifications_active',
   }
@@ -337,7 +347,10 @@ function resolveNotificationRoute(notification) {
   if (notification.type === 'manager_role_request' || notification.type === 'manager_request_created' || notification.type === 'manager_request_accepted' || notification.type === 'manager_request_rejected' || notification.type === 'role_reverted_client') {
     return '/app/settings?tab=roles'
   }
-  if (notification.type === 'appointment_reminder') {
+  if (notification.type === 'appointment_request_created' || notification.type === 'appointment_request_received' || notification.type === 'appointment_request_accepted' || notification.type === 'appointment_request_rejected') {
+    return '/app/appointments?tab=requests'
+  }
+  if (notification.type === 'appointment_created' || notification.type === 'appointment_reminder') {
     return '/app/appointments'
   }
   if (notification.type === 'queue_called') {
