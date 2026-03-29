@@ -10,6 +10,7 @@ object AppPreferencesStore {
     private const val PrefsName = "qm_mobile_preferences"
     private const val ThemeModeKey = "theme_mode"
     private const val SystemNotificationsEnabledKey = "system_notifications_enabled"
+    private const val NotificationsPromptHandledKey = "notifications_prompt_handled"
 
     private val preferences by lazy {
         AppRuntime.context().getSharedPreferences(PrefsName, Context.MODE_PRIVATE)
@@ -25,6 +26,11 @@ object AppPreferencesStore {
     )
     val systemNotificationsEnabled: StateFlow<Boolean> = _systemNotificationsEnabled.asStateFlow()
 
+    private val _notificationsPromptHandled = MutableStateFlow(
+        preferences.getBoolean(NotificationsPromptHandledKey, false)
+    )
+    val notificationsPromptHandled: StateFlow<Boolean> = _notificationsPromptHandled.asStateFlow()
+
     fun setThemeMode(mode: AppThemeMode) {
         preferences.edit()
             .putString(ThemeModeKey, mode.name)
@@ -37,5 +43,12 @@ object AppPreferencesStore {
             .putBoolean(SystemNotificationsEnabledKey, enabled)
             .apply()
         _systemNotificationsEnabled.value = enabled
+    }
+
+    fun setNotificationsPromptHandled(handled: Boolean) {
+        preferences.edit()
+            .putBoolean(NotificationsPromptHandledKey, handled)
+            .apply()
+        _notificationsPromptHandled.value = handled
     }
 }

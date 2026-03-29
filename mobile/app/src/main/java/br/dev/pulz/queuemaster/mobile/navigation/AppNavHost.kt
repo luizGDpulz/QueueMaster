@@ -8,6 +8,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,13 +22,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import br.dev.pulz.queuemaster.mobile.core.utils.AppPreferencesStore
+import br.dev.pulz.queuemaster.mobile.core.design.AppSpacing
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.NotificationsActive
 import br.dev.pulz.queuemaster.mobile.features.joinqueue.JoinQueueScreen
 import br.dev.pulz.queuemaster.mobile.features.joinqueue.JoinQueueUiState
 import br.dev.pulz.queuemaster.mobile.features.joinqueue.JoinQueueViewModel
@@ -87,19 +97,25 @@ fun AppNavHost(
     val profileUiState by profileViewModel.uiState.collectAsStateWithLifecycle()
     val settingsThemeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
     val settingsSystemNotificationsEnabled by settingsViewModel.systemNotificationsEnabled.collectAsStateWithLifecycle()
+    val notificationsPromptHandled by AppPreferencesStore.notificationsPromptHandled.collectAsStateWithLifecycle()
     val notificationsUiState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val authenticatedUser = (loginUiState as? LoginUiState.Authenticated)?.user
+    val currentRoute = currentBackStackEntry?.destination?.route
     val headerAvatarUrl = (profileUiState as? ProfileUiState.Loaded)?.profile?.avatarUrl ?: authenticatedUser?.avatarUrl
     val headerUserName = (profileUiState as? ProfileUiState.Loaded)?.profile?.fullName ?: authenticatedUser?.name
     val headerUserEmail = (profileUiState as? ProfileUiState.Loaded)?.profile?.email ?: authenticatedUser?.email
     var pendingLeaveNavigation by remember { mutableStateOf(false) }
     var pendingNotificationsToggle by remember { mutableStateOf(false) }
+    var showNotificationsPrompt by remember { mutableStateOf(false) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         settingsViewModel.setSystemNotificationsEnabled(granted)
+        AppPreferencesStore.setNotificationsPromptHandled(true)
         pendingNotificationsToggle = false
+        showNotificationsPrompt = false
     }
 
     val handleProfileNavigation = remember(navController) {
@@ -177,6 +193,30 @@ fun AppNavHost(
             launchSingleTop = true
         }
         onPendingAppRouteConsumed()
+    }
+
+    LaunchedEffect(
+        authenticatedUser?.id,
+        currentRoute,
+        notificationsPromptHandled,
+        settingsSystemNotificationsEnabled
+    ) {
+        if (authenticatedUser == null) {
+            showNotificationsPrompt = false
+            return@LaunchedEffect
+        }
+        if (currentRoute == null || currentRoute == AppRoute.Login.route) {
+            return@LaunchedEffect
+        }
+
+        val systemPermissionGranted = context.hasNotificationsPermission()
+        if (settingsSystemNotificationsEnabled && systemPermissionGranted) {
+            AppPreferencesStore.setNotificationsPromptHandled(true)
+            showNotificationsPrompt = false
+            return@LaunchedEffect
+        }
+
+        showNotificationsPrompt = !notificationsPromptHandled
     }
 
     LaunchedEffect(authenticatedUser?.id, pendingJoinPayload) {
@@ -416,8 +456,10 @@ fun AppNavHost(
                 onSystemNotificationsToggle = { enabled ->
                     if (!enabled) {
                         settingsViewModel.setSystemNotificationsEnabled(false)
+                        AppPreferencesStore.setNotificationsPromptHandled(true)
                     } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                         settingsViewModel.setSystemNotificationsEnabled(true)
+                        AppPreferencesStore.setNotificationsPromptHandled(true)
                     } else if (
                         ContextCompat.checkSelfPermission(
                             context,
@@ -425,6 +467,7 @@ fun AppNavHost(
                         ) == PackageManager.PERMISSION_GRANTED
                     ) {
                         settingsViewModel.setSystemNotificationsEnabled(true)
+                        AppPreferencesStore.setNotificationsPromptHandled(true)
                     } else if (!pendingNotificationsToggle) {
                         pendingNotificationsToggle = true
                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -443,6 +486,30 @@ fun AppNavHost(
             )
         }
     }
+
+    if (showNotificationsPrompt && authenticatedUser != null && currentRoute != AppRoute.Login.route) {
+        NotificationsPromptDialog(
+            onDismiss = {
+                settingsViewModel.setSystemNotificationsEnabled(false)
+                AppPreferencesStore.setNotificationsPromptHandled(true)
+                showNotificationsPrompt = false
+            },
+            onEnable = {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                    settingsViewModel.setSystemNotificationsEnabled(true)
+                    AppPreferencesStore.setNotificationsPromptHandled(true)
+                    showNotificationsPrompt = false
+                } else if (context.hasNotificationsPermission()) {
+                    settingsViewModel.setSystemNotificationsEnabled(true)
+                    AppPreferencesStore.setNotificationsPromptHandled(true)
+                    showNotificationsPrompt = false
+                } else if (!pendingNotificationsToggle) {
+                    pendingNotificationsToggle = true
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        )
+    }
 }
 
 private tailrec fun Context.findActivity(): Activity? {
@@ -451,4 +518,49 @@ private tailrec fun Context.findActivity(): Activity? {
         is ContextWrapper -> baseContext.findActivity()
         else -> null
     }
+}
+
+private fun Context.hasNotificationsPermission(): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        NotificationManagerCompat.from(this).areNotificationsEnabled()
+    }
+}
+
+@Composable
+private fun NotificationsPromptDialog(
+    onDismiss: () -> Unit,
+    onEnable: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Filled.NotificationsActive,
+                contentDescription = null
+            )
+        },
+        title = {
+            Text(text = "Ativar notificacoes?")
+        },
+        text = {
+            Text(
+                text = "O QueueMaster pode avisar quando sua vez estiver chegando, quando voce for chamado e quando o atendimento for concluido. Se preferir, voce pode deixar para ativar depois em Ajustes."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onEnable) {
+                Text(text = "Ativar agora")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "Agora nao")
+            }
+        }
+    )
 }
