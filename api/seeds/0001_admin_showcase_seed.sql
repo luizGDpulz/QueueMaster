@@ -13,6 +13,72 @@ SET @admin_user_id := 1;
 START TRANSACTION;
 
 -- ---------------------------------------------------------------------------
+-- Guarantee admin id 1 exists for demo ownership.
+-- If id 1 already exists, keep the user and ensure admin access is enabled.
+-- ---------------------------------------------------------------------------
+INSERT INTO users (
+    id,
+    name,
+    email,
+    password_hash,
+    google_id,
+    avatar_url,
+    avatar_base64,
+    email_verified,
+    phone,
+    address_line_1,
+    address_line_2,
+    role,
+    manager_access_granted,
+    manager_access_granted_at,
+    is_active,
+    login_blocked_at,
+    login_block_reason,
+    login_blocked_by_user_id,
+    last_login_at,
+    created_at,
+    updated_at
+)
+SELECT
+    1,
+    'Admin Showcase',
+    'admin.showcase@queuemaster.local',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    1,
+    NULL,
+    NULL,
+    NULL,
+    'admin',
+    1,
+    NOW(),
+    1,
+    NULL,
+    NULL,
+    NULL,
+    NOW(),
+    NOW(),
+    NOW()
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM users
+    WHERE id = @admin_user_id
+);
+
+UPDATE users
+SET
+    role = 'admin',
+    manager_access_granted = 1,
+    manager_access_granted_at = COALESCE(manager_access_granted_at, NOW()),
+    is_active = 1,
+    login_blocked_at = NULL,
+    login_block_reason = NULL,
+    login_blocked_by_user_id = NULL
+WHERE id = @admin_user_id;
+
+-- ---------------------------------------------------------------------------
 -- Idempotent cleanup of the previous showcase set.
 -- ---------------------------------------------------------------------------
 DELETE FROM establishments
@@ -493,6 +559,7 @@ COMMIT;
 
 SELECT 'SHOWCASE SEED COMPLETED' AS message;
 SELECT CONCAT('Admin owner user id: ', @admin_user_id) AS owner_reference;
+SELECT 'Se o usuario 1 nao existia, o seed criou um admin tecnico de showcase para manter os vinculos.' AS bootstrap_note;
 SELECT 'Use o deploy.sh > Seeds > production seeds (up) para carregar este conjunto.' AS hint;
 SELECT 'Todos os negocios, estabelecimentos e filas criados neste seed pertencem ao admin id 1.' AS scope_note;
 
