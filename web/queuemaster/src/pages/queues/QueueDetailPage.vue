@@ -491,12 +491,15 @@
                               </div>
                               <div class="meta">
                                 <div class="meta-top"><strong>{{ entry.user_name }}</strong></div>
-                                <span>{{ entry.user_email || 'Fluxo conclu?do' }}</span>
+                                <span>{{ entry.user_email || 'Fluxo concluído' }}</span>
                               </div>
                             </div>
                           </td>
                           <td>
-                            <StatusPill :label="entry.status === 'no_show' ? 'N?o compareceu' : 'Conclu?do'" :variant="entry.status === 'no_show' ? 'negative' : 'positive'" />
+                            <StatusPill :variant="entry.status === 'no_show' ? 'negative' : 'positive'">
+                              <q-icon :name="entry.status === 'no_show' ? 'person_off' : 'check_circle'" size="14px" />
+                              <span>{{ entry.status === 'no_show' ? 'Não compareceu' : 'Concluído' }}</span>
+                            </StatusPill>
                           </td>
                           <td>
                             <span class="table-strong">{{ formatDate(entry.completed_at || entry.updated_at) }}</span>
