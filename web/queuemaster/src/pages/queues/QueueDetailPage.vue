@@ -235,29 +235,47 @@
                           <th>Pessoa</th>
                           <th>Prioridade</th>
                           <th>Espera</th>
-                          <th class="queue-col-actions">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="(entry, index) in sortedWaitingEntries" :key="entry.id">
+                        <tr
+                          v-for="(entry, index) in sortedWaitingEntries"
+                          :key="entry.id"
+                          class="queue-entry-row clickable"
+                          @click="openEntryMenu($event, entry, 'waiting')"
+                          @contextmenu.prevent="openEntryMenu($event, entry, 'waiting')"
+                        >
                           <td>
-                            <div class="queue-order-cell">
+                            <div
+                              class="queue-order-cell"
+                              :class="{
+                                'queue-order-cell--selectable': canManage,
+                                'queue-order-cell--selected': selectedWaiting.includes(entry.id),
+                              }">
                               <q-checkbox
                                 v-if="canManage"
                                 :model-value="selectedWaiting.includes(entry.id)"
                                 @update:model-value="toggleSelect(entry.id, 'waiting')"
+                                @click.stop
                                 dense
+                                class="queue-order-checkbox"
                               />
                               <span class="queue-order-number">{{ index + 1 }}</span>
                             </div>
                           </td>
                           <td>
                             <div class="user-cell queue-user-cell">
-                              <div class="avatar queue-avatar"><q-icon name="person" size="18px" /></div>
+                              <div class="avatar queue-avatar">
+                                <img
+                                  v-if="shouldShowEntryAvatar(entry)"
+                                  :src="getEntryAvatarUrl(entry)"
+                                  alt=""
+                                  @error="markEntryAvatarError(entry)"
+                                />
+                                <span v-else>{{ getInitials(entry.user_name) }}</span>
+                              </div>
                               <div class="meta">
-                                <div class="meta-top">
-                                  <strong>{{ entry.user_name }}</strong>
-                                </div>
+                                <div class="meta-top"><strong>{{ entry.user_name }}</strong></div>
                                 <span>{{ entry.user_email || entry.guest_phone || 'Entrada ativa na fila' }}</span>
                               </div>
                             </div>
@@ -269,15 +287,6 @@
                           </td>
                           <td>
                             <span class="table-strong">{{ formatWaitTime(entry.waiting_since_minutes) }}</span>
-                          </td>
-                          <td>
-                            <div class="queue-row-actions">
-                              <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Histórico</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="campaign" color="warning" @click.stop="updateEntryStatus(entry.id, 'called')"><q-tooltip>Chamar</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="headset_mic" color="primary" @click.stop="beginServingEntry(entry)"><q-tooltip>Atender agora</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="person_remove" color="negative" @click.stop="confirmRemoveEntry(entry.id, entry.user_name)"><q-tooltip>Remover</q-tooltip></q-btn>
-                            </div>
                           </td>
                         </tr>
                       </tbody>
@@ -298,29 +307,48 @@
                           <th>Pessoa</th>
                           <th>Chamado h?</th>
                           <th>Status</th>
-                          <th class="queue-col-actions">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="entry in calledEntries" :key="entry.id" :class="{ 'queue-entry-row--delayed': isCalledEntryDelayed(entry) }">
+                        <tr
+                          v-for="(entry, index) in calledEntries"
+                          :key="entry.id"
+                          class="queue-entry-row clickable"
+                          :class="{ 'queue-entry-row--delayed': isCalledEntryDelayed(entry) }"
+                          @click="openEntryMenu($event, entry, 'called')"
+                          @contextmenu.prevent="openEntryMenu($event, entry, 'called')"
+                        >
                           <td>
-                            <div class="queue-order-cell">
+                            <div
+                              class="queue-order-cell"
+                              :class="{
+                                'queue-order-cell--selectable': canManage,
+                                'queue-order-cell--selected': selectedCalled.includes(entry.id),
+                              }">
                               <q-checkbox
                                 v-if="canManage"
                                 :model-value="selectedCalled.includes(entry.id)"
                                 @update:model-value="toggleSelect(entry.id, 'called')"
+                                @click.stop
                                 dense
+                                class="queue-order-checkbox"
                               />
-                              <q-icon name="campaign" size="16px" class="queue-order-icon" />
+                              <span class="queue-order-number">{{ index + 1 }}</span>
                             </div>
                           </td>
                           <td>
                             <div class="user-cell queue-user-cell">
-                              <div class="avatar queue-avatar"><q-icon name="notifications_active" size="18px" /></div>
+                              <div class="avatar queue-avatar">
+                                <img
+                                  v-if="shouldShowEntryAvatar(entry)"
+                                  :src="getEntryAvatarUrl(entry)"
+                                  alt=""
+                                  @error="markEntryAvatarError(entry)"
+                                />
+                                <span v-else>{{ getInitials(entry.user_name) }}</span>
+                              </div>
                               <div class="meta">
-                                <div class="meta-top">
-                                  <strong>{{ entry.user_name }}</strong>
-                                </div>
+                                <div class="meta-top"><strong>{{ entry.user_name }}</strong></div>
                                 <span>{{ entry.user_email || entry.guest_phone || 'Aguardando comparecimento' }}</span>
                               </div>
                             </div>
@@ -330,16 +358,6 @@
                           </td>
                           <td>
                             <StatusPill :label="isCalledEntryDelayed(entry) ? 'Atrasado' : 'Aguardando chegada'" :variant="isCalledEntryDelayed(entry) ? 'negative' : 'warning'" />
-                          </td>
-                          <td>
-                            <div class="queue-row-actions">
-                              <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Histórico</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="headset_mic" color="primary" @click.stop="beginServingEntry(entry)"><q-tooltip>Assumir atendimento</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="badge" color="secondary" @click.stop="openAssignProfessionalDialog(entry)"><q-tooltip>Atribuir profissional</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="undo" color="grey-7" @click.stop="updateEntryStatus(entry.id, 'waiting')"><q-tooltip>Retornar ? fila</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="person_off" color="negative" @click.stop="openNotesDialog(entry.id, 'no_show')"><q-tooltip>Não compareceu</q-tooltip></q-btn>
-                            </div>
                           </td>
                         </tr>
                       </tbody>
@@ -360,47 +378,56 @@
                           <th>Pessoa</th>
                           <th>Profissional</th>
                           <th>Em atendimento</th>
-                          <th class="queue-col-actions">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="entry in servingEntries" :key="entry.id">
+                        <tr
+                          v-for="(entry, index) in servingEntries"
+                          :key="entry.id"
+                          class="queue-entry-row clickable"
+                          @click="openEntryMenu($event, entry, 'serving')"
+                          @contextmenu.prevent="openEntryMenu($event, entry, 'serving')"
+                        >
                           <td>
-                            <div class="queue-order-cell">
+                            <div
+                              class="queue-order-cell"
+                              :class="{
+                                'queue-order-cell--selectable': canManage,
+                                'queue-order-cell--selected': selectedServing.includes(entry.id),
+                              }">
                               <q-checkbox
                                 v-if="canManage"
                                 :model-value="selectedServing.includes(entry.id)"
                                 @update:model-value="toggleSelect(entry.id, 'serving')"
+                                @click.stop
                                 dense
+                                class="queue-order-checkbox"
                               />
-                              <q-icon name="headset_mic" size="16px" class="queue-order-icon" />
+                              <span class="queue-order-number">{{ index + 1 }}</span>
                             </div>
                           </td>
                           <td>
                             <div class="user-cell queue-user-cell">
-                              <div class="avatar queue-avatar"><q-icon name="support_agent" size="18px" /></div>
+                              <div class="avatar queue-avatar">
+                                <img
+                                  v-if="shouldShowEntryAvatar(entry)"
+                                  :src="getEntryAvatarUrl(entry)"
+                                  alt=""
+                                  @error="markEntryAvatarError(entry)"
+                                />
+                                <span v-else>{{ getInitials(entry.user_name) }}</span>
+                              </div>
                               <div class="meta">
-                                <div class="meta-top">
-                                  <strong>{{ entry.user_name }}</strong>
-                                </div>
+                                <div class="meta-top"><strong>{{ entry.user_name }}</strong></div>
                                 <span>{{ entry.user_email || entry.guest_phone || 'Em atendimento agora' }}</span>
                               </div>
                             </div>
                           </td>
                           <td>
-                            <span class="table-strong">{{ entry.professional_name || 'Profissional não informado' }}</span>
+                            <span class="table-strong">{{ entry.professional_name || 'Profissional n?o informado' }}</span>
                           </td>
                           <td>
                             <span class="table-strong">{{ formatWaitTime(entry.serving_since_minutes) }}</span>
-                          </td>
-                          <td>
-                            <div class="queue-row-actions">
-                              <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Histórico</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="check_circle" color="positive" @click.stop="updateEntryStatus(entry.id, 'done')"><q-tooltip>Concluir</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="undo" color="grey-7" @click.stop="updateEntryStatus(entry.id, 'waiting')"><q-tooltip>Retornar ? fila</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="cancel" color="negative" @click.stop="confirmRemoveEntry(entry.id, entry.user_name)"><q-tooltip>Cancelar</q-tooltip></q-btn>
-                            </div>
                           </td>
                         </tr>
                       </tbody>
@@ -438,34 +465,38 @@
                           <th>Pessoa</th>
                           <th>Resultado</th>
                           <th>Finalizado em</th>
-                          <th class="queue-col-actions">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="entry in completedEntries" :key="entry.id">
+                        <tr
+                          v-for="entry in completedEntries"
+                          :key="entry.id"
+                          class="queue-entry-row clickable"
+                          @click="openEntryMenu($event, entry, 'completed')"
+                          @contextmenu.prevent="openEntryMenu($event, entry, 'completed')"
+                        >
                           <td>
                             <div class="user-cell queue-user-cell">
-                              <div class="avatar queue-avatar"><q-icon :name="entry.status === 'no_show' ? 'person_off' : 'check_circle'" size="18px" /></div>
+                              <div class="avatar queue-avatar">
+                                <img
+                                  v-if="shouldShowEntryAvatar(entry)"
+                                  :src="getEntryAvatarUrl(entry)"
+                                  alt=""
+                                  @error="markEntryAvatarError(entry)"
+                                />
+                                <span v-else>{{ getInitials(entry.user_name) }}</span>
+                              </div>
                               <div class="meta">
-                                <div class="meta-top">
-                                  <strong>{{ entry.user_name }}</strong>
-                                </div>
-                                <span>{{ entry.user_email || 'Fluxo concluído' }}</span>
+                                <div class="meta-top"><strong>{{ entry.user_name }}</strong></div>
+                                <span>{{ entry.user_email || 'Fluxo conclu?do' }}</span>
                               </div>
                             </div>
                           </td>
                           <td>
-                            <StatusPill :label="entry.status === 'no_show' ? 'Não compareceu' : 'Concluído'" :variant="entry.status === 'no_show' ? 'negative' : 'positive'" />
+                            <StatusPill :label="entry.status === 'no_show' ? 'N?o compareceu' : 'Conclu?do'" :variant="entry.status === 'no_show' ? 'negative' : 'positive'" />
                           </td>
                           <td>
                             <span class="table-strong">{{ formatDate(entry.completed_at || entry.updated_at) }}</span>
-                          </td>
-                          <td>
-                            <div class="queue-row-actions">
-                              <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Histórico</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="replay" color="primary" @click.stop="updateEntryStatus(entry.id, 'waiting')"><q-tooltip>Realocar para a fila</q-tooltip></q-btn>
-                            </div>
                           </td>
                         </tr>
                       </tbody>
@@ -1315,6 +1346,7 @@ import QueueEntryHistoryPanel from 'src/components/queue/QueueEntryHistoryPanel.
 import { useBreadcrumb } from 'src/composables/useBreadcrumb'
 import { fetchQueueEntryTimeline } from 'src/composables/useQueueEntryHistory'
 import { useVisibilityPolling } from 'src/composables/useVisibilityPolling'
+import { resolveUserAvatarUrl } from 'src/utils/userAvatar'
 
 export default defineComponent({
   name: 'QueueDetailPage',
@@ -1326,6 +1358,29 @@ export default defineComponent({
     const $q = useQuasar()
     const { setDetail, clearDetail } = useBreadcrumb()
     const queueId = computed(() => route.params.id)
+    const entryAvatarErrors = ref({})
+
+    const getInitials = (name) => name
+      ? name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+      : '?'
+    const getEntryAvatarKey = (entry) => String(entry?.user_id || entry?.public_id || entry?.id || '')
+    const getEntryAvatarUrl = (entry) => (
+      entry?.user_id
+        ? resolveUserAvatarUrl({ id: entry.user_id, avatar_path: entry.avatar_path, avatar_cache_key: entry.avatar_cache_key })
+        : ''
+    )
+    const shouldShowEntryAvatar = (entry) => {
+      const key = getEntryAvatarKey(entry)
+      return Boolean(entry?.user_id && key && !entryAvatarErrors.value[key])
+    }
+    const markEntryAvatarError = (entry) => {
+      const key = getEntryAvatarKey(entry)
+      if (!key) return
+      entryAvatarErrors.value = {
+        ...entryAvatarErrors.value,
+        [key]: true,
+      }
+    }
 
     // -- Core state --
     const queue = ref(null)
@@ -3062,6 +3117,7 @@ export default defineComponent({
       codeMenuOpen, codeMenuPos, codeMenuTarget, codeMenuItems, codeMenuSubtitle, openCodeMenu, onCodeMenuSelect,
       // Profile preview
       profilePreviewOpen, profilePreviewUserId, profilePreviewPos,
+      getEntryAvatarUrl, shouldShowEntryAvatar, markEntryAvatarError, getInitials,
       // Access codes
       accessCodes, accessCode, isEditingCode, codeForm,
       generatedCodeValue, generatedCodeExpiry, qrCodeTarget, qrCodeImage, qrCodeLink, qrCodeLoading, exportingQr,
@@ -3256,11 +3312,45 @@ export default defineComponent({
   width: 240px;
 }
 
-.queue-order-cell,
-.queue-row-actions {
+.queue-entry-row {
+  cursor: pointer;
+}
+
+.queue-order-cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+}
+
+.queue-order-cell--selectable {
+  .queue-order-number,
+  .queue-order-checkbox {
+    transition: opacity 0.16s ease;
+  }
+}
+
+.queue-order-checkbox {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.queue-entry-row:hover .queue-order-cell--selectable .queue-order-checkbox,
+.queue-order-cell--selected .queue-order-checkbox {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.queue-entry-row:hover .queue-order-cell--selectable .queue-order-number,
+.queue-order-cell--selected .queue-order-number {
+  opacity: 0;
 }
 
 .queue-order-number,
@@ -3279,8 +3369,20 @@ export default defineComponent({
 }
 
 .queue-avatar {
-  background: var(--qm-brand-light);
-  color: var(--qm-brand);
+  background: var(--qm-bg-secondary);
+  color: var(--qm-text-primary);
+  overflow: hidden;
+}
+
+.queue-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.queue-avatar span {
+  font-weight: 700;
+  font-size: 0.82rem;
 }
 
 .queue-entry-row--delayed {
