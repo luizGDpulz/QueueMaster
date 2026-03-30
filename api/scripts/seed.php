@@ -3,7 +3,7 @@
  * Seed Runner Script
  * 
  * Usage:
- *   php scripts/seed.php sample    - Run sample/test seed data (seed_sample_data.sql)
+ *   php scripts/seed.php sample    - Run showcase sample seed data
  *   php scripts/seed.php up        - Run all production seed files
  *   php scripts/seed.php down      - Clean/rollback all seed data
  * 
@@ -73,7 +73,7 @@ if ($command === 'help') {
     echo "Seed Runner\n";
     echo "===========\n\n";
     echo "Usage:\n";
-    echo "  php scripts/seed.php sample    - Run sample/test seed data (seed_sample_data.sql)\n";
+    echo "  php scripts/seed.php sample    - Run showcase sample seed data\n";
     echo "  php scripts/seed.php up        - Run all production seed files (*_seed.sql)\n";
     echo "  php scripts/seed.php down      - Clean/rollback all seed data (*_seed_down.sql)\n\n";
     echo "Environment variables (from .env or environment):\n";
@@ -85,7 +85,7 @@ if ($command === 'help') {
     echo "File naming conventions:\n";
     echo "  Production seeds: seeds/NNNN_description_seed.sql (e.g., 0001_initial_data_seed.sql)\n";
     echo "  Seed cleanups:    seeds/NNNN_description_seed_down.sql\n";
-    echo "  Sample data:      seeds/seed_sample_data.sql\n\n";
+    echo "  Sample data:      seeds/0001_admin_showcase_seed.sql (fallback: seed_sample_data.sql)\n\n";
     exit(0);
 }
 
@@ -110,10 +110,13 @@ if ($command === 'sample') {
     echo "\nRunning SAMPLE seed data...\n";
     echo "===========================\n\n";
     
-    $sampleFile = $seedsDir . '/seed_sample_data.sql';
+    $sampleFile = $seedsDir . '/0001_admin_showcase_seed.sql';
+    if (!file_exists($sampleFile)) {
+        $sampleFile = $seedsDir . '/seed_sample_data.sql';
+    }
     
     if (!file_exists($sampleFile)) {
-        echo "✗ Sample seed file not found: seed_sample_data.sql\n";
+        echo "✗ Sample seed file not found: 0001_admin_showcase_seed.sql or seed_sample_data.sql\n";
         exit(1);
     }
     

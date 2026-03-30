@@ -525,8 +525,8 @@ do_seeds() {
     print_header
     echo -e "${BOLD}🌱 Seeds${NC}"
     echo "────────────────────────────────────────"
-    echo "  1) Rodar production seeds (up)"
-    echo "  2) Rodar sample data"
+    echo "  1) Rodar production seeds (up - inclui showcase admin id 1)"
+    echo "  2) Rodar sample data (alias do showcase)"
     echo "  3) Limpar seed data (down)"
     echo "  0) Voltar"
     echo ""
