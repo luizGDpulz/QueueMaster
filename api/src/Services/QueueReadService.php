@@ -98,6 +98,42 @@ class QueueReadService
         $entries = $canViewPeopleDetails ? $waitingEntries : [];
         $waitingCount = count($waitingEntries);
 
+        $entriesCalled = $this->db->query(
+            "
+            SELECT qe.*, u.name AS user_name, u.email AS user_email,
+                   p.name AS professional_name, p.email AS professional_email
+            FROM queue_entries qe
+            LEFT JOIN users u ON u.id = qe.user_id
+            LEFT JOIN users p ON p.id = qe.professional_id
+            WHERE qe.queue_id = ? AND qe.status = 'called'
+            ORDER BY qe.called_at ASC
+            ",
+            [$queueId]
+        );
+
+        foreach ($entriesCalled as &$entryCalled) {
+            $entryCalled['user_name'] = $this->resolveEntryUserName($entryCalled);
+            $entryCalled['called_since_minutes'] = $this->minutesSince($entryCalled['called_at'] ?? null, $now);
+
+            if ($userId && !empty($entryCalled['user_id']) && (int)$entryCalled['user_id'] === $userId) {
+                $userEntry = $this->buildUserEntryPayload(
+                    $entryCalled,
+                    null,
+                    0,
+                    0,
+                    0,
+                    $entryCalled['professional_name'] ?? null,
+                    (int)$entryCalled['called_since_minutes']
+                );
+            }
+        }
+        unset($entryCalled);
+
+        $calledCount = count($entriesCalled);
+        if (!$canViewPeopleDetails) {
+            $entriesCalled = [];
+        }
+
         $entriesServing = $this->db->query(
             "
             SELECT qe.*, u.name AS user_name, u.email AS user_email,
@@ -105,15 +141,18 @@ class QueueReadService
             FROM queue_entries qe
             LEFT JOIN users u ON u.id = qe.user_id
             LEFT JOIN users p ON p.id = qe.professional_id
-            WHERE qe.queue_id = ? AND qe.status IN ('called','serving')
-            ORDER BY qe.called_at ASC
+            WHERE qe.queue_id = ? AND qe.status = 'serving'
+            ORDER BY COALESCE(qe.served_at, qe.called_at) ASC
             ",
             [$queueId]
         );
 
         foreach ($entriesServing as &$entryServing) {
             $entryServing['user_name'] = $this->resolveEntryUserName($entryServing);
-            $entryServing['serving_since_minutes'] = $this->minutesSince($entryServing['called_at'] ?? null, $now);
+            $entryServing['serving_since_minutes'] = $this->minutesSince(
+                $entryServing['served_at'] ?? $entryServing['called_at'] ?? null,
+                $now
+            );
 
             if ($userId && !empty($entryServing['user_id']) && (int)$entryServing['user_id'] === $userId) {
                 $userEntry = $this->buildUserEntryPayload(
@@ -122,7 +161,8 @@ class QueueReadService
                     0,
                     0,
                     (int)$entryServing['serving_since_minutes'],
-                    $entryServing['professional_name'] ?? null
+                    $entryServing['professional_name'] ?? null,
+                    $this->minutesSince($entryServing['called_at'] ?? null, $now)
                 );
             }
 
@@ -165,10 +205,12 @@ class QueueReadService
 
         return [
             'entries' => $entries,
+            'entries_called' => $entriesCalled,
             'entries_serving' => $entriesServing,
             'entries_completed' => $entriesCompleted,
             'statistics' => [
                 'total_waiting' => $waitingCount,
+                'total_called' => $calledCount,
                 'total_being_served' => count($entriesServing),
                 'total_completed_today' => count($entriesCompleted),
                 'average_wait_time_minutes' => (int)($avgWaitResult[0]['avg_wait'] ?? 0),
@@ -301,7 +343,8 @@ class QueueReadService
         int $peopleAhead,
         int $estimatedWaitMinutes,
         int $servingSinceMinutes = 0,
-        ?string $professionalName = null
+        ?string $professionalName = null,
+        int $calledSinceMinutes = 0
     ): array {
         return [
             'entry_public_id' => $entry['public_id'] ?? null,
@@ -312,6 +355,7 @@ class QueueReadService
             'estimated_wait_minutes' => $estimatedWaitMinutes,
             'joined_at' => $entry['created_at'] ?? null,
             'called_at' => $entry['called_at'] ?? null,
+            'called_since_minutes' => $calledSinceMinutes,
             'serving_since_minutes' => $servingSinceMinutes,
             'professional_name' => $professionalName,
         ];

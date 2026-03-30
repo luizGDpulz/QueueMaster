@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS queues (
   status ENUM('open','closed','paused') NOT NULL DEFAULT 'open',
   max_capacity INT NULL COMMENT 'Maximum entries allowed (NULL = unlimited)',
   avg_wait_minutes INT NULL COMMENT 'Average wait time in minutes',
+  called_highlight_after_minutes INT NOT NULL DEFAULT 5 COMMENT 'Minutes before a called entry is highlighted as delayed (0 disables)',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_queues_establishment

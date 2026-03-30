@@ -230,6 +230,14 @@ class Queue
             }
         }
 
+        if (isset($data['called_highlight_after_minutes'])) {
+            if (!is_numeric($data['called_highlight_after_minutes'])) {
+                $errors['called_highlight_after_minutes'] = 'Called highlight threshold must be numeric';
+            } elseif ((int)$data['called_highlight_after_minutes'] < 0 || (int)$data['called_highlight_after_minutes'] > 240) {
+                $errors['called_highlight_after_minutes'] = 'Called highlight threshold must be between 0 and 240 minutes';
+            }
+        }
+
         return $errors;
     }
 
@@ -243,6 +251,7 @@ class Queue
      * - status: enum('open','closed','paused') NOT NULL DEFAULT 'open'
      * - max_capacity: int NULL
      * - avg_wait_minutes: int NULL
+     * - called_highlight_after_minutes: int NOT NULL DEFAULT 5
      * - created_at: timestamp NOT NULL
      * - updated_at: timestamp NULL
      */

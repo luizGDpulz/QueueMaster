@@ -360,6 +360,7 @@ class QueuesController
             Response::success([
                 'queue' => $queue,
                 'entries' => $statusPayload['entries'],
+                'entries_called' => $statusPayload['entries_called'],
                 'entries_serving' => $statusPayload['entries_serving'],
                 'entries_completed' => $statusPayload['entries_completed'],
                 'statistics' => $statusPayload['statistics'],
@@ -573,6 +574,7 @@ class QueuesController
             'establishment_id' => 'required|integer',
             'name' => 'required|min:2|max:150',
             'status' => 'required',
+            'called_highlight_after_minutes' => 'integer|min:0|max:240',
         ]);
 
         if (!empty($errors)) {
@@ -612,6 +614,9 @@ class QueuesController
                 'status' => $data['status'],
                 'description' => isset($data['description']) ? trim((string)$data['description']) : null,
                 'max_capacity' => isset($data['max_capacity']) && $data['max_capacity'] !== '' ? (int)$data['max_capacity'] : null,
+                'called_highlight_after_minutes' => isset($data['called_highlight_after_minutes']) && $data['called_highlight_after_minutes'] !== ''
+                    ? max(0, (int)$data['called_highlight_after_minutes'])
+                    : 5,
             ]);
 
             $this->syncPrimaryQueueServiceLink($queueId, $serviceId);
@@ -701,6 +706,23 @@ class QueuesController
                     return;
                 }
                 $updateData['service_id'] = $serviceId;
+            }
+
+            if (isset($body['called_highlight_after_minutes'])) {
+                $calledHighlightAfterMinutes = $body['called_highlight_after_minutes'];
+                if ($calledHighlightAfterMinutes === null || $calledHighlightAfterMinutes === '') {
+                    $updateData['called_highlight_after_minutes'] = 5;
+                } elseif (!is_numeric($calledHighlightAfterMinutes) || (int)$calledHighlightAfterMinutes < 0 || (int)$calledHighlightAfterMinutes > 240) {
+                    Response::error(
+                        'BAD_REQUEST',
+                        'called_highlight_after_minutes must be between 0 and 240 minutes',
+                        400,
+                        $request->requestId
+                    );
+                    return;
+                } else {
+                    $updateData['called_highlight_after_minutes'] = (int)$calledHighlightAfterMinutes;
+                }
             }
 
             if (empty($updateData)) {
@@ -1016,6 +1038,8 @@ class QueuesController
         $errors = Validator::make($data, [
             'status' => 'required',
             'notes' => 'max:1000',
+            'professional_id' => 'integer',
+            'professional_user_id' => 'integer',
         ]);
 
         if (!empty($errors)) {
@@ -1051,37 +1075,63 @@ class QueuesController
 
             $db = Database::getInstance();
             $oldStatus = $entry['status'];
+            $normalizedOldStatus = (string)$oldStatus;
+            $normalizedNewStatus = (string)$newStatus;
+
+            if ($normalizedOldStatus === $normalizedNewStatus) {
+                Response::error('INVALID_STATUS', 'Entry is already in this status', 400, $request->requestId);
+                return;
+            }
+
+            if (!$this->isAllowedEntryStatusTransition($normalizedOldStatus, $normalizedNewStatus)) {
+                Response::error(
+                    'INVALID_STATUS_TRANSITION',
+                    sprintf('Cannot move entry from %s to %s', $normalizedOldStatus, $normalizedNewStatus),
+                    422,
+                    $request->requestId
+                );
+                return;
+            }
+
             $updateData = ['status' => $newStatus];
+            $now = date('Y-m-d H:i:s');
 
             // Set timestamps based on transition
             switch ($newStatus) {
                 case 'called':
-                    $updateData['called_at'] = date('Y-m-d H:i:s');
+                    $updateData['called_at'] = $now;
+                    $updateData['served_at'] = null;
+                    $updateData['completed_at'] = null;
+                    $updateData['professional_id'] = null;
                     break;
                 case 'serving':
-                    $updateData['served_at'] = date('Y-m-d H:i:s');
+                    $updateData['served_at'] = $now;
                     if (empty($entry['called_at'])) {
-                        $updateData['called_at'] = date('Y-m-d H:i:s');
+                        $updateData['called_at'] = $now;
                     }
-                    // Assign professional: use provided professional_id or the current authenticated user
-                    $assignedProfessionalId = isset($data['professional_id'])
-                        ? (int)$data['professional_id']
-                        : (int)$request->user['id'];
-
-                    if (!$this->accessService->userBelongsToEstablishment($assignedProfessionalId, (int)$queue['establishment_id'])) {
-                        Response::error('INVALID_PROFESSIONAL', 'Professional does not belong to this establishment', 422, $request->requestId);
-                        return;
-                    }
-                    $updateData['professional_id'] = $assignedProfessionalId;
+                    $updateData['completed_at'] = null;
+                    $updateData['professional_id'] = $this->resolveServingProfessionalUserId($request->user, $queue, $data);
                     break;
                 case 'done':
-                    $updateData['completed_at'] = date('Y-m-d H:i:s');
+                    $updateData['completed_at'] = $now;
                     if (empty($entry['served_at'])) {
-                        $updateData['served_at'] = date('Y-m-d H:i:s');
+                        $updateData['served_at'] = $now;
                     }
                     break;
                 case 'no_show':
-                    $updateData['completed_at'] = date('Y-m-d H:i:s');
+                    $updateData['completed_at'] = $now;
+                    if (empty($entry['called_at'])) {
+                        $updateData['called_at'] = $now;
+                    }
+                    break;
+                case 'cancelled':
+                    $updateData['completed_at'] = $now;
+                    if (empty($entry['called_at']) && in_array($normalizedOldStatus, ['called', 'serving'], true)) {
+                        $updateData['called_at'] = $now;
+                    }
+                    if (empty($entry['served_at']) && $normalizedOldStatus === 'serving') {
+                        $updateData['served_at'] = $now;
+                    }
                     break;
                 case 'waiting':
                     // Re-enqueue: clear progress timestamps, assign new position at END, reset priority
@@ -1122,6 +1172,12 @@ class QueuesController
                 'message' => 'Entry status updated successfully',
             ]);
 
+        } catch (\InvalidArgumentException $e) {
+            $db = Database::getInstance();
+            if ($db->inTransaction()) {
+                $db->rollback();
+            }
+            Response::error('INVALID_PROFESSIONAL', $e->getMessage(), 422, $request->requestId);
         } catch (\RuntimeException $e) {
             $db = Database::getInstance();
             if ($db->inTransaction()) {
@@ -2401,6 +2457,86 @@ class QueuesController
                 $actorUserId
             );
         }
+    }
+
+    private function isAllowedEntryStatusTransition(string $currentStatus, string $newStatus): bool
+    {
+        $allowedTransitions = [
+            'waiting' => ['called', 'serving', 'cancelled'],
+            'called' => ['waiting', 'serving', 'no_show', 'cancelled'],
+            'serving' => ['waiting', 'done', 'cancelled'],
+            'done' => ['waiting'],
+            'no_show' => ['waiting'],
+            'cancelled' => ['waiting'],
+        ];
+
+        return in_array($newStatus, $allowedTransitions[$currentStatus] ?? [], true);
+    }
+
+    private function resolveServingProfessionalUserId(array $staffUser, array $queue, array $data): int
+    {
+        $queueId = (int)($queue['id'] ?? 0);
+        $currentUserId = (int)($staffUser['id'] ?? 0);
+        $requestedProfessionalUserId = $this->resolveRequestedProfessionalUserId($data);
+
+        if ($this->accessService->isAdmin($staffUser)) {
+            $assignedUserId = $requestedProfessionalUserId ?? $currentUserId;
+            if ($assignedUserId <= 0 || !User::find($assignedUserId)) {
+                throw new \InvalidArgumentException('Selecione um profissional valido para iniciar o atendimento');
+            }
+
+            return $assignedUserId;
+        }
+
+        if ($this->accessService->isProfessional($staffUser)) {
+            if ($requestedProfessionalUserId !== null && $requestedProfessionalUserId !== $currentUserId) {
+                throw new \RuntimeException('Profissionais so podem assumir o proprio atendimento');
+            }
+
+            if (!$this->isActiveQueueProfessional($queueId, $currentUserId)) {
+                throw new \InvalidArgumentException('Voce precisa estar ativo como profissional desta fila para assumir o atendimento');
+            }
+
+            return $currentUserId;
+        }
+
+        $assignedUserId = $requestedProfessionalUserId;
+        if ($assignedUserId === null) {
+            if ($this->isActiveQueueProfessional($queueId, $currentUserId)) {
+                return $currentUserId;
+            }
+
+            throw new \InvalidArgumentException('Selecione um profissional ativo desta fila para iniciar o atendimento');
+        }
+
+        if (!$this->isActiveQueueProfessional($queueId, $assignedUserId)) {
+            throw new \InvalidArgumentException('Selecione um profissional ativo desta fila para iniciar o atendimento');
+        }
+
+        return $assignedUserId;
+    }
+
+    private function resolveRequestedProfessionalUserId(array $data): ?int
+    {
+        if (isset($data['professional_user_id']) && $data['professional_user_id'] !== '') {
+            return (int)$data['professional_user_id'];
+        }
+
+        if (isset($data['professional_id']) && $data['professional_id'] !== '') {
+            return (int)$data['professional_id'];
+        }
+
+        return null;
+    }
+
+    private function isActiveQueueProfessional(int $queueId, int $userId): bool
+    {
+        if ($queueId <= 0 || $userId <= 0) {
+            return false;
+        }
+
+        $assignment = QueueProfessional::findByQueueAndUser($queueId, $userId);
+        return $assignment !== null && !empty($assignment['is_active']);
     }
 
     private function buildQueuePermissions(?array $user, array $queue): array

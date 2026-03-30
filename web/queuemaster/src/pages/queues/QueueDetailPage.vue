@@ -58,10 +58,30 @@
               <span class="detail-value">{{ statistics?.average_wait_time_minutes || 0 }} min</span>
             </div>
           </div>
-        <div v-if="userEntry" class="highlight-box q-mt-md">
-          <q-icon name="person" size="20px" />
-          <span>Você está na posição <strong>{{ userEntry.position }}</strong></span>
-          <span class="text-muted">(~{{ userEntry.estimated_wait_minutes || '?' }} min)</span>
+        <div
+          v-if="userEntry"
+          class="highlight-box q-mt-md"
+          :class="{
+            'highlight-box--called': userEntry.status === 'called',
+            'highlight-box--serving': userEntry.status === 'serving',
+          }"
+        >
+          <q-icon :name="userEntry.status === 'called' ? 'campaign' : userEntry.status === 'serving' ? 'headset_mic' : 'person'" size="20px" />
+          <template v-if="userEntry.status === 'waiting'">
+            <span>Voc? est? na posi??o <strong>{{ userEntry.position }}</strong></span>
+            <span class="text-muted">(~{{ userEntry.estimated_wait_minutes || '?' }} min)</span>
+          </template>
+          <template v-else-if="userEntry.status === 'called'">
+            <span>Voc? foi chamado para atendimento.</span>
+            <span class="text-muted">Chamado h? {{ formatWaitTime(userEntry.called_since_minutes || 0) }}</span>
+          </template>
+          <template v-else-if="userEntry.status === 'serving'">
+            <span>Voc? est? em atendimento.</span>
+            <span class="text-muted">
+              <template v-if="userEntry.professional_name">Com {{ userEntry.professional_name }} ? </template>
+              h? {{ formatWaitTime(userEntry.serving_since_minutes || 0) }}
+            </span>
+          </template>
         </div>
       </div>
 
@@ -122,16 +142,20 @@
             <span class="stat-text">Aguardando</span>
           </div>
           <div class="stat-box soft-card">
+            <span class="stat-number">{{ statistics?.total_called || 0 }}</span>
+            <span class="stat-text">Chamados</span>
+          </div>
+          <div class="stat-box soft-card">
             <span class="stat-number">{{ statistics?.total_being_served || 0 }}</span>
             <span class="stat-text">Em atendimento</span>
           </div>
           <div class="stat-box soft-card">
             <span class="stat-number">{{ statistics?.total_completed_today || 0 }}</span>
-            <span class="stat-text">Concluídos hoje</span>
+            <span class="stat-text">Conclu?dos hoje</span>
           </div>
           <div class="stat-box soft-card">
             <span class="stat-number">{{ statistics?.average_wait_time_minutes || 0 }} min</span>
-            <span class="stat-text">Tempo médio</span>
+            <span class="stat-text">Tempo m?dio</span>
           </div>
         </div>
 
@@ -140,10 +164,11 @@
           <q-tabs v-model="mainTab" dense class="main-tabs" active-color="primary" indicator-color="primary" align="left" narrow-indicator>
             <q-tab name="flow" icon="swap_vert" label="Fluxo" no-caps />
             <q-tab name="professionals" icon="badge" label="Profissionais" no-caps />
-            <q-tab name="info" icon="info" label="Informações" no-caps />
-            <q-tab name="services" icon="miscellaneous_services" label="Serviços" no-caps />
-            <q-tab name="tokens" icon="qr_code_2" label="Códigos" no-caps />
-            <q-tab name="reports" icon="analytics" label="Relatórios" no-caps />
+            <q-tab name="info" icon="info" label="Informa??es" no-caps />
+            <q-tab name="settings" icon="tune" label="Configura??es" no-caps />
+            <q-tab name="services" icon="miscellaneous_services" label="Servi?os" no-caps />
+            <q-tab name="tokens" icon="qr_code_2" label="C?digos" no-caps />
+            <q-tab name="reports" icon="analytics" label="Relat?rios" no-caps />
           </q-tabs>
 
           <q-separator style="margin-top: 10px;" />
@@ -166,6 +191,12 @@
                     <StatusPill v-if="waitingEntries.length" :label="String(waitingEntries.length)" variant="warning" />
                   </div>
                 </q-tab>
+                <q-tab name="called" no-caps>
+                  <div class="tab-label-row">
+                    <span>Chamados</span>
+                    <StatusPill v-if="calledEntries.length" :label="String(calledEntries.length)" variant="orange" />
+                  </div>
+                </q-tab>
                 <q-tab name="serving" no-caps>
                   <div class="tab-label-row">
                     <span>Em Atendimento</span>
@@ -174,7 +205,7 @@
                 </q-tab>
                 <q-tab name="completed" no-caps>
                   <div class="tab-label-row">
-                    <span>Concluídos</span>
+                    <span>Conclu?dos</span>
                     <StatusPill v-if="completedEntries.length" :label="String(completedEntries.length)" variant="positive" />
                   </div>
                 </q-tab>
@@ -182,97 +213,202 @@
 
               <q-separator />
 
-              <!-- Selection Toolbar -->
               <div v-if="hasAnySelection" class="selection-toolbar">
                 <span class="selection-count">{{ totalSelected }} selecionado(s)</span>
-                <q-btn flat dense no-caps icon="arrow_upward" label="Mover p/ cima" @click="batchMoveSelected('up')" :loading="movingEntries" />
-                <q-btn flat dense no-caps icon="arrow_downward" label="Mover p/ baixo" @click="batchMoveSelected('down')" :loading="movingEntries" />
+                <q-btn v-if="flowTab === 'waiting' && hasWaitingSelection" flat dense no-caps icon="arrow_upward" label="Mover p/ cima" @click="batchMoveSelected('up')" :loading="movingEntries" />
+                <q-btn v-if="flowTab === 'waiting' && hasWaitingSelection" flat dense no-caps icon="arrow_downward" label="Mover p/ baixo" @click="batchMoveSelected('down')" :loading="movingEntries" />
                 <q-btn flat dense no-caps icon="delete_sweep" label="Remover" color="negative" @click="batchRemoveSelected(flowTab)" :loading="batchRemoving" />
                 <q-btn flat dense no-caps label="Limpar" @click="clearSelection" />
               </div>
 
               <q-tab-panels v-model="flowTab" animated class="flow-panels">
-
-                <!-- ====== WAITING ====== -->
                 <q-tab-panel name="waiting" class="q-pa-none">
                   <div v-if="waitingEntries.length === 0" class="empty-state-sm">
                     <q-icon name="groups" size="48px" />
                     <p>Nenhuma pessoa aguardando</p>
                   </div>
-                  <div v-else class="entry-list" :class="{ 'has-selection': hasWaitingSelection }">
-                    <div
-                      v-for="(entry, index) in sortedWaitingEntries"
-                      :key="entry.id"
-                      class="entry-row"
-                      :class="{ 'entry-row--selected': selectedWaiting.includes(entry.id) }"
-                    >
-                      <div class="entry-body" @click="openEntryMenu($event, entry, 'waiting')">
-                        <div class="entry-pos-wrap">
-                          <div class="entry-pos">{{ index + 1 }}</div>
-                          <q-checkbox
-                            v-if="canManage"
-                            :model-value="selectedWaiting.includes(entry.id)"
-                            @update:model-value="toggleSelect(entry.id, 'waiting')"
-                            dense
-                            class="entry-check"
-                            @click.stop
-                          />
-                        </div>
-                        <div class="entry-info">
-                          <div class="entry-name-row">
-                            <span class="entry-name">{{ entry.user_name }}</span>
-                            <StatusPill v-if="entry.priority >= 2" label="Muito Prioritário" variant="negative" />
+                  <div v-else class="table-wrap queue-table-wrap">
+                    <table class="data-table queue-data-table">
+                      <thead>
+                        <tr>
+                          <th class="queue-col-check">Fila</th>
+                          <th>Pessoa</th>
+                          <th>Prioridade</th>
+                          <th>Espera</th>
+                          <th class="queue-col-actions">A??es</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(entry, index) in sortedWaitingEntries" :key="entry.id">
+                          <td>
+                            <div class="queue-order-cell">
+                              <q-checkbox
+                                v-if="canManage"
+                                :model-value="selectedWaiting.includes(entry.id)"
+                                @update:model-value="toggleSelect(entry.id, 'waiting')"
+                                dense
+                              />
+                              <span class="queue-order-number">{{ index + 1 }}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div class="user-cell queue-user-cell">
+                              <div class="avatar queue-avatar"><q-icon name="person" size="18px" /></div>
+                              <div class="meta">
+                                <div class="meta-top">
+                                  <strong>{{ entry.user_name }}</strong>
+                                </div>
+                                <span>{{ entry.user_email || entry.guest_phone || 'Entrada ativa na fila' }}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <StatusPill v-if="entry.priority >= 2" label="Muito priorit?rio" variant="negative" />
                             <StatusPill v-else-if="entry.priority === 1" label="Prioridade" variant="orange" />
-                          </div>
-                          <span class="entry-meta">
-                            <q-icon name="schedule" size="12px" class="q-mr-xs" />
-                            {{ formatWaitTime(entry.waiting_since_minutes) }}
-                          </span>
-                        </div>
-                      </div>
-                      <q-btn v-if="canManage" flat round dense icon="more_vert" size="sm" class="entry-dots" @click.stop="openEntryMenu($event, entry, 'waiting')" />
-                    </div>
+                            <span v-else class="table-muted">Normal</span>
+                          </td>
+                          <td>
+                            <span class="table-strong">{{ formatWaitTime(entry.waiting_since_minutes) }}</span>
+                          </td>
+                          <td>
+                            <div class="queue-row-actions">
+                              <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Hist?rico</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="campaign" color="warning" @click.stop="updateEntryStatus(entry.id, 'called')"><q-tooltip>Chamar</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="headset_mic" color="primary" @click.stop="beginServingEntry(entry)"><q-tooltip>Atender agora</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="person_remove" color="negative" @click.stop="confirmRemoveEntry(entry.id, entry.user_name)"><q-tooltip>Remover</q-tooltip></q-btn>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </q-tab-panel>
 
-                <!-- ====== SERVING ====== -->
+                <q-tab-panel name="called" class="q-pa-none">
+                  <div v-if="calledEntries.length === 0" class="empty-state-sm">
+                    <q-icon name="campaign" size="48px" />
+                    <p>Ningu?m foi chamado ainda</p>
+                  </div>
+                  <div v-else class="table-wrap queue-table-wrap">
+                    <table class="data-table queue-data-table">
+                      <thead>
+                        <tr>
+                          <th class="queue-col-check">Fila</th>
+                          <th>Pessoa</th>
+                          <th>Chamado h?</th>
+                          <th>Status</th>
+                          <th class="queue-col-actions">A??es</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="entry in calledEntries" :key="entry.id" :class="{ 'queue-entry-row--delayed': isCalledEntryDelayed(entry) }">
+                          <td>
+                            <div class="queue-order-cell">
+                              <q-checkbox
+                                v-if="canManage"
+                                :model-value="selectedCalled.includes(entry.id)"
+                                @update:model-value="toggleSelect(entry.id, 'called')"
+                                dense
+                              />
+                              <q-icon name="campaign" size="16px" class="queue-order-icon" />
+                            </div>
+                          </td>
+                          <td>
+                            <div class="user-cell queue-user-cell">
+                              <div class="avatar queue-avatar"><q-icon name="notifications_active" size="18px" /></div>
+                              <div class="meta">
+                                <div class="meta-top">
+                                  <strong>{{ entry.user_name }}</strong>
+                                </div>
+                                <span>{{ entry.user_email || entry.guest_phone || 'Aguardando comparecimento' }}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span class="table-strong">{{ formatWaitTime(entry.called_since_minutes) }}</span>
+                          </td>
+                          <td>
+                            <StatusPill :label="isCalledEntryDelayed(entry) ? 'Atrasado' : 'Aguardando chegada'" :variant="isCalledEntryDelayed(entry) ? 'negative' : 'warning'" />
+                          </td>
+                          <td>
+                            <div class="queue-row-actions">
+                              <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Hist?rico</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="headset_mic" color="primary" @click.stop="beginServingEntry(entry)"><q-tooltip>Assumir atendimento</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="badge" color="secondary" @click.stop="openAssignProfessionalDialog(entry)"><q-tooltip>Atribuir profissional</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="undo" color="grey-7" @click.stop="updateEntryStatus(entry.id, 'waiting')"><q-tooltip>Retornar ? fila</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="person_off" color="negative" @click.stop="openNotesDialog(entry.id, 'no_show')"><q-tooltip>N?o compareceu</q-tooltip></q-btn>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </q-tab-panel>
+
                 <q-tab-panel name="serving" class="q-pa-none">
                   <div v-if="servingEntries.length === 0" class="empty-state-sm">
                     <q-icon name="support_agent" size="48px" />
                     <p>Nenhuma pessoa em atendimento</p>
                   </div>
-                  <div v-else class="entry-list" :class="{ 'has-selection': hasServingSelection }">
-                    <div
-                      v-for="entry in servingEntries"
-                      :key="entry.id"
-                      class="entry-row"
-                      :class="{ 'entry-row--selected': selectedServing.includes(entry.id) }"
-                    >
-                      <div class="entry-body" @click="openEntryMenu($event, entry, 'serving')">
-                        <div class="entry-pos-wrap">
-                          <div class="entry-pos entry-pos--serving"><q-icon name="headset_mic" size="16px" /></div>
-                          <q-checkbox v-if="canManage" :model-value="selectedServing.includes(entry.id)" @update:model-value="toggleSelect(entry.id, 'serving')" dense class="entry-check" @click.stop />
-                        </div>
-                        <div class="entry-info">
-                          <div class="entry-name-row">
-                            <span class="entry-name">{{ entry.user_name }}</span>
-                            <StatusPill v-if="entry.priority > 0" label="Prioridade" variant="orange" />
-                          </div>
-                          <span class="entry-meta">
-                            <q-icon name="timer" size="12px" class="q-mr-xs" />
-                            Em atendimento há {{ formatWaitTime(entry.serving_since_minutes) }}
-                            <template v-if="entry.professional_name"> · por {{ entry.professional_name }}</template>
-                          </span>
-                        </div>
-                      </div>
-                      <q-btn v-if="canManage" flat round dense icon="more_vert" size="sm" class="entry-dots" @click.stop="openEntryMenu($event, entry, 'serving')" />
-                    </div>
+                  <div v-else class="table-wrap queue-table-wrap">
+                    <table class="data-table queue-data-table">
+                      <thead>
+                        <tr>
+                          <th class="queue-col-check">Fila</th>
+                          <th>Pessoa</th>
+                          <th>Profissional</th>
+                          <th>Em atendimento</th>
+                          <th class="queue-col-actions">A??es</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="entry in servingEntries" :key="entry.id">
+                          <td>
+                            <div class="queue-order-cell">
+                              <q-checkbox
+                                v-if="canManage"
+                                :model-value="selectedServing.includes(entry.id)"
+                                @update:model-value="toggleSelect(entry.id, 'serving')"
+                                dense
+                              />
+                              <q-icon name="headset_mic" size="16px" class="queue-order-icon" />
+                            </div>
+                          </td>
+                          <td>
+                            <div class="user-cell queue-user-cell">
+                              <div class="avatar queue-avatar"><q-icon name="support_agent" size="18px" /></div>
+                              <div class="meta">
+                                <div class="meta-top">
+                                  <strong>{{ entry.user_name }}</strong>
+                                </div>
+                                <span>{{ entry.user_email || entry.guest_phone || 'Em atendimento agora' }}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span class="table-strong">{{ entry.professional_name || 'Profissional n?o informado' }}</span>
+                          </td>
+                          <td>
+                            <span class="table-strong">{{ formatWaitTime(entry.serving_since_minutes) }}</span>
+                          </td>
+                          <td>
+                            <div class="queue-row-actions">
+                              <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Hist?rico</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="check_circle" color="positive" @click.stop="updateEntryStatus(entry.id, 'done')"><q-tooltip>Concluir</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="undo" color="grey-7" @click.stop="updateEntryStatus(entry.id, 'waiting')"><q-tooltip>Retornar ? fila</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="cancel" color="negative" @click.stop="confirmRemoveEntry(entry.id, entry.user_name)"><q-tooltip>Cancelar</q-tooltip></q-btn>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </q-tab-panel>
 
-                <!-- ====== COMPLETED ====== -->
                 <q-tab-panel name="completed" class="q-pa-none">
-                  <!-- Completed date filter -->
                   <div class="completed-filter">
                     <q-btn-toggle
                       v-model="completedPeriod"
@@ -280,40 +416,60 @@
                       toggle-color="primary"
                       :options="[
                         { label: 'Hoje', value: 'today' },
-                        { label: 'Período', value: 'custom' },
+                        { label: 'Per?odo', value: 'custom' },
                       ]"
                       class="completed-toggle"
                       @update:model-value="onCompletedPeriodChange"
                     />
                     <div v-if="completedPeriod === 'custom'" class="completed-dates">
                       <q-input v-model="completedFrom" outlined dense type="date" label="De" @update:model-value="fetchData" />
-                      <q-input v-model="completedTo" outlined dense type="date" label="Até" @update:model-value="fetchData" />
+                      <q-input v-model="completedTo" outlined dense type="date" label="At?" @update:model-value="fetchData" />
                     </div>
                   </div>
 
                   <div v-if="completedEntries.length === 0" class="empty-state-sm">
                     <q-icon name="check_circle" size="48px" />
-                    <p>Nenhum atendimento concluído{{ completedPeriod === 'today' ? ' hoje' : '' }}</p>
+                    <p>Nenhum atendimento conclu?do{{ completedPeriod === 'today' ? ' hoje' : '' }}</p>
                   </div>
-                  <div v-else class="entry-list">
-                    <div v-for="entry in completedEntries" :key="entry.id" class="entry-row">
-                      <div class="entry-body" @click="openEntryMenu($event, entry, 'completed')">
-                        <div class="entry-pos entry-pos--done" :class="{ 'entry-pos--noshow': entry.status === 'no_show' }">
-                          <q-icon :name="entry.status === 'no_show' ? 'person_off' : 'check'" size="16px" />
-                        </div>
-                        <div class="entry-info">
-                          <div class="entry-name-row">
-                            <span class="entry-name">{{ entry.user_name }}</span>
-                            <StatusPill :label="entry.status === 'no_show' ? 'Não compareceu' : 'Concluído'" :variant="entry.status === 'no_show' ? 'negative' : 'positive'" />
-                          </div>
-                          <span class="entry-meta">
-                            <q-icon name="event" size="12px" class="q-mr-xs" />
-                            {{ formatDate(entry.completed_at || entry.updated_at) }}
-                          </span>
-                        </div>
-                      </div>
-                      <q-btn v-if="canManage" flat round dense icon="more_vert" size="sm" class="entry-dots" @click.stop="openEntryMenu($event, entry, 'completed')" />
-                    </div>
+                  <div v-else class="table-wrap queue-table-wrap">
+                    <table class="data-table queue-data-table">
+                      <thead>
+                        <tr>
+                          <th>Pessoa</th>
+                          <th>Resultado</th>
+                          <th>Finalizado em</th>
+                          <th class="queue-col-actions">A??es</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="entry in completedEntries" :key="entry.id">
+                          <td>
+                            <div class="user-cell queue-user-cell">
+                              <div class="avatar queue-avatar"><q-icon :name="entry.status === 'no_show' ? 'person_off' : 'check_circle'" size="18px" /></div>
+                              <div class="meta">
+                                <div class="meta-top">
+                                  <strong>{{ entry.user_name }}</strong>
+                                </div>
+                                <span>{{ entry.user_email || 'Fluxo conclu?do' }}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <StatusPill :label="entry.status === 'no_show' ? 'N?o compareceu' : 'Conclu?do'" :variant="entry.status === 'no_show' ? 'negative' : 'positive'" />
+                          </td>
+                          <td>
+                            <span class="table-strong">{{ formatDate(entry.completed_at || entry.updated_at) }}</span>
+                          </td>
+                          <td>
+                            <div class="queue-row-actions">
+                              <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Hist?rico</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="replay" color="primary" @click.stop="updateEntryStatus(entry.id, 'waiting')"><q-tooltip>Realocar para a fila</q-tooltip></q-btn>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </q-tab-panel>
               </q-tab-panels>
@@ -766,6 +922,35 @@
       </q-card>
     </q-dialog>
 
+    <q-dialog v-model="showAssignProfessionalDialog" persistent>
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-header">
+          <h3>Assumir atendimento</h3>
+          <q-btn flat round dense icon="close" @click="closeAssignProfessionalDialog()" />
+        </q-card-section>
+
+        <q-card-section class="dialog-content">
+          <p class="text-muted q-mb-md">
+            Vincule um profissional ao atendimento para mover a pessoa de <strong>Chamados</strong> para <strong>Em atendimento</strong>.
+          </p>
+          <q-select
+            v-model="assignProfessionalUserId"
+            outlined
+            dense
+            emit-value
+            map-options
+            :options="activeQueueProfessionalOptions"
+            label="Profissional respons?vel"
+          />
+        </q-card-section>
+
+        <q-card-actions align="right" class="dialog-actions">
+          <q-btn flat label="Cancelar" no-caps @click="closeAssignProfessionalDialog()" />
+          <q-btn color="primary" label="Iniciar atendimento" no-caps :loading="assigningProfessional" @click="confirmAssignProfessional" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-dialog v-model="showRemoveProfessionalDialog" persistent>
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
@@ -1145,6 +1330,7 @@ export default defineComponent({
     // -- Core state --
     const queue = ref(null)
     const waitingEntries = ref([])
+    const calledEntries = ref([])
     const servingEntries = ref([])
     const completedEntries = ref([])
     const statistics = ref(null)
@@ -1210,6 +1396,7 @@ export default defineComponent({
 
     // -- Selection --
     const selectedWaiting = ref([])
+    const selectedCalled = ref([])
     const selectedServing = ref([])
 
     const sortedWaitingEntries = computed(() => {
@@ -1222,20 +1409,25 @@ export default defineComponent({
     })
 
     const hasWaitingSelection = computed(() => selectedWaiting.value.length > 0)
+    const hasCalledSelection = computed(() => selectedCalled.value.length > 0)
     const hasServingSelection = computed(() => selectedServing.value.length > 0)
-    const hasAnySelection = computed(() => hasWaitingSelection.value || hasServingSelection.value)
-    const totalSelected = computed(() => selectedWaiting.value.length + selectedServing.value.length)
+    const hasAnySelection = computed(() => hasWaitingSelection.value || hasCalledSelection.value || hasServingSelection.value)
+    const totalSelected = computed(() => selectedWaiting.value.length + selectedCalled.value.length + selectedServing.value.length)
     const removeEntryDialogLoading = computed(() => (
       removeEntryTarget.value ? isEntryRemoving(removeEntryTarget.value.id) : false
     ))
 
     const toggleSelect = (id, type) => {
-      const arr = type === 'waiting' ? selectedWaiting : selectedServing
+      const arr = type === 'waiting'
+        ? selectedWaiting
+        : type === 'called'
+          ? selectedCalled
+          : selectedServing
       const idx = arr.value.indexOf(id)
       if (idx >= 0) arr.value.splice(idx, 1)
       else arr.value.push(id)
     }
-    const clearSelection = () => { selectedWaiting.value = []; selectedServing.value = [] }
+    const clearSelection = () => { selectedWaiting.value = []; selectedCalled.value = []; selectedServing.value = [] }
     const isEntryRemoving = (entryId) => removingEntryIds.value.includes(Number(entryId))
     const closeRemoveEntryDialog = (force = false) => {
       if (!force && removeEntryDialogLoading.value) return
@@ -1265,13 +1457,20 @@ export default defineComponent({
       if (!ids.size) return
 
       const removedWaiting = waitingEntries.value.filter(entry => ids.has(Number(entry.id)))
+      const removedCalled = calledEntries.value.filter(entry => ids.has(Number(entry.id)))
       const removedServing = servingEntries.value.filter(entry => ids.has(Number(entry.id)))
+      const removedPublicIds = new Set(
+        [...removedWaiting, ...removedCalled, ...removedServing]
+          .map(entry => entry.public_id || entry.entry_public_id)
+          .filter(Boolean)
+      )
 
       waitingEntries.value = waitingEntries.value.filter(entry => !ids.has(Number(entry.id)))
+      calledEntries.value = calledEntries.value.filter(entry => !ids.has(Number(entry.id)))
       servingEntries.value = servingEntries.value.filter(entry => !ids.has(Number(entry.id)))
       completedEntries.value = completedEntries.value.filter(entry => !ids.has(Number(entry.id)))
 
-      if (userEntry.value && ids.has(Number(userEntry.value.entry_id || userEntry.value.id || -1))) {
+      if (userEntry.value && removedPublicIds.has(userEntry.value.entry_public_id)) {
         userEntry.value = null
       }
 
@@ -1279,6 +1478,7 @@ export default defineComponent({
         statistics.value = {
           ...statistics.value,
           total_waiting: Math.max(0, Number(statistics.value.total_waiting || 0) - removedWaiting.length),
+          total_called: Math.max(0, Number(statistics.value.total_called || 0) - removedCalled.length),
           total_being_served: Math.max(0, Number(statistics.value.total_being_served || 0) - removedServing.length),
         }
       }
@@ -1313,14 +1513,13 @@ export default defineComponent({
     const addPersonPriority = ref(false)
     const addToStatusOptions = [
       { label: 'Aguardando', value: 'waiting' },
-      { label: 'Em Atendimento', value: 'serving' },
     ]
 
     const openAddPersonDialog = () => {
       searchEmail.value = ''
       searchEmailError.value = ''
       foundUser.value = null
-      addToStatus.value = flowTab.value === 'serving' ? 'serving' : 'waiting'
+      addToStatus.value = 'waiting'
       addPersonPriority.value = false
       showAddPersonDialog.value = true
     }
@@ -1362,6 +1561,8 @@ export default defineComponent({
     // -- Info tab (editable) --
     const infoEditing = ref(false)
     const infoForm = ref({ name: '', status: 'open', description: '', max_capacity: null })
+    const settingsEditing = ref(false)
+    const settingsForm = ref({ called_highlight_after_minutes: 5 })
 
     const startInfoEdit = () => {
       infoForm.value = {
@@ -1386,6 +1587,31 @@ export default defineComponent({
       } finally { saving.value = false }
     }
 
+    const startSettingsEdit = () => {
+      settingsForm.value = {
+        called_highlight_after_minutes: Number(queue.value?.called_highlight_after_minutes ?? 5),
+      }
+      settingsEditing.value = true
+    }
+    const cancelSettingsEdit = () => { settingsEditing.value = false }
+    const saveSettingsEdit = async () => {
+      const value = Number(settingsForm.value.called_highlight_after_minutes)
+      if (!Number.isFinite(value) || value < 0 || value > 240) {
+        $q.notify({ type: 'warning', message: 'Informe um valor entre 0 e 240 minutos' })
+        return
+      }
+
+      saving.value = true
+      try {
+        await api.put(`/queues/${queueId.value}`, { called_highlight_after_minutes: value })
+        $q.notify({ type: 'positive', message: 'Configurações da fila atualizadas' })
+        settingsEditing.value = false
+        await fetchData()
+      } catch (err) {
+        $q.notify({ type: 'negative', message: err.response?.data?.error?.message || 'Erro ao salvar configurações' })
+      } finally { saving.value = false }
+    }
+
     // -- Professionals tab --
     const queueProfessionals = ref([])
     const estProfessionals = ref([])
@@ -1394,10 +1620,32 @@ export default defineComponent({
     const showRemoveProfessionalDialog = ref(false)
     const professionalRemoveTarget = ref(null)
     const removingProfessional = ref(false)
+    const showAssignProfessionalDialog = ref(false)
+    const assignProfessionalTarget = ref(null)
+    const assignProfessionalUserId = ref(null)
+    const assigningProfessional = ref(false)
 
     const availableEstProfessionals = computed(() => {
       const assignedIds = queueProfessionals.value.map(qp => qp.user_id)
       return estProfessionals.value.filter(ep => !assignedIds.includes(ep.user_id))
+    })
+    const activeQueueProfessionalOptions = computed(() => {
+      const options = queueProfessionals.value
+        .filter(qp => qp.is_active)
+        .map(qp => ({ label: qp.user_name, value: qp.user_id }))
+
+      if (userRole.value === 'admin' && currentUserId.value && !options.some(option => Number(option.value) === Number(currentUserId.value))) {
+        options.unshift({ label: 'Eu mesmo', value: currentUserId.value })
+      }
+
+      return options
+    })
+    const currentUserIsActiveQueueProfessional = computed(() => (
+      queueProfessionals.value.some(qp => Number(qp.user_id) === Number(currentUserId.value) && qp.is_active)
+    ))
+    const calledHighlightAfterMinutes = computed(() => {
+      const value = Number(queue.value?.called_highlight_after_minutes ?? 5)
+      return Number.isFinite(value) ? Math.max(0, value) : 5
     })
 
     const fetchQueueProfessionals = async () => {
@@ -1516,6 +1764,65 @@ export default defineComponent({
       profMenuOpen.value = true
     }
     const onProfMenuSelect = () => {}
+
+    const isCalledEntryDelayed = (entry) => {
+      if (calledHighlightAfterMinutes.value <= 0) return false
+      return Number(entry?.called_since_minutes || 0) >= calledHighlightAfterMinutes.value
+    }
+
+    const beginServingEntry = async (entry) => {
+      if (!entry?.id) return
+
+      if (userRole.value === 'admin' || userRole.value === 'professional' || currentUserIsActiveQueueProfessional.value) {
+        await updateEntryStatus(entry.id, 'serving')
+        return
+      }
+
+      await openAssignProfessionalDialog(entry)
+    }
+
+    const openAssignProfessionalDialog = async (entry) => {
+      if (!queueProfessionals.value.length) {
+        await fetchQueueProfessionals()
+      }
+
+       if (!activeQueueProfessionalOptions.value.length) {
+        $q.notify({ type: 'warning', message: 'Nenhum profissional ativo está disponível nesta fila' })
+        return
+      }
+
+      assignProfessionalTarget.value = entry
+      assignProfessionalUserId.value = activeQueueProfessionalOptions.value[0]?.value ?? currentUserId.value ?? null
+      showAssignProfessionalDialog.value = true
+    }
+
+    const closeAssignProfessionalDialog = (force = false) => {
+      if (!force && assigningProfessional.value) return
+      showAssignProfessionalDialog.value = false
+      assignProfessionalTarget.value = null
+      assignProfessionalUserId.value = null
+    }
+
+    const confirmAssignProfessional = async () => {
+      if (!assignProfessionalTarget.value?.id) return
+      if (!assignProfessionalUserId.value) {
+        $q.notify({ type: 'warning', message: 'Selecione um profissional para iniciar o atendimento' })
+        return
+      }
+
+      assigningProfessional.value = true
+      try {
+        await updateEntryStatus(
+          assignProfessionalTarget.value.id,
+          'serving',
+          null,
+          { professional_user_id: assignProfessionalUserId.value }
+        )
+        closeAssignProfessionalDialog(true)
+      } finally {
+        assigningProfessional.value = false
+      }
+    }
 
     // -- Services tab --
     const queueServices = ref([])
@@ -1868,6 +2175,7 @@ export default defineComponent({
       if (!entryMenuEntry.value) return ''
       const e = entryMenuEntry.value
       if (entryMenuType.value === 'waiting') return `Aguardando há ${formatWaitTime(e.waiting_since_minutes)}`
+      if (entryMenuType.value === 'called') return `Chamado há ${formatWaitTime(e.called_since_minutes)}`
       if (entryMenuType.value === 'serving') return `Em atendimento há ${formatWaitTime(e.serving_since_minutes)}`
       return e.status === 'no_show' ? 'Não compareceu' : 'Concluído'
     })
@@ -1898,7 +2206,7 @@ export default defineComponent({
           profileItem,
           historyItem,
           { separator: true },
-          { key: 'serve', icon: 'headset_mic', label: 'Atender agora', action: () => updateEntryStatus(id, 'serving') },
+          { key: 'serve', icon: 'headset_mic', label: 'Atender agora', action: () => beginServingEntry(entry) },
           { key: 'call', icon: 'campaign', label: 'Chamar', action: () => updateEntryStatus(id, 'called') },
           { separator: true },
           {
@@ -1921,14 +2229,27 @@ export default defineComponent({
         ]
       }
 
+      if (t === 'called') {
+        return [
+          profileItem,
+          historyItem,
+          { separator: true },
+          { key: 'assume', icon: 'headset_mic', label: 'Assumir atendimento', action: () => beginServingEntry(entry) },
+          { key: 'assign', icon: 'badge', label: 'Atribuir profissional', action: () => openAssignProfessionalDialog(entry) },
+          { separator: true },
+          { key: 'return', icon: 'undo', label: 'Retornar à fila', action: () => updateEntryStatus(id, 'waiting') },
+          { key: 'no_show', icon: 'person_off', label: 'Não compareceu', action: () => openNotesDialog(id, 'no_show') },
+          { separator: true },
+          { key: 'remove', icon: 'person_remove', label: 'Cancelar atendimento', danger: true, disabled: isEntryRemoving(id), action: () => confirmRemoveEntry(id, entry.user_name) },
+        ]
+      }
+
       if (t === 'serving') {
         return [
           profileItem,
           historyItem,
           { separator: true },
           { key: 'done', icon: 'check_circle', label: 'Concluir atendimento', action: () => updateEntryStatus(id, 'done') },
-          { key: 'no_show', icon: 'person_off', label: 'Não compareceu', action: () => openNotesDialog(id, 'no_show') },
-          { separator: true },
           { key: 'return', icon: 'undo', label: 'Retornar à fila', action: () => updateEntryStatus(id, 'waiting') },
           { separator: true },
           { key: 'remove', icon: 'cancel', label: 'Cancelar atendimento', danger: true, disabled: isEntryRemoving(id), action: () => confirmRemoveEntry(id, entry.user_name) },
@@ -1941,7 +2262,6 @@ export default defineComponent({
           historyItem,
           { separator: true },
           { key: 'requeue', icon: 'replay', label: 'Realocar para a fila', action: () => updateEntryStatus(id, 'waiting') },
-          { key: 'serve_again', icon: 'headset_mic', label: 'Realocar p/ atendimento', action: () => updateEntryStatus(id, 'serving') },
         ]
       }
       return []
@@ -2067,6 +2387,7 @@ export default defineComponent({
           const d = data.data
           queue.value = d.queue || null
           waitingEntries.value = d.entries || []
+          calledEntries.value = d.entries_called || []
           servingEntries.value = d.entries_serving || []
           completedEntries.value = d.entries_completed || []
           statistics.value = d.statistics || null
@@ -2131,6 +2452,7 @@ export default defineComponent({
 
       if (ids.length) {
         selectedWaiting.value = selectedWaiting.value.filter(id => !ids.includes(Number(id)))
+        selectedCalled.value = selectedCalled.value.filter(id => !ids.includes(Number(id)))
         selectedServing.value = selectedServing.value.filter(id => !ids.includes(Number(id)))
       } else {
         clearSelection()
@@ -2142,10 +2464,10 @@ export default defineComponent({
       }
     }
 
-    const updateEntryStatus = async (entryId, status, notes = null) => {
+    const updateEntryStatus = async (entryId, status, notes = null, extraPayload = {}) => {
       updatingStatus.value = true
       try {
-        const payload = { status }
+        const payload = { status, ...extraPayload }
         if (notes) payload.notes = notes
         await api.put(`/queues/entries/${entryId}/status`, payload)
         $q.notify({ type: 'positive', message: 'Status atualizado' })
@@ -2202,8 +2524,17 @@ export default defineComponent({
 
     const batchRemoveSelected = (tab) => {
       const waitingIds = [...selectedWaiting.value]
+      const calledIds = [...selectedCalled.value]
       const servingIds = [...selectedServing.value]
-      const ids = (tab === 'waiting' ? waitingIds : tab === 'serving' ? servingIds : [...waitingIds, ...servingIds])
+      const ids = (
+        tab === 'waiting'
+          ? waitingIds
+          : tab === 'called'
+            ? calledIds
+            : tab === 'serving'
+              ? servingIds
+              : [...waitingIds, ...calledIds, ...servingIds]
+      )
         .map(id => Number(id))
         .filter(id => Number.isFinite(id) && !isEntryRemoving(id))
       if (!ids.length) return
@@ -2320,6 +2651,7 @@ export default defineComponent({
         if (data?.success && data?.data?.called) {
           const c = data.data.called
           $q.notify({ type: 'positive', message: `Chamando: ${c.user_name || c.guest_name || 'Próximo'}`, timeout: 5000 })
+          flowTab.value = 'called'
         } else {
           $q.notify({ type: 'info', message: data?.data?.message || 'Fila vazia' })
         }
@@ -2680,14 +3012,14 @@ export default defineComponent({
     })
 
     return {
-      queue, waitingEntries, sortedWaitingEntries, servingEntries, completedEntries, statistics, userEntry,
+      queue, waitingEntries, sortedWaitingEntries, calledEntries, servingEntries, completedEntries, statistics, userEntry,
       loading, userRole, currentUserId, mainTab, flowTab,
       isRegularUser, canManage, statusVariant, statusLabel, statusOptions,
       saving, callingNext, addingPerson, joining, updatingStatus, batchRemoving, movingEntries,
       codesLoading, reportsLoading, savingCode, searchingUser, qpLoading, addingProf, svcLoading, savingSvc,
       // Selection
-      selectedWaiting, selectedServing, toggleSelect, clearSelection,
-      hasWaitingSelection, hasServingSelection, hasAnySelection, totalSelected,
+      selectedWaiting, selectedCalled, selectedServing, toggleSelect, clearSelection,
+      hasWaitingSelection, hasCalledSelection, hasServingSelection, hasAnySelection, totalSelected,
       // Completed filter
       completedPeriod, completedFrom, completedTo, onCompletedPeriodChange,
       // Add person
@@ -2696,10 +3028,13 @@ export default defineComponent({
       searchUserByEmail, openAddPersonDialog, closeAddPersonDialog, addPersonFromDialog,
       // Info editing
       infoEditing, infoForm, startInfoEdit, cancelInfoEdit, saveInfoEdit,
+      settingsEditing, settingsForm, startSettingsEdit, cancelSettingsEdit, saveSettingsEdit,
       // Professionals
       queueProfessionals, estProfessionals, showAddProfDialog, selectedEstProf, availableEstProfessionals,
       fetchQueueProfessionals, openAddProfDialog, addSelectedProfessional, selfAddProfessional,
       showRemoveProfessionalDialog, professionalRemoveTarget, removingProfessional, closeRemoveProfessionalDialog, confirmRemoveProfessional,
+      showAssignProfessionalDialog, assignProfessionalUserId, activeQueueProfessionalOptions, assigningProfessional,
+      openAssignProfessionalDialog, closeAssignProfessionalDialog, confirmAssignProfessional,
       profMenuOpen, profMenuPos, profMenuTarget, profMenuItems, openProfMenu, onProfMenuSelect,
       // Services
       queueServices, showAddServiceDialog, showEditServiceDialog, svcDialogMode, selectedServiceIds, svcForm,
@@ -2737,6 +3072,7 @@ export default defineComponent({
       statusPieData, priorityPieData, pieSlicePath,
       // Actions
       callNext, joinWithCode, moveEntry, batchMoveSelected, changeEntryPriority,
+      beginServingEntry, isCalledEntryDelayed, calledHighlightAfterMinutes,
       confirmRemoveEntry, removeEntryFromDialog, removeEntry, batchRemoveSelected,
       formatDate, formatDateShort, formatWaitTime, goBack,
     }
@@ -2873,6 +3209,93 @@ export default defineComponent({
   flex-wrap: wrap;
 }
 .selection-count { font-size: 0.8125rem; font-weight: 600; color: var(--qm-text-primary); }
+
+// -- Queue tables --
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--qm-border);
+  border-radius: 12px;
+}
+
+.queue-table-wrap {
+  margin: 1rem 1.25rem 1.25rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.95rem 1.15rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.data-table thead tr {
+  background: var(--qm-bg-secondary);
+}
+
+.data-table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--qm-text-muted);
+}
+
+.data-table tbody tr {
+  border-top: 1px solid var(--qm-border);
+}
+
+.queue-col-check {
+  width: 110px;
+}
+
+.queue-col-actions {
+  width: 240px;
+}
+
+.queue-order-cell,
+.queue-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.queue-order-number,
+.table-strong {
+  font-weight: 600;
+  color: var(--qm-text-primary);
+}
+
+.queue-order-icon,
+.table-muted {
+  color: var(--qm-text-muted);
+}
+
+.queue-user-cell {
+  min-width: 220px;
+}
+
+.queue-avatar {
+  background: var(--qm-brand-light);
+  color: var(--qm-brand);
+}
+
+.queue-entry-row--delayed {
+  background: color-mix(in srgb, var(--qm-status-negative) 10%, transparent);
+}
+
+.highlight-box--called {
+  background: color-mix(in srgb, var(--qm-status-warning) 12%, transparent);
+  border-color: color-mix(in srgb, var(--qm-status-warning) 35%, transparent);
+}
+
+.highlight-box--serving {
+  background: color-mix(in srgb, var(--qm-status-info) 12%, transparent);
+  border-color: color-mix(in srgb, var(--qm-status-info) 35%, transparent);
+}
 
 // -- Entry items --
 .entry-list { padding: 0; }

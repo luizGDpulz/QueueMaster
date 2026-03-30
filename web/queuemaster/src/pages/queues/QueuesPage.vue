@@ -275,16 +275,10 @@
         </q-card-section>
 
         <q-card-section class="dialog-content">
-          <q-select
-            v-model="callForm.professional_id"
-            label="Profissional (opcional)"
-            outlined
-            dense
-            :options="professionalOptions"
-            emit-value
-            map-options
-            clearable
-          />
+          <p class="text-body2 text-grey-7">
+            A próxima pessoa será movida para a etapa de <strong>Chamados</strong>.
+            O profissional responsável poderá assumir o atendimento depois, dentro da fila.
+          </p>
         </q-card-section>
 
         <q-card-actions align="right" class="dialog-actions">
@@ -321,7 +315,6 @@ export default defineComponent({
     const queues = ref([])
     const establishments = ref([])
     const services = ref([])
-    const professionals = ref([])
     const loading = ref(true)
     const saving = ref(false)
     const deleting = ref(false)
@@ -344,10 +337,6 @@ export default defineComponent({
       establishment_id: null,
       service_id: null,
       status: 'open'
-    })
-
-    const callForm = ref({
-      professional_id: null
     })
 
     const statusOptions = [
@@ -374,12 +363,6 @@ export default defineComponent({
       services.value
         .filter(s => !form.value.establishment_id || s.establishment_id === form.value.establishment_id)
         .map(s => ({ label: s.name, value: s.id }))
-    )
-
-    const professionalOptions = computed(() => 
-      professionals.value
-        .filter(p => !selectedQueue.value?.establishment_id || p.establishment_id === selectedQueue.value.establishment_id)
-        .map(p => ({ label: p.name, value: p.id }))
     )
 
     const filteredQueues = computed(() => {
@@ -436,17 +419,6 @@ export default defineComponent({
         }
       } catch (err) {
         console.error('Erro ao buscar serviços:', err)
-      }
-    }
-
-    const fetchProfessionals = async () => {
-      try {
-        const response = await api.get('/professionals')
-        if (response.data?.success) {
-          professionals.value = response.data.data?.professionals || response.data.data || []
-        }
-      } catch (err) {
-        console.error('Erro ao buscar profissionais:', err)
       }
     }
 
@@ -549,7 +521,6 @@ export default defineComponent({
 
     const callNext = (queue) => {
       selectedQueue.value = queue
-      callForm.value = { professional_id: null }
       showCallDialog.value = true
     }
 
@@ -559,9 +530,6 @@ export default defineComponent({
       try {
         const payload = {
           establishment_id: selectedQueue.value.establishment_id
-        }
-        if (callForm.value.professional_id) {
-          payload.professional_id = callForm.value.professional_id
         }
 
         const response = await api.post(`/queues/${selectedQueue.value.id}/call-next`, payload)
@@ -604,8 +572,7 @@ export default defineComponent({
 
       await Promise.all([
         fetchEstablishments(),
-        fetchServices(),
-        fetchProfessionals()
+        fetchServices()
       ])
       fetchQueues()
     })
@@ -625,14 +592,12 @@ export default defineComponent({
       isEditing,
       selectedQueue,
       form,
-      callForm,
       statusOptions,
       isAdmin,
       canManage,
       stats,
       establishmentOptions,
       serviceOptions,
-      professionalOptions,
       filteredQueues,
       openCreateDialog,
       editQueue,
