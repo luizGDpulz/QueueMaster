@@ -3376,6 +3376,8 @@ export default defineComponent({
 }
 
 .queue-user-cell {
+  display: flex;
+  gap: 0.85rem;
   min-width: 220px;
   align-items: center;
 }
