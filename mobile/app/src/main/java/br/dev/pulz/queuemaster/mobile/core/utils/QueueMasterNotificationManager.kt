@@ -24,7 +24,7 @@ import br.dev.pulz.queuemaster.mobile.core.model.QueueUserEntry
 
 object QueueMasterNotificationManager {
     private const val ChannelId = "qm_queue_updates_realtime"
-    private const val ChannelName = "Atualizacoes da fila"
+    private const val ChannelName = "Atualizações da fila"
     private const val ChannelDescription = "Avisos do QueueMaster sobre sua fila e atendimento."
 
     fun initialize(context: Context) {
@@ -60,7 +60,7 @@ object QueueMasterNotificationManager {
                 flowKey = flowKey,
                 type = AppNotificationType.QueueJoined,
                 title = "Entrada confirmada",
-                body = "Voce entrou na fila${queueName?.let { " $it" } ?: ""}."
+                body = "Você entrou na fila${queueName?.let { " $it" } ?: ""}."
             )
         )
     }
@@ -111,7 +111,7 @@ object QueueMasterNotificationManager {
                         queueName = queueName,
                         flowKey = flowKey,
                         type = AppNotificationType.QueueCalled,
-                        title = "Voce foi chamado",
+                        title = "Você foi chamado",
                         body = "Dirija-se ao atendimento${queueName.let { " em $it" }}."
                     )
                 )
@@ -128,7 +128,7 @@ object QueueMasterNotificationManager {
                         flowKey = flowKey,
                         type = AppNotificationType.QueueServing,
                         title = "Atendimento iniciado",
-                        body = "Seu atendimento${queueName.let { " em $it" }} ja comecou."
+                        body = "Seu atendimento${queueName.let { " em $it" }} já comecou."
                     )
                 )
             }
@@ -145,7 +145,7 @@ object QueueMasterNotificationManager {
                         queueName = queueName,
                         flowKey = flowKey,
                         type = AppNotificationType.QueueNext,
-                        title = "Voce e o proximo",
+                        title = "Você e o pr?ximo",
                         body = "Falta pouco para seu atendimento${queueName.let { " em $it" }}."
                     )
                 )
@@ -169,7 +169,7 @@ object QueueMasterNotificationManager {
                 queueName = queueName,
                 flowKey = flowKey,
                 type = AppNotificationType.QueueCompleted,
-                title = "Atendimento concluido",
+                title = "Atendimento concluído",
                 body = "O fluxo${queueName?.let { " em $it" } ?: ""} foi finalizado."
             )
         )
@@ -196,7 +196,7 @@ object QueueMasterNotificationManager {
             contextType = NotificationContextType.QueueEntry,
             contextKey = contextKey,
             contextTitle = queueName ?: "Fila #$queueId",
-            contextSubtitle = "Historico da participacao na fila",
+            contextSubtitle = "Histórico da participação na fila",
             queueId = queueId,
             title = title,
             body = body,

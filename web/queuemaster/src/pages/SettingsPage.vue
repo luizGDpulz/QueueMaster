@@ -1035,7 +1035,7 @@ export default defineComponent({
     })
     const rolesSummaryDescription = computed(() => {
       if (isAdminUser.value) {
-        return 'Voce possui acesso administrativo completo, com visualizacao de gerente e profissional ativas para acompanhamento operacional.'
+        return 'Você possui acesso administrativo completo, com visualização de gerente e profissional ativas para acompanhamento operacional.'
       }
       if (canManageOwnBusinesses.value && roleSummary.value.has_professional_access) {
         return 'Você já atua como gerente e também possui atuação profissional.'
@@ -1044,7 +1044,7 @@ export default defineComponent({
         return 'Você já pode criar e gerir seus próprios negócios.'
       }
       if (roleSummary.value.has_management_access) {
-        return 'Você já gerencia negócios vinculados, mas ainda não possui liberação para abrir o seu.'
+        return 'Você já gerencia neg?cios vinculados, mas ainda não possui liberação para abrir o seu.'
       }
       if (roleSummary.value.has_professional_access) {
         return 'Você já possui vínculos profissionais ativos.'
@@ -1498,7 +1498,7 @@ export default defineComponent({
 
       $q.notify({
         type: 'warning',
-        message: error.response?.data?.error?.message || 'Voce excedeu o limite de requisicoes. Tente novamente em instantes.',
+        message: error.response?.data?.error?.message || 'Você excedeu o limite de requisições. Tente novamente em instantes.',
       })
     }
 

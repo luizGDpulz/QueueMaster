@@ -154,7 +154,7 @@ private fun JoinQueueHeroCard() {
         )
 
         Text(
-            text = "Escaneie o QR code do estabelecimento ou digite o codigo manualmente para comecar.",
+            text = "Escaneie o QR code do estabelecimento ou digite o código manualmente para comecar.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -187,7 +187,7 @@ private fun ManualCodeAction(
                 modifier = Modifier.size(20.dp)
             )
             Text(
-                text = "Inserir codigo manualmente",
+                text = "Inserir código manualmente",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = AppSpacing.Sm)
@@ -238,12 +238,12 @@ private fun JoinQueueRealtimeCard() {
                     .padding(start = AppSpacing.Md)
             ) {
                 Text(
-                    text = "Atualizacoes em tempo real",
+                    text = "Atualizações em tempo real",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Acompanhe sua posicao e o tempo estimado sem precisar ficar parado na recepcao.",
+                    text = "Acompanhe sua posição e o tempo estimado sem precisar ficar parado na recepção.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = AppSpacing.Xs)

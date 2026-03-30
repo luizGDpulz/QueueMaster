@@ -159,9 +159,9 @@ const buildRateLimitMessage = (response) => {
   const messageParts = []
 
   if (limit !== null && windowSeconds !== null) {
-    messageParts.push(`Voce excedeu o limite de ${limit} requisicoes em ${formatDurationPtBr(windowSeconds)}.`)
+    messageParts.push(`Você excedeu o limite de ${limit} requisições em ${formatDurationPtBr(windowSeconds)}.`)
   } else {
-    messageParts.push('Voce excedeu o limite de requisicoes da API.')
+    messageParts.push('Você excedeu o limite de requisições da API.')
   }
 
   if (retryAfterSeconds !== null) {

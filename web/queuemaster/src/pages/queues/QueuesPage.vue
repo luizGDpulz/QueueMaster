@@ -17,7 +17,7 @@
       </div>
       <div class="header-bottom">
         <p class="page-subtitle">
-          {{ canManage ? 'Gerencie e monitore todas as filas de atendimento' : 'Acompanhe filas ativas e o historico das suas participacoes.' }}
+          {{ canManage ? 'Gerencie e monitore todas as filas de atendimento' : 'Acompanhe filas ativas e o histórico das suas participações.' }}
         </p>
       </div>
     </div>

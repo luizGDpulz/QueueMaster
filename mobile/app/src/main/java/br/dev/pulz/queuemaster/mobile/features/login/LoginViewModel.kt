@@ -70,14 +70,14 @@ private fun Throwable.toLoginMessage(): String {
     return when (this) {
         is ApiException -> {
             when (statusCode) {
-                401 -> "Sua autenticacao com o Google nao foi aceita. Tente novamente."
-                403 -> message.ifBlank { "Sua conta nao tem acesso liberado no momento." }
-                422 -> "Nao foi possivel validar o login enviado pelo Google."
-                else -> message.ifBlank { "Nao foi possivel entrar agora. Tente novamente." }
+                401 -> "Sua autenticação com o Google não foi aceita. Tente novamente."
+                403 -> message.ifBlank { "Sua conta não tem acesso liberado no momento." }
+                422 -> "Não foi possível validar o login enviado pelo Google."
+                else -> message.ifBlank { "Não foi possível entrar agora. Tente novamente." }
             }
         }
 
         else -> message?.takeIf { it.isNotBlank() }
-            ?: "Nao foi possivel entrar agora. Verifique sua conexao e tente novamente."
+            ?: "Não foi possível entrar agora. Verifique sua conexão e tente novamente."
     }
 }

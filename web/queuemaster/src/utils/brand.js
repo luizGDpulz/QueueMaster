@@ -1,6 +1,6 @@
 // =============================================
 // QueueMaster - Brand Color System
-// Gerencia a cor da marca globalmente via CSS custom properties.
+// Ger?ncia a cor da marca globalmente via CSS custom properties.
 // Persiste no localStorage e é aplicada antes de qualquer renderização.
 // =============================================
 

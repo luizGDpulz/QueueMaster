@@ -60,7 +60,7 @@
 
       <div v-if="entry.is_active" class="history-panel__live">
         <div class="history-panel__live-card">
-          <span>Posicao</span>
+          <span>Posi??o</span>
           <strong>{{ entry.position ?? '-' }}</strong>
         </div>
         <div class="history-panel__live-card">

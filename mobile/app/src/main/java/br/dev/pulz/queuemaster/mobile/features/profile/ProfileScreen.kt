@@ -72,7 +72,7 @@ fun ProfileScreen(
                 description = "Buscando seus dados e preferencias salvas."
             )
             is ProfileUiState.Error -> ProfileStateCard(
-                title = "Nao foi possivel carregar o perfil",
+                title = "Não foi possível carregar o perfil",
                 description = uiState.message
             )
             is ProfileUiState.Loaded -> {
@@ -85,7 +85,7 @@ fun ProfileScreen(
                 )
 
                 QmSectionTitle(
-                    text = "Informacoes pessoais"
+                    text = "Informações pessoais"
                 )
 
                 Surface(
@@ -110,14 +110,14 @@ fun ProfileScreen(
                         ProfileInfoRow(
                             icon = Icons.Filled.PhoneIphone,
                             label = "Telefone",
-                            value = profile.phoneNumber ?: "Nao informado",
+                            value = profile.phoneNumber ?: "Não informado",
                             showDivider = false
                         )
                     }
                 }
 
                 QmSectionTitle(
-                    text = "Configuracoes da conta"
+                    text = "Configurações da conta"
                 )
 
                 Surface(
@@ -135,7 +135,7 @@ fun ProfileScreen(
                         )
                         ProfileSettingRow(
                             icon = Icons.Filled.NotificationsActive,
-                            title = "Notificacoes"
+                            title = "Notificações"
                         )
                         ProfileSettingRow(
                             icon = Icons.Filled.Language,

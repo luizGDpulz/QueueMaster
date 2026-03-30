@@ -78,7 +78,7 @@ fun NotificationsScreen(
         when (uiState) {
             NotificationsUiState.Loading -> {
                 NotificationsLoadingCard(
-                    title = "Carregando historico",
+                    title = "Carregando histórico",
                     description = "Estamos organizando seus fluxos de fila."
                 )
             }
@@ -166,8 +166,8 @@ fun NotificationDetailsScreen(
 
             NotificationDetailsUiState.Empty -> {
                 NotificationsEmptyCard(
-                    title = "Fluxo nao encontrado",
-                    description = "Esse historico nao esta mais disponivel para consulta."
+                    title = "Fluxo não encontrado",
+                    description = "Esse histórico não está mais disponivel para consulta."
                 )
             }
 
@@ -259,7 +259,7 @@ private fun NotificationsEmptyCard(
         icon = Icons.Filled.NotificationsActive,
         title = title,
         description = description,
-        eyebrow = "Notificacoes"
+        eyebrow = "Notificações"
     )
 }
 
@@ -270,9 +270,9 @@ private fun NotificationsErrorCard(
 ) {
     QmPlaceholderState(
         icon = Icons.Filled.ErrorOutline,
-        title = "Nao foi possivel carregar",
+        title = "Não foi possível carregar",
         description = message,
-        eyebrow = "Notificacoes",
+        eyebrow = "Notificações",
         primaryActionLabel = "Tentar novamente",
         onPrimaryAction = onRetryClick
     )
@@ -297,8 +297,8 @@ private fun NotificationSummaryStrip(
                 text = when {
                     activeFlows > 1 -> "$activeFlows fluxos ativos agora"
                     activeFlows == 1 -> "1 fluxo ativo agora"
-                    totalFlows > 0 -> "Historico atualizado"
-                    else -> "Sem historico ainda"
+                    totalFlows > 0 -> "Histórico atualizado"
+                    else -> "Sem histórico ainda"
                 },
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
@@ -307,7 +307,7 @@ private fun NotificationSummaryStrip(
                 text = if (totalFlows > 0) {
                     "$totalFlows fluxo(s) registrados. Cada entrada da fila gera uma linha do tempo separada."
                 } else {
-                    "Assim que voce participar de uma fila, o historico vai aparecer aqui."
+                    "Assim que você participar de uma fila, o histórico vai aparecer aqui."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -516,7 +516,7 @@ private fun notificationTone(type: AppNotificationType): NotificationTone {
 
         AppNotificationType.QueueNext -> NotificationTone(
             icon = Icons.Filled.Schedule,
-            label = "Proximo",
+            label = "Pr?ximo",
             accentColor = accentColor
         )
 
@@ -534,7 +534,7 @@ private fun notificationTone(type: AppNotificationType): NotificationTone {
 
         AppNotificationType.QueueCompleted -> NotificationTone(
             icon = Icons.Filled.CheckCircle,
-            label = "Concluido",
+            label = "Concluído",
             accentColor = accentColor
         )
 

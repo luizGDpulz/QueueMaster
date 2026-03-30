@@ -37,7 +37,7 @@ class ManualCodeEntryViewModel : ViewModel() {
 
         if (!isValid(currentCode)) {
             _uiState.value = ManualCodeUiState.Error(
-                message = "Digite um codigo valido com 6 a 12 caracteres.",
+                message = "Digite um código valido com 6 a 12 caracteres.",
                 attemptedCode = currentCode
             )
             return
@@ -125,17 +125,17 @@ private fun Throwable.toManualCodeMessage(): String {
     return when (this) {
         is ApiException -> {
             when (code) {
-                "INVALID_CODE" -> "Esse codigo nao e valido ou ja expirou."
-                "QUEUE_CLOSED" -> "A fila vinculada a esse codigo esta fechada."
-                "NOT_FOUND" -> "Nao encontramos a fila vinculada a esse codigo."
-                "ALREADY_IN_ACTIVE_QUEUE" -> "Voce ja possui uma fila ativa no momento."
-                "HTTP_404" -> "A entrada manual por codigo ainda nao esta publicada no servidor."
+                "INVALID_CODE" -> "Esse código não e valido ou já expirou."
+                "QUEUE_CLOSED" -> "A fila vinculada a esse código está fechada."
+                "NOT_FOUND" -> "Não encontramos a fila vinculada a esse código."
+                "ALREADY_IN_ACTIVE_QUEUE" -> "Você já possui uma fila ativa no momento."
+                "HTTP_404" -> "A entrada manual por código ainda não está publicada no servidor."
                 "HTTP_401" -> "Sua sessao expirou. Entre novamente para continuar."
-                else -> message.ifBlank { "Nao foi possivel entrar na fila com esse codigo." }
+                else -> message.ifBlank { "Não foi possível entrar na fila com esse código." }
             }
         }
 
         else -> message?.takeIf { it.isNotBlank() }
-            ?: "Nao foi possivel entrar na fila com esse codigo."
+            ?: "Não foi possível entrar na fila com esse código."
     }
 }

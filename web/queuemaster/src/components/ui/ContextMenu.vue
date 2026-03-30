@@ -159,7 +159,7 @@ export default defineComponent({
       let left = menuRect ? menuRect.width - 6 : btnRect.width
 
       // Submenu is position:absolute inside .context-menu-item-wrap (position:relative)
-      // So top=0 aligns it with the hovered item itself. Use -6 to match padding.
+      // S? top=0 aligns it with the hovered item itself. Use -6 to match padding.
       let top = -6
 
       // If it would overflow viewport horizontally, show on the left
@@ -171,7 +171,7 @@ export default defineComponent({
       const childCount = item.children ? item.children.length : 3
       const estimatedSubHeight = childCount * 36 + 16
 
-      // Clamp submenu vertically so it doesn't go below viewport
+      // Clamp submenu vertically s? it doesn't go below viewport
       const subAbsTop = btnRect.top + top
       if (subAbsTop + estimatedSubHeight + margin > vh) {
         top = top - (subAbsTop + estimatedSubHeight + margin - vh)

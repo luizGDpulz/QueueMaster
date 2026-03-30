@@ -271,7 +271,7 @@ export default defineComponent({
         console.error('Erro no login:', error)
         
         if (error.response?.status === 403) {
-          errorMessage.value = error.response?.data?.error?.message || 'Acesso não autorizado para esta conta.'
+          errorMessage.value = error.response?.data?.error?.message || 'Acesso não autorizado para está conta.'
         } else if (error.response?.status === 401) {
           errorMessage.value = 'Token inválido. Tente novamente.'
         } else {

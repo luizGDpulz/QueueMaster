@@ -323,8 +323,8 @@ private fun QueueStatusViewModel.handleNotificationTransitions(
 
 private fun Throwable.toQueueStatusMessage(): String {
     return when (this) {
-        is ApiException -> message.ifBlank { "Nao foi possivel atualizar os dados da fila." }
+        is ApiException -> message.ifBlank { "Não foi possível atualizar os dados da fila." }
         else -> message?.takeIf { it.isNotBlank() }
-            ?: "Nao foi possivel atualizar os dados da fila."
+            ?: "Não foi possível atualizar os dados da fila."
     }
 }

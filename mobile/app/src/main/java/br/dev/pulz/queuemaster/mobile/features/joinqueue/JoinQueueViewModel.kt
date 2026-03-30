@@ -26,7 +26,7 @@ class JoinQueueViewModel : ViewModel() {
         val parsedPayload = QueueJoinPayloadParser.parse(payload)
         if (parsedPayload == null) {
             _uiState.value = JoinQueueUiState.Error(
-                message = "Nao foi possivel entender o QR code desta fila."
+                message = "Não foi possível entender o QR code desta fila."
             )
             return
         }
@@ -102,15 +102,15 @@ private fun Throwable.toJoinQueueMessage(): String {
     return when (this) {
         is ApiException -> {
             when (code) {
-                "INVALID_CODE" -> "Esse QR code nao e valido ou ja expirou."
-                "QUEUE_CLOSED" -> "Essa fila esta fechada no momento."
-                "NOT_FOUND" -> "Nao encontramos a fila indicada por esse QR code."
-                "ALREADY_IN_ACTIVE_QUEUE" -> "Voce ja possui uma fila ativa no momento."
-                else -> message.ifBlank { "Nao foi possivel entrar na fila agora." }
+                "INVALID_CODE" -> "Esse QR code não e valido ou já expirou."
+                "QUEUE_CLOSED" -> "Essa fila está fechada no momento."
+                "NOT_FOUND" -> "Não encontramos a fila indicada por esse QR code."
+                "ALREADY_IN_ACTIVE_QUEUE" -> "Você já possui uma fila ativa no momento."
+                else -> message.ifBlank { "Não foi possível entrar na fila agora." }
             }
         }
 
         else -> message?.takeIf { it.isNotBlank() }
-            ?: "Nao foi possivel entrar na fila agora."
+            ?: "Não foi possível entrar na fila agora."
     }
 }

@@ -5,19 +5,19 @@
         <q-btn flat round dense icon="arrow_back" class="back-btn" @click="goBack" />
       </div>
       <div class="header-left">
-        <h1 class="page-title">{{ user?.name || 'Usuario' }}</h1>
+        <h1 class="page-title">{{ user?.name || 'Usuário' }}</h1>
       </div>
       <div class="header-right" v-if="canEditProfile">
         <q-btn flat icon="edit" label="Editar" no-caps @click="openEdit" />
       </div>
       <div class="header-bottom">
-        <p class="page-subtitle">Detalhes administrativos do usuario</p>
+        <p class="page-subtitle">Detalhes administrativos do usuário</p>
       </div>
     </div>
 
     <div v-if="loading" class="loading-state">
       <q-spinner-dots color="primary" size="40px" />
-      <p>Carregando usuario...</p>
+      <p>Carregando usuário...</p>
     </div>
 
     <template v-else-if="user">
@@ -134,7 +134,7 @@
       </div>
 
       <div class="soft-card q-mb-lg">
-        <h2 class="section-title">Informacoes</h2>
+        <h2 class="section-title">Informações</h2>
 
         <div class="detail-grid detail-grid--wide">
           <div class="detail-item detail-item--boxed">
@@ -143,19 +143,19 @@
           </div>
           <div class="detail-item detail-item--boxed">
             <span class="detail-label">Telefone</span>
-            <span class="detail-value">{{ user.phone || 'Nao informado' }}</span>
+            <span class="detail-value">{{ user.phone || 'Não informado' }}</span>
           </div>
           <div class="detail-item detail-item--boxed">
             <span class="detail-label">Endereco linha 1</span>
-            <span class="detail-value">{{ user.address_line_1 || 'Nao informado' }}</span>
+            <span class="detail-value">{{ user.address_line_1 || 'Não informado' }}</span>
           </div>
           <div class="detail-item detail-item--boxed">
             <span class="detail-label">Endereco linha 2</span>
-            <span class="detail-value">{{ user.address_line_2 || 'Nao informado' }}</span>
+            <span class="detail-value">{{ user.address_line_2 || 'Não informado' }}</span>
           </div>
           <div class="detail-item detail-item--boxed">
             <span class="detail-label">Email verificado</span>
-            <span class="detail-value">{{ normalizeBoolean(user.email_verified) ? 'Sim' : 'Nao' }}</span>
+            <span class="detail-value">{{ normalizeBoolean(user.email_verified) ? 'Sim' : 'Não' }}</span>
           </div>
           <div class="detail-item detail-item--boxed">
             <span class="detail-label">Ultimo login</span>
@@ -173,18 +173,18 @@
       </div>
 
       <div class="soft-card q-mb-lg">
-        <h2 class="section-title">Vinculos contextuais</h2>
+        <h2 class="section-title">V?nculos contextuais</h2>
 
         <div class="memberships-grid">
           <section class="membership-column">
             <div class="membership-column__header">
-              <h3>Negocios</h3>
-              <p>Vinculos diretos em negocios.</p>
+              <h3>Negócios</h3>
+              <p>V?nculos diretos em negócios.</p>
             </div>
 
             <div v-if="memberships.businesses.length === 0" class="empty-state-sm membership-empty">
               <q-icon name="business_center" size="32px" />
-              <p>Sem vinculos de negocio.</p>
+              <p>Sem vínculos de negócio.</p>
             </div>
 
             <div v-else class="list-items">
@@ -209,12 +209,12 @@
           <section class="membership-column">
             <div class="membership-column__header">
               <h3>Estabelecimentos</h3>
-              <p>Vinculos diretos em estabelecimentos.</p>
+              <p>V?nculos diretos em estabelecimentos.</p>
             </div>
 
             <div v-if="memberships.establishments.length === 0" class="empty-state-sm membership-empty">
               <q-icon name="store" size="32px" />
-              <p>Sem vinculos de estabelecimento.</p>
+              <p>Sem vínculos de estabelecimento.</p>
             </div>
 
             <div v-else class="list-items">
@@ -230,7 +230,7 @@
                   <div class="list-item-details">
                     <span class="list-item-name">{{ establishment.establishment_name }}</span>
                     <span class="list-item-meta">
-                      {{ establishment.business_name || 'Sem negocio' }} | {{ getContextRoleLabel(establishment.role) }}
+                      {{ establishment.business_name || 'Sem negócio' }} | {{ getContextRoleLabel(establishment.role) }}
                     </span>
                   </div>
                 </div>
@@ -262,15 +262,15 @@
 
           <div v-if="planAssignment.plan" class="detail-grid detail-grid--wide q-mt-md">
             <div class="detail-item detail-item--boxed">
-              <span class="detail-label">Negocios</span>
+              <span class="detail-label">Negócios</span>
               <span class="detail-value">{{ formatLimit(planAssignment.plan.max_businesses) }}</span>
             </div>
             <div class="detail-item detail-item--boxed">
-              <span class="detail-label">Estabelecimentos / negocio</span>
+              <span class="detail-label">Estabelecimentos / negócio</span>
               <span class="detail-value">{{ formatLimit(planAssignment.plan.max_establishments_per_business) }}</span>
             </div>
             <div class="detail-item detail-item--boxed">
-              <span class="detail-label">Gerentes / negocio</span>
+              <span class="detail-label">Gerentes / negócio</span>
               <span class="detail-value">{{ formatLimit(planAssignment.plan.max_managers) }}</span>
             </div>
             <div class="detail-item detail-item--boxed">
@@ -281,7 +281,7 @@
 
           <div v-if="planAssignment.usage" class="detail-grid detail-grid--wide q-mt-md">
             <div class="detail-item detail-item--boxed">
-              <span class="detail-label">Negocios em uso</span>
+              <span class="detail-label">Negócios em uso</span>
               <span class="detail-value">{{ planAssignment.usage.business_count }}</span>
             </div>
             <div class="detail-item detail-item--boxed">
@@ -325,7 +325,7 @@
     <q-dialog v-model="showEditDialog" persistent>
       <q-card class="dialog-card">
         <q-card-section class="dialog-head">
-          <h3>Editar usuario</h3>
+          <h3>Editar usuário</h3>
           <q-btn flat round dense icon="close" @click="showEditDialog = false" />
         </q-card-section>
         <q-card-section>
@@ -374,7 +374,7 @@
           <q-btn flat round dense icon="close" @click="closeBlockDialog" />
         </q-card-section>
         <q-card-section>
-          <p class="section-copy">O usuario perde acesso imediato ao sistema e os refresh tokens sao revogados.</p>
+          <p class="section-copy">O usuário perde acesso imediato ao sistema e os refresh tokens s?o revogados.</p>
           <q-input
             v-model="blockReason"
             outlined
@@ -400,7 +400,7 @@
           <q-btn flat round dense icon="close" @click="showRevokeSessionsDialog = false" />
         </q-card-section>
         <q-card-section>
-          <p>Deseja revogar todas as sessoes ativas deste usuario?</p>
+          <p>Deseja revogar todas as sessoes ativas deste usuário?</p>
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" no-caps @click="showRevokeSessionsDialog = false" />
@@ -418,7 +418,7 @@
         <q-card-section>
           <p>Deseja excluir o cadastro de <strong>{{ user?.name }}</strong>?</p>
           <p class="section-copy">
-            A exclusao remove o usuario e revoga as sessoes ativas. Titulares de negocio ou usuarios com plano ativo
+            A exclusao remove o usuário e revoga as sessoes ativas. Titulares de negócio ou usuários com plano ativo
             continuam protegidos.
           </p>
           <div v-if="deleteBlockers.length" class="access-blockers q-mt-md">
@@ -484,7 +484,7 @@ export default defineComponent({
     const editableFields = computed(() => user.value?.editable_fields || {})
     const accessState = computed(() => user.value?.access_state || {})
     const environmentState = computed(() => accessState.value.environment || { label: 'Sem regra', reason: null })
-    const systemState = computed(() => accessState.value.system || { label: 'Nao informado', blocked_reason: null, blocked_at: null })
+    const systemState = computed(() => accessState.value.system || { label: 'Não informado', blocked_reason: null, blocked_at: null })
     const managementSummary = computed(() => user.value?.management_summary || {})
     const deleteBlockers = computed(() => managementSummary.value.delete_blockers || [])
 
@@ -525,7 +525,7 @@ export default defineComponent({
       editableFields.value.delete_user
     ))
     const showDeleteAction = computed(() => canManageUser.value && (canDeleteUser.value || deleteBlockers.value.length > 0))
-    const blockedByLabel = computed(() => accessState.value.blocked_by_name || accessState.value.blocked_by_email || 'Nao informado')
+    const blockedByLabel = computed(() => accessState.value.blocked_by_name || accessState.value.blocked_by_email || 'Não informado')
     const userAvatarUrl = computed(() => resolveUserAvatarUrl(user.value))
     const finalAccessMessage = computed(() => {
       if (accessState.value.can_authenticate) return null
@@ -554,7 +554,7 @@ export default defineComponent({
         selectedPlanId.value = planAssignment.value.subscription?.plan_id || null
 
         if (!user.value) {
-          $q.notify({ type: 'warning', message: 'Usuario nao encontrado.' })
+          $q.notify({ type: 'warning', message: 'Usuário não encontrado.' })
           goBack()
           return
         }
@@ -563,7 +563,7 @@ export default defineComponent({
           await fetchPlans()
         }
       } catch (error) {
-        notifyError(error, 'Erro ao carregar usuario.')
+        notifyError(error, 'Erro ao carregar usuário.')
         goBack()
       } finally {
         loading.value = false
@@ -607,11 +607,11 @@ export default defineComponent({
         }
 
         await api.put(`/admin/users/${route.params.id}`, payload)
-        notifySuccess('Usuario atualizado com sucesso.')
+        notifySuccess('Usuário atualizado com sucesso.')
         showEditDialog.value = false
         await fetchUser()
       } catch (error) {
-        notifyError(error, 'Erro ao salvar usuario.')
+        notifyError(error, 'Erro ao salvar usuário.')
       } finally {
         saving.value = false
       }
@@ -649,7 +649,7 @@ export default defineComponent({
         closeBlockDialog()
         await fetchUser()
       } catch (error) {
-        notifyError(error, 'Erro ao bloquear acesso do usuario.')
+        notifyError(error, 'Erro ao bloquear acesso do usuário.')
       } finally {
         blockingUser.value = false
       }
@@ -663,7 +663,7 @@ export default defineComponent({
         notifySuccess(response.data?.data?.message || 'Acesso liberado com sucesso.')
         await fetchUser()
       } catch (error) {
-        notifyError(error, 'Erro ao liberar acesso do usuario.')
+        notifyError(error, 'Erro ao liberar acesso do usuário.')
       } finally {
         unblockingUser.value = false
       }
@@ -678,7 +678,7 @@ export default defineComponent({
         showRevokeSessionsDialog.value = false
         await fetchUser()
       } catch (error) {
-        notifyError(error, 'Erro ao encerrar sessoes do usuario.')
+        notifyError(error, 'Erro ao encerrar sessoes do usuário.')
       } finally {
         revokingSessions.value = false
       }
@@ -713,7 +713,7 @@ export default defineComponent({
             }
           }
         }
-        notifyError(error, 'Erro ao excluir cadastro do usuario.')
+        notifyError(error, 'Erro ao excluir cadastro do usuário.')
       } finally {
         deletingUser.value = false
       }

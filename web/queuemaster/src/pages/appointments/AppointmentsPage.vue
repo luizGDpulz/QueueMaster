@@ -473,7 +473,7 @@
             </div>
             <div v-else-if="!isEditingAppointment && appointmentSlotDate && appointmentSlotsSearched" class="slots-empty">
               <q-icon name="event_busy" size="18px" />
-              <span>Nenhum horário disponível para esta combinação.</span>
+              <span>Nenhum horário disponível para está combinação.</span>
             </div>
             <q-input
               v-model="appointmentForm.notes"

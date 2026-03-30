@@ -115,7 +115,7 @@ fun QueueStatusScreen(
                     QueueDetailCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Filled.MedicalServices,
-                        label = "Servico",
+                        label = "Serviço",
                         value = queueStatus.queue.serviceName ?: "Atendimento"
                     )
                     QueueDetailCard(
@@ -432,7 +432,7 @@ private fun QueueStatusLoading() {
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Buscando sua posicao atual e a nova estimativa de atendimento.",
+                text = "Buscando sua posição atual e a nova estimativa de atendimento.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -460,7 +460,7 @@ private fun QueueStatusEmpty(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Quando voce entrar em uma fila, a posicao, o tempo estimado e os detalhes do atendimento aparecerao aqui.",
+                text = "Quando você entrar em uma fila, a posição, o tempo estimado e os detalhes do atendimento aparecerao aqui.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -488,7 +488,7 @@ private fun QueueStatusError(
             verticalArrangement = Arrangement.spacedBy(AppSpacing.Lg)
         ) {
             Text(
-                text = "Nao foi possivel carregar sua fila",
+                text = "Não foi possível carregar sua fila",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -535,7 +535,7 @@ private data class QueueStatusPresentation(
                         "Profissional"
                     },
                     secondaryDetailValue = userEntry?.professionalName ?: "Dirija-se ao atendimento",
-                    footerMessage = "Voce ja foi chamado. Ao sair agora, sua vez sera encerrada."
+                    footerMessage = "Você já foi chamado. Ao sair agora, sua vez ser? encerrada."
                 )
 
                 "serving" -> QueueStatusPresentation(
@@ -553,7 +553,7 @@ private data class QueueStatusPresentation(
                     secondaryDetailValue = formatEventTime(userEntry?.calledAt)
                         ?: formatEventTime(userEntry?.joinedAt)
                         ?: "Agora",
-                    footerMessage = "Seu atendimento esta em andamento. Se sair agora, sua entrada sera encerrada."
+                    footerMessage = "Seu atendimento está em andamento. Se sair agora, sua entrada ser? encerrada."
                 )
 
                 else -> QueueStatusPresentation(
@@ -568,7 +568,7 @@ private data class QueueStatusPresentation(
                     secondaryMetricValue = "${userEntry?.peopleAhead ?: 0} pessoas",
                     secondaryDetailLabel = "Entrada",
                     secondaryDetailValue = formatEventTime(userEntry?.joinedAt) ?: "Agora",
-                    footerMessage = "Ao sair da fila, sua posicao e sua estimativa de atendimento serao perdidas."
+                    footerMessage = "Ao sair da fila, sua posição e sua estimativa de atendimento ser?o perdidas."
                 )
             }
         }
@@ -578,16 +578,16 @@ private data class QueueStatusPresentation(
 private fun notificationCopy(status: String, lastUpdatedLabel: String?): String {
     return when (status.lowercase(Locale.ROOT)) {
         "called" -> lastUpdatedLabel?.let {
-            "Voce foi chamado. Confira o atendimento o quanto antes. Ultima atualizacao as $it."
-        } ?: "Voce foi chamado. Confira o atendimento o quanto antes."
+            "Você foi chamado. Confira o atendimento o quanto antes. Ultima atualiza??o as $it."
+        } ?: "Você foi chamado. Confira o atendimento o quanto antes."
 
         "serving" -> lastUpdatedLabel?.let {
-            "Seu atendimento esta em andamento. Os detalhes continuam sendo atualizados. Ultima atualizacao as $it."
-        } ?: "Seu atendimento esta em andamento. Os detalhes continuam sendo atualizados."
+            "Seu atendimento está em andamento. Os detalhes continuam sendo atualizados. Ultima atualiza??o as $it."
+        } ?: "Seu atendimento está em andamento. Os detalhes continuam sendo atualizados."
 
         else -> lastUpdatedLabel?.let {
-            "Sua posicao e o tempo estimado sao atualizados automaticamente. Ultima atualizacao as $it."
-        } ?: "Sua posicao e o tempo estimado sao atualizados automaticamente enquanto voce acompanha a fila."
+            "Sua posição e o tempo estimado s?o atualizados automaticamente. Ultima atualiza??o as $it."
+        } ?: "Sua posição e o tempo estimado s?o atualizados automaticamente enquanto você acompanha a fila."
     }
 }
 

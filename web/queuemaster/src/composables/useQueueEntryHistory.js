@@ -37,11 +37,11 @@ export function getQueueEntryStatusLabel(status) {
     waiting: 'Aguardando',
     called: 'Chamado',
     serving: 'Em atendimento',
-    done: 'Concluido',
-    completed: 'Concluido',
+    done: 'Concluído',
+    completed: 'Concluído',
     left: 'Saiu da fila',
     cancelled: 'Cancelado',
-    no_show: 'Nao compareceu',
+    no_show: 'Não compareceu',
   }
 
   return map[status] || 'Atualizado'
@@ -65,10 +65,10 @@ export function getQueueEntryStatusVariant(status) {
 export function getQueueEntryEventLabel(type) {
   const map = {
     joined: 'Entrada',
-    next_up: 'Proximo',
+    next_up: 'Pr?ximo',
     called: 'Chamado',
     serving_started: 'Atendimento',
-    completed: 'Concluido',
+    completed: 'Concluído',
     left: 'Saida',
     cancelled: 'Cancelada',
     no_show: 'Ausencia',
@@ -114,7 +114,7 @@ export function getQueueEntryEventIcon(type) {
 }
 
 export function buildQueueEntryEventMessage(type, context = {}) {
-  const queueName = context.queue_name || context.queue?.name || 'esta fila'
+  const queueName = context.queue_name || context.queue?.name || 'está fila'
   const professionalName = context.professional_name || context.professionalName
   const payload = context.payload && typeof context.payload === 'object'
     ? context.payload
@@ -126,20 +126,20 @@ export function buildQueueEntryEventMessage(type, context = {}) {
     case 'next_up': {
       const peopleAhead = Number(payload.people_ahead)
       if (Number.isFinite(peopleAhead) && peopleAhead > 0) {
-        return `Seu atendimento esta proximo em ${queueName}. Pessoas a frente: ${peopleAhead}.`
+        return `Seu atendimento está pr?ximo em ${queueName}. Pessoas a frente: ${peopleAhead}.`
       }
-      return `Seu atendimento esta proximo em ${queueName}.`
+      return `Seu atendimento está pr?ximo em ${queueName}.`
     }
     case 'called':
-      return `Voce foi chamado em ${queueName}.`
+      return `Você foi chamado em ${queueName}.`
     case 'serving_started':
       return professionalName
         ? `Atendimento iniciado em ${queueName} com ${professionalName}.`
         : `Atendimento iniciado em ${queueName}.`
     case 'completed':
-      return `Atendimento concluido em ${queueName}.`
+      return `Atendimento concluído em ${queueName}.`
     case 'left':
-      return `A participacao foi encerrada pelo cliente em ${queueName}.`
+      return `A participação foi encerrada pelo cliente em ${queueName}.`
     case 'cancelled':
       return `A entrada foi cancelada pela equipe em ${queueName}.`
     case 'no_show':

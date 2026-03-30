@@ -67,7 +67,7 @@ fun ManualCodeEntryScreen(
                 )
             }
             Text(
-                text = "Digite o codigo da fila",
+                text = "Digite o código da fila",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(start = AppSpacing.Xs)
@@ -81,13 +81,13 @@ fun ManualCodeEntryScreen(
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "Voce so precisa do codigo",
+                text = "Você s? precisa do código",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = AppSpacing.Md)
             )
             Text(
-                text = "Digite o codigo de entrada e confirme para seguir direto para o acompanhamento da fila.",
+                text = "Digite o código de entrada e confirme para seguir direto para o acompanhamento da fila.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = AppSpacing.Xs)
@@ -95,7 +95,7 @@ fun ManualCodeEntryScreen(
             QmTextField(
                 value = accessCode,
                 onValueChange = onAccessCodeChange,
-                label = "Codigo de entrada",
+                label = "Código de entrada",
                 isError = errorMessage != null,
                 supportingText = errorMessage,
                 modifier = Modifier.padding(top = AppSpacing.Xl)
@@ -110,13 +110,13 @@ fun ManualCodeEntryScreen(
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Onde encontrar o codigo",
+                    text = "Onde encontrar o código",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = AppSpacing.Md)
                 )
                 Text(
-                    text = "O codigo costuma aparecer no cartaz, ao lado do QR code ou na recepcao. Exemplo: ${PreviewData.SampleAccessCode}.",
+                    text = "O código costuma aparecer no cartaz, ao lado do QR code ou na recepção. Exemplo: ${PreviewData.SampleAccessCode}.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = AppSpacing.Xs)
@@ -124,7 +124,7 @@ fun ManualCodeEntryScreen(
             }
 
             QmPrimaryButton(
-                text = "Confirmar codigo",
+                text = "Confirmar código",
                 onClick = onContinue,
                 enabled = accessCode.isNotBlank(),
                 loading = isLoading,

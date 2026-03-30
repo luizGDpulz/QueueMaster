@@ -131,7 +131,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Por padrao o app segue o tema do telefone, mas voce pode definir um modo manualmente.",
+                    text = "Por padr?o o app segue o tema do telefone, mas você pode definir um modo manualmente.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -160,7 +160,7 @@ fun SettingsScreen(
             }
         }
 
-        QmSectionTitle(text = "Notificacoes")
+        QmSectionTitle(text = "Notificações")
 
         Surface(
             shape = MaterialTheme.shapes.large,
@@ -196,7 +196,7 @@ fun SettingsScreen(
                         .padding(start = AppSpacing.Md)
                 ) {
                     Text(
-                        text = "Notificacoes do telefone",
+                        text = "Notificações do telefone",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -259,7 +259,7 @@ fun SettingsScreen(
                         )
                         Text(
                             text = if (batteryOptimizationIgnored) {
-                                "O QueueMaster ja pode ficar mais livre para continuar checando sua fila quando estiver minimizado."
+                                "O QueueMaster já pode ficar mais livre para continuar checando sua fila quando estiver minimizado."
                             } else {
                                 "Se o Android economizar bateria demais, o app pode parar de consultar a fila quando estiver em segundo plano."
                             },
@@ -272,7 +272,7 @@ fun SettingsScreen(
 
                 if (batteryOptimizationIgnored) {
                     QmSecondaryButton(
-                        text = "Economia ja desativada",
+                        text = "Economia já desativada",
                         onClick = {
                             runCatching {
                                 context.startActivity(
@@ -350,7 +350,7 @@ fun SettingsScreen(
             },
             text = {
                 Text(
-                    text = "Quando o QueueMaster fica minimizado, o Android pode limitar rede e processamento em segundo plano para economizar bateria. Desativar essa otimizacao ajuda o app a continuar consultando sua fila e mostrar notificacoes como popup no momento certo. Isso e opcional: se preferir economizar bateria, voce pode manter a configuracao atual."
+                    text = "Quando o QueueMaster fica minimizado, o Android pode limitar rede e processamento em segundo plano para economizar bateria. Desativar essa otimização ajuda o app a continuar consultando sua fila e mostrar notificações como popup no momento certo. Isso e opcional: se preferir economizar bateria, você pode manter a configuração atual."
                 )
             },
             confirmButton = {

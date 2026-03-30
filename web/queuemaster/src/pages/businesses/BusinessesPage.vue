@@ -40,7 +40,7 @@
           <div class="panel-header">
             <div>
               <h3>Meus negócios</h3>
-              <p>Negócios onde você já atua ou gerencia.</p>
+              <p>Negócios onde você já atua ou gerência.</p>
             </div>
             <q-input
               v-model="searchQuery"
@@ -203,7 +203,7 @@
             outlined
             dense
             class="q-mt-md"
-            hint="Ex: meu-negocio"
+            hint="Ex: meu-negócio"
           />
           <q-input
             v-model="form.description"

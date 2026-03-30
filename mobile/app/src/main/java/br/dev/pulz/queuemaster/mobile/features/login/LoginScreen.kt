@@ -70,7 +70,7 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Use o app para entrar na fila, acompanhar o atendimento e receber atualizacoes sem depender do balcao.",
+                    text = "Use o app para entrar na fila, acompanhar o atendimento e receber atualizações sem depender do balcão.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -92,13 +92,13 @@ fun LoginScreen(
 
                 LoginBenefitRow(
                     icon = Icons.Filled.QrCodeScanner,
-                    title = "Entrar em filas com QR ou codigo",
-                    description = "Acesse a fila do estabelecimento em poucos segundos, sem papel e sem espera na recepcao."
+                    title = "Entrar em filas com QR ou código",
+                    description = "Acesse a fila do estabelecimento em poucos segundos, sem papel e sem espera na recepção."
                 )
                 LoginBenefitRow(
                     icon = Icons.Filled.Schedule,
-                    title = "Acompanhar sua posicao ao vivo",
-                    description = "Veja a estimativa de atendimento e quantas pessoas ainda estao na sua frente."
+                    title = "Acompanhar sua posição ao vivo",
+                    description = "Veja a estimativa de atendimento e quantas pessoas ainda estão na sua frente."
                 )
                 LoginBenefitRow(
                     icon = Icons.Filled.NotificationsActive,
@@ -112,7 +112,7 @@ fun LoginScreen(
                 )
 
                 Text(
-                    text = "Ao continuar, voce usa sua conta Google para identificar seu atendimento e acompanhar suas filas.",
+                    text = "Ao continuar, você usa sua conta Google para identificar seu atendimento e acompanhar suas filas.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

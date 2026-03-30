@@ -200,7 +200,7 @@ private fun QueueEntryHistoryTimeline.toNotificationGroup(userId: Int): AppNotif
             contextSubtitle = subtitle,
             queueId = null,
             title = "Fluxo da fila",
-            body = "Nenhum evento foi registrado ainda para esta entrada.",
+            body = "Nenhum evento foi registrado ainda para está entrada.",
             createdAt = entry.joinedAt ?: System.currentTimeMillis(),
             isRead = true
         )
@@ -276,15 +276,15 @@ private fun String.toNotificationType(): AppNotificationType {
 private fun String.toNotificationTitle(): String {
     return when (lowercase()) {
         "joined" -> "Entrada confirmada"
-        "next_up" -> "Voce e o proximo"
-        "called" -> "Voce foi chamado"
+        "next_up" -> "Você e o pr?ximo"
+        "called" -> "Você foi chamado"
         "serving_started" -> "Atendimento iniciado"
-        "completed" -> "Atendimento concluido"
+        "completed" -> "Atendimento concluído"
         "left" -> "Saida da fila"
         "cancelled" -> "Entrada cancelada"
         "no_show" -> "Ausencia registrada"
         "requeued" -> "Retorno para a fila"
-        else -> "Atualizacao da fila"
+        else -> "Atualiza??o da fila"
     }
 }
 
@@ -294,22 +294,22 @@ private fun String.toNotificationBody(
     payload: Map<String, Any?>
 ): String {
     return when (lowercase()) {
-        "joined" -> "Voce entrou na fila $queueName."
+        "joined" -> "Você entrou na fila $queueName."
         "next_up" -> {
             val peopleAhead = (payload["people_ahead"] as? Number)?.toInt()
             if (peopleAhead != null && peopleAhead > 0) {
                 "Falta pouco para o seu atendimento em $queueName. Pessoas a frente: $peopleAhead."
             } else {
-                "Seu atendimento em $queueName esta proximo."
+                "Seu atendimento em $queueName está pr?ximo."
             }
         }
 
         "called" -> "Dirija-se ao atendimento em $queueName."
         "serving_started" -> professionalName?.let {
             "Seu atendimento em $queueName comecou com $it."
-        } ?: "Seu atendimento em $queueName ja comecou."
-        "completed" -> "O fluxo de atendimento em $queueName foi concluido."
-        "left" -> "Sua participacao em $queueName foi encerrada a pedido do cliente."
+        } ?: "Seu atendimento em $queueName já comecou."
+        "completed" -> "O fluxo de atendimento em $queueName foi concluído."
+        "left" -> "Sua participação em $queueName foi encerrada a pedido do cliente."
         "cancelled" -> "A entrada desta fila foi cancelada por um membro da equipe."
         "no_show" -> "Sua entrada foi marcada como ausencia em $queueName."
         "requeued" -> "Sua entrada voltou para a fila em $queueName."
@@ -319,8 +319,8 @@ private fun String.toNotificationBody(
 
 private fun Throwable.toNotificationsMessage(): String {
     return when (this) {
-        is ApiException -> message.ifBlank { "Nao foi possivel carregar o historico das filas." }
+        is ApiException -> message.ifBlank { "Não foi possível carregar o histórico das filas." }
         else -> message?.takeIf { it.isNotBlank() }
-            ?: "Nao foi possivel carregar o historico das filas."
+            ?: "Não foi possível carregar o histórico das filas."
     }
 }

@@ -40,7 +40,7 @@
           <div class="panel-header">
             <div>
               <h3>Meus estabelecimentos</h3>
-              <p>Locais onde você já atua, gerencia ou possui acesso.</p>
+              <p>Locais onde você já atua, gerência ou possui acesso.</p>
             </div>
             <q-input
               v-model="searchQuery"

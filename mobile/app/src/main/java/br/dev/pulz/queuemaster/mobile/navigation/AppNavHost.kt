@@ -296,7 +296,7 @@ fun AppNavHost(
                 onContinue = {
                     if (activity == null) {
                         loginViewModel.onGoogleSignInError(
-                            message = "Nao foi possivel iniciar o login neste contexto."
+                            message = "Não foi possível iniciar o login neste contexto."
                         )
                     } else {
                         coroutineScope.launch {
@@ -572,11 +572,11 @@ private fun NotificationsPromptDialog(
             )
         },
         title = {
-            Text(text = "Ativar notificacoes?")
+            Text(text = "Ativar notificações?")
         },
         text = {
             Text(
-                text = "O QueueMaster pode avisar quando sua vez estiver chegando, quando voce for chamado e quando o atendimento for concluido. Se preferir, voce pode deixar para ativar depois em Ajustes."
+                text = "O QueueMaster pode avisar quando sua vez estiver chegando, quando você for chamado e quando o atendimento for concluído. Se preferir, você pode deixar para ativar depois em Ajustes."
             )
         },
         confirmButton = {
@@ -586,7 +586,7 @@ private fun NotificationsPromptDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = "Agora nao")
+                Text(text = "Agora não")
             }
         }
     )

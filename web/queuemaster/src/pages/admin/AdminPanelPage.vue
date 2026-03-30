@@ -1,8 +1,8 @@
 <template>
   <q-page class="admin-page">
     <div class="page-header">
-      <h1 class="page-title">Painel de Administracao</h1>
-      <p class="page-subtitle">{{ isAdmin ? 'Gerencie usuarios, logs e ferramentas do sistema.' : 'Visualize o que esta dentro do seu escopo de gestao.' }}</p>
+      <h1 class="page-title">Painel de Administra??o</h1>
+      <p class="page-subtitle">{{ isAdmin ? 'Gerencie usuários, logs e ferramentas do sistema.' : 'Visualize o que está dentro do seu escopo de gestao.' }}</p>
     </div>
 
     <div class="admin-tabs-container soft-card">
@@ -15,7 +15,7 @@
         align="left"
         narrow-indicator
       >
-        <q-tab name="users" icon="group" label="Usuarios" no-caps />
+        <q-tab name="users" icon="group" label="Usuários" no-caps />
         <q-tab name="logs" icon="history" label="Logs" no-caps />
         <q-tab v-if="isAdmin" name="plans" icon="workspace_premium" label="Planos" no-caps />
         <q-tab v-if="isAdmin" name="developer" icon="code" label="Developer" no-caps />
@@ -27,8 +27,8 @@
         <q-tab-panel name="users" class="tab-panel">
           <div class="panel-head">
             <div>
-              <h2>Gerenciamento de usuarios</h2>
-              <p>{{ isAdmin ? 'Administre todos os usuarios do sistema.' : 'Visualize os gerentes e profissionais vinculados ao seu escopo.' }}</p>
+              <h2>Gerenciamento de usuários</h2>
+              <p>{{ isAdmin ? 'Administre todos os usuários do sistema.' : 'Visualize os gerentes e profissionais vinculados ao seu escopo.' }}</p>
             </div>
           </div>
 
@@ -55,19 +55,19 @@
 
           <div v-if="loading" class="state">
             <q-spinner-dots color="primary" size="40px" />
-            <p>Carregando usuarios...</p>
+            <p>Carregando usuários...</p>
           </div>
 
           <div v-else-if="filteredUsers.length === 0" class="state">
             <q-icon name="group_off" size="52px" />
-            <p>Nenhum usuario encontrado.</p>
+            <p>Nenhum usuário encontrado.</p>
           </div>
 
           <div v-else class="table-wrap">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Usuario</th>
+                  <th>Usuário</th>
                   <th>Email</th>
                   <th>Papel</th>
                   <th>Status</th>
@@ -126,7 +126,7 @@
             </q-input>
             <q-select v-model="logsActionFilter" outlined dense clearable stack-label class="filter-field" emit-value map-options :options="actionOptions" label="Acao" />
             <q-select v-model="logsEntityFilter" outlined dense clearable stack-label class="filter-field" emit-value map-options :options="entityOptions" label="Entidade" />
-            <q-select v-if="businessOptions.length" v-model="logsBusinessFilter" outlined dense clearable stack-label class="filter-field" emit-value map-options :options="businessOptions" label="Negocio" />
+            <q-select v-if="businessOptions.length" v-model="logsBusinessFilter" outlined dense clearable stack-label class="filter-field" emit-value map-options :options="businessOptions" label="Negócio" />
             <q-input v-model="logsDateFrom" outlined dense stack-label class="filter-field filter-date" type="date" label="De" />
             <q-input v-model="logsDateTo" outlined dense stack-label class="filter-field filter-date" type="date" label="Ate" />
             <div class="filter-actions">
@@ -150,7 +150,7 @@
               <thead>
                 <tr>
                   <th>Data</th>
-                  <th>Usuario</th>
+                  <th>Usuário</th>
                   <th>Acao</th>
                   <th>Entidade</th>
                   <th>Resumo</th>
@@ -188,7 +188,7 @@
           <div class="panel-head">
             <div>
               <h2>Planos</h2>
-              <p>Gerencie os planos padrao e personalizados mantendo os bloqueios da nova logica.</p>
+              <p>Gerencie os planos padr?o e personalizados mantendo os bloqueios da nova logica.</p>
             </div>
             <q-btn color="primary" icon="add" label="Novo plano" no-caps @click="openCreatePlan" />
           </div>
@@ -208,7 +208,7 @@
               <thead>
                 <tr>
                   <th>Plano</th>
-                  <th>Negocios</th>
+                  <th>Negócios</th>
                   <th>Estabelecimentos</th>
                   <th>Gerentes</th>
                   <th>Profissionais</th>
@@ -251,19 +251,19 @@
           <div class="panel-head">
             <div>
               <h2>Developer tools</h2>
-              <p>Ferramentas de desenvolvimento e depuracao.</p>
+              <p>Ferramentas de desenvolvimento e depura??o.</p>
             </div>
           </div>
 
           <div class="dev-warning">
             <q-icon name="warning" size="20px" />
-            <span>Tokens nao ficam expostos no browser. Gere um token temporario apenas para uso no Swagger.</span>
+            <span>Tokens não ficam expostos no browser. Gere um token temporário apenas para uso no Swagger.</span>
           </div>
 
           <div class="token-section">
             <div class="token-header">
               <h4>Token para Swagger</h4>
-              <p>Gera um token JWT de curta duracao para testar endpoints protegidos.</p>
+              <p>Gera um token JWT de curta dura??o para testar endpoints protegidos.</p>
             </div>
 
             <div v-if="!devToken" class="generate-token-area">
@@ -333,9 +333,9 @@
         </q-card-section>
         <q-card-section>
           <q-input v-model="planForm.name" outlined dense label="Nome do plano" />
-          <q-input v-model.number="planForm.max_businesses" outlined dense clearable type="number" label="Max. negocios" class="q-mt-md" />
-          <q-input v-model.number="planForm.max_establishments_per_business" outlined dense clearable type="number" label="Max. estabelecimentos / negocio" class="q-mt-md" />
-          <q-input v-model.number="planForm.max_managers" outlined dense clearable type="number" label="Max. gerentes / negocio" class="q-mt-md" />
+          <q-input v-model.number="planForm.max_businesses" outlined dense clearable type="number" label="Max. negócios" class="q-mt-md" />
+          <q-input v-model.number="planForm.max_establishments_per_business" outlined dense clearable type="number" label="Max. estabelecimentos / negócio" class="q-mt-md" />
+          <q-input v-model.number="planForm.max_managers" outlined dense clearable type="number" label="Max. gerentes / negócio" class="q-mt-md" />
           <q-input v-model.number="planForm.max_professionals_per_establishment" outlined dense clearable type="number" label="Max. profissionais / estabelecimento" class="q-mt-md" />
           <q-toggle v-model="planForm.is_active" label="Plano ativo" class="q-mt-md" />
         </q-card-section>
@@ -353,7 +353,7 @@
         </q-card-section>
         <q-card-section>
           <p>Deseja excluir <strong>{{ selectedPlan?.name }}</strong>?</p>
-          <p class="muted">Planos com vinculos ativos ou historico de uso sao protegidos pelo backend.</p>
+          <p class="muted">Planos com vínculos ativos ou histórico de uso s?o protegidos pelo backend.</p>
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" no-caps @click="showDeletePlanDialog = false" />
@@ -509,7 +509,7 @@ export default defineComponent({
         const response = await api.get('/admin/users')
         users.value = response.data?.data?.users || []
       } catch (error) {
-        notifyError(error, 'Erro ao carregar usuarios.')
+        notifyError(error, 'Erro ao carregar usuários.')
       } finally {
         loading.value = false
       }
@@ -690,9 +690,9 @@ export default defineComponent({
       const payload = parsedPayload(log?.payload) || {}
       return payload.summary || payload.entity_name || payload.name || `${getActionLabel(log?.action)} ${getEntityLabel(log?.entity).toLowerCase()}`
     }
-    const getActionLabel = (action) => ({ create: 'Criar', update: 'Atualizar', delete: 'Excluir', login: 'Login', logout: 'Logout', cancel: 'Cancelar', check_in: 'Check-in', complete: 'Concluir', queue_join: 'Entrar na fila', queue_leave: 'Sair da fila', queue_call_next: 'Chamar proximo', add_user: 'Adicionar usuario', remove_user: 'Remover usuario', assign_plan: 'Atribuir plano' }[action] || action || '-')
+    const getActionLabel = (action) => ({ create: 'Criar', update: 'Atualizar', delete: 'Excluir', login: 'Login', logout: 'Logout', cancel: 'Cancelar', check_in: 'Check-in', complete: 'Concluir', queue_join: 'Entrar na fila', queue_leave: 'Sair da fila', queue_call_next: 'Chamar pr?ximo', add_user: 'Adicionar usuário', remove_user: 'Remover usuário', assign_plan: 'Atribuir plano' }[action] || action || '-')
     const getActionColor = (action) => ({ create: 'positive', update: 'blue', delete: 'negative', login: 'teal', logout: 'grey-7', cancel: 'orange', check_in: 'cyan', complete: 'positive', queue_join: 'light-green', queue_leave: 'amber', queue_call_next: 'indigo', add_user: 'light-blue', remove_user: 'deep-orange', assign_plan: 'primary' }[action] || 'grey-7')
-    const getEntityLabel = (entity) => ({ user: 'Usuario', business: 'Negocio', establishment: 'Estabelecimento', service: 'Servico', professional: 'Profissional', queue: 'Fila', appointment: 'Agendamento', admin_user_profile: 'Perfil administrativo', user_plan_subscription: 'Assinatura' }[entity] || entity || '-')
+    const getEntityLabel = (entity) => ({ user: 'Usuário', business: 'Negócio', establishment: 'Estabelecimento', service: 'Serviço', professional: 'Profissional', queue: 'Fila', appointment: 'Agendamento', admin_user_profile: 'Perfil administrativo', user_plan_subscription: 'Assinatura' }[entity] || entity || '-')
     const getRoleLabel = (role) => ({ admin: 'Administrador', manager: 'Gerente', professional: 'Profissional', client: 'Cliente' }[role] || role || '-')
     const getRoleColor = (role) => ({ admin: 'deep-orange', manager: 'primary', professional: 'teal', client: 'grey-7' }[role] || 'grey-7')
     const getInitials = (name) => name ? name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() : '?'

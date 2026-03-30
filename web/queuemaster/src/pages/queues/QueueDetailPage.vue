@@ -68,15 +68,15 @@
         >
           <q-icon :name="userEntry.status === 'called' ? 'campaign' : userEntry.status === 'serving' ? 'headset_mic' : 'person'" size="20px" />
           <template v-if="userEntry.status === 'waiting'">
-            <span>Voc? est? na posi??o <strong>{{ userEntry.position }}</strong></span>
+            <span>Você está na posição <strong>{{ userEntry.position }}</strong></span>
             <span class="text-muted">(~{{ userEntry.estimated_wait_minutes || '?' }} min)</span>
           </template>
           <template v-else-if="userEntry.status === 'called'">
-            <span>Voc? foi chamado para atendimento.</span>
+            <span>Você foi chamado para atendimento.</span>
             <span class="text-muted">Chamado h? {{ formatWaitTime(userEntry.called_since_minutes || 0) }}</span>
           </template>
           <template v-else-if="userEntry.status === 'serving'">
-            <span>Voc? est? em atendimento.</span>
+            <span>Você está em atendimento.</span>
             <span class="text-muted">
               <template v-if="userEntry.professional_name">Com {{ userEntry.professional_name }} ? </template>
               h? {{ formatWaitTime(userEntry.serving_since_minutes || 0) }}
@@ -151,7 +151,7 @@
           </div>
           <div class="stat-box soft-card">
             <span class="stat-number">{{ statistics?.total_completed_today || 0 }}</span>
-            <span class="stat-text">Conclu?dos hoje</span>
+            <span class="stat-text">Concluídos hoje</span>
           </div>
           <div class="stat-box soft-card">
             <span class="stat-number">{{ statistics?.average_wait_time_minutes || 0 }} min</span>
@@ -164,11 +164,11 @@
           <q-tabs v-model="mainTab" dense class="main-tabs" active-color="primary" indicator-color="primary" align="left" narrow-indicator>
             <q-tab name="flow" icon="swap_vert" label="Fluxo" no-caps />
             <q-tab name="professionals" icon="badge" label="Profissionais" no-caps />
-            <q-tab name="info" icon="info" label="Informa??es" no-caps />
-            <q-tab name="settings" icon="tune" label="Configura??es" no-caps />
-            <q-tab name="services" icon="miscellaneous_services" label="Servi?os" no-caps />
-            <q-tab name="tokens" icon="qr_code_2" label="C?digos" no-caps />
-            <q-tab name="reports" icon="analytics" label="Relat?rios" no-caps />
+            <q-tab name="info" icon="info" label="Informações" no-caps />
+            <q-tab name="settings" icon="tune" label="Configurações" no-caps />
+            <q-tab name="services" icon="miscellaneous_services" label="Serviços" no-caps />
+            <q-tab name="tokens" icon="qr_code_2" label="Códigos" no-caps />
+            <q-tab name="reports" icon="analytics" label="Relatórios" no-caps />
           </q-tabs>
 
           <q-separator style="margin-top: 10px;" />
@@ -205,7 +205,7 @@
                 </q-tab>
                 <q-tab name="completed" no-caps>
                   <div class="tab-label-row">
-                    <span>Conclu?dos</span>
+                    <span>Concluídos</span>
                     <StatusPill v-if="completedEntries.length" :label="String(completedEntries.length)" variant="positive" />
                   </div>
                 </q-tab>
@@ -235,7 +235,7 @@
                           <th>Pessoa</th>
                           <th>Prioridade</th>
                           <th>Espera</th>
-                          <th class="queue-col-actions">A??es</th>
+                          <th class="queue-col-actions">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -263,7 +263,7 @@
                             </div>
                           </td>
                           <td>
-                            <StatusPill v-if="entry.priority >= 2" label="Muito priorit?rio" variant="negative" />
+                            <StatusPill v-if="entry.priority >= 2" label="Muito prioritário" variant="negative" />
                             <StatusPill v-else-if="entry.priority === 1" label="Prioridade" variant="orange" />
                             <span v-else class="table-muted">Normal</span>
                           </td>
@@ -273,7 +273,7 @@
                           <td>
                             <div class="queue-row-actions">
                               <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Hist?rico</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Histórico</q-tooltip></q-btn>
                               <q-btn flat round dense icon="campaign" color="warning" @click.stop="updateEntryStatus(entry.id, 'called')"><q-tooltip>Chamar</q-tooltip></q-btn>
                               <q-btn flat round dense icon="headset_mic" color="primary" @click.stop="beginServingEntry(entry)"><q-tooltip>Atender agora</q-tooltip></q-btn>
                               <q-btn flat round dense icon="person_remove" color="negative" @click.stop="confirmRemoveEntry(entry.id, entry.user_name)"><q-tooltip>Remover</q-tooltip></q-btn>
@@ -288,7 +288,7 @@
                 <q-tab-panel name="called" class="q-pa-none">
                   <div v-if="calledEntries.length === 0" class="empty-state-sm">
                     <q-icon name="campaign" size="48px" />
-                    <p>Ningu?m foi chamado ainda</p>
+                    <p>Ninguém foi chamado ainda</p>
                   </div>
                   <div v-else class="table-wrap queue-table-wrap">
                     <table class="data-table queue-data-table">
@@ -298,7 +298,7 @@
                           <th>Pessoa</th>
                           <th>Chamado h?</th>
                           <th>Status</th>
-                          <th class="queue-col-actions">A??es</th>
+                          <th class="queue-col-actions">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -334,11 +334,11 @@
                           <td>
                             <div class="queue-row-actions">
                               <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Hist?rico</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Histórico</q-tooltip></q-btn>
                               <q-btn flat round dense icon="headset_mic" color="primary" @click.stop="beginServingEntry(entry)"><q-tooltip>Assumir atendimento</q-tooltip></q-btn>
                               <q-btn flat round dense icon="badge" color="secondary" @click.stop="openAssignProfessionalDialog(entry)"><q-tooltip>Atribuir profissional</q-tooltip></q-btn>
                               <q-btn flat round dense icon="undo" color="grey-7" @click.stop="updateEntryStatus(entry.id, 'waiting')"><q-tooltip>Retornar ? fila</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="person_off" color="negative" @click.stop="openNotesDialog(entry.id, 'no_show')"><q-tooltip>N?o compareceu</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="person_off" color="negative" @click.stop="openNotesDialog(entry.id, 'no_show')"><q-tooltip>Não compareceu</q-tooltip></q-btn>
                             </div>
                           </td>
                         </tr>
@@ -360,7 +360,7 @@
                           <th>Pessoa</th>
                           <th>Profissional</th>
                           <th>Em atendimento</th>
-                          <th class="queue-col-actions">A??es</th>
+                          <th class="queue-col-actions">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -388,7 +388,7 @@
                             </div>
                           </td>
                           <td>
-                            <span class="table-strong">{{ entry.professional_name || 'Profissional n?o informado' }}</span>
+                            <span class="table-strong">{{ entry.professional_name || 'Profissional não informado' }}</span>
                           </td>
                           <td>
                             <span class="table-strong">{{ formatWaitTime(entry.serving_since_minutes) }}</span>
@@ -396,7 +396,7 @@
                           <td>
                             <div class="queue-row-actions">
                               <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Hist?rico</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Histórico</q-tooltip></q-btn>
                               <q-btn flat round dense icon="check_circle" color="positive" @click.stop="updateEntryStatus(entry.id, 'done')"><q-tooltip>Concluir</q-tooltip></q-btn>
                               <q-btn flat round dense icon="undo" color="grey-7" @click.stop="updateEntryStatus(entry.id, 'waiting')"><q-tooltip>Retornar ? fila</q-tooltip></q-btn>
                               <q-btn flat round dense icon="cancel" color="negative" @click.stop="confirmRemoveEntry(entry.id, entry.user_name)"><q-tooltip>Cancelar</q-tooltip></q-btn>
@@ -416,20 +416,20 @@
                       toggle-color="primary"
                       :options="[
                         { label: 'Hoje', value: 'today' },
-                        { label: 'Per?odo', value: 'custom' },
+                        { label: 'Período', value: 'custom' },
                       ]"
                       class="completed-toggle"
                       @update:model-value="onCompletedPeriodChange"
                     />
                     <div v-if="completedPeriod === 'custom'" class="completed-dates">
                       <q-input v-model="completedFrom" outlined dense type="date" label="De" @update:model-value="fetchData" />
-                      <q-input v-model="completedTo" outlined dense type="date" label="At?" @update:model-value="fetchData" />
+                      <q-input v-model="completedTo" outlined dense type="date" label="Até" @update:model-value="fetchData" />
                     </div>
                   </div>
 
                   <div v-if="completedEntries.length === 0" class="empty-state-sm">
                     <q-icon name="check_circle" size="48px" />
-                    <p>Nenhum atendimento conclu?do{{ completedPeriod === 'today' ? ' hoje' : '' }}</p>
+                    <p>Nenhum atendimento concluído{{ completedPeriod === 'today' ? ' hoje' : '' }}</p>
                   </div>
                   <div v-else class="table-wrap queue-table-wrap">
                     <table class="data-table queue-data-table">
@@ -438,7 +438,7 @@
                           <th>Pessoa</th>
                           <th>Resultado</th>
                           <th>Finalizado em</th>
-                          <th class="queue-col-actions">A??es</th>
+                          <th class="queue-col-actions">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -450,12 +450,12 @@
                                 <div class="meta-top">
                                   <strong>{{ entry.user_name }}</strong>
                                 </div>
-                                <span>{{ entry.user_email || 'Fluxo conclu?do' }}</span>
+                                <span>{{ entry.user_email || 'Fluxo concluído' }}</span>
                               </div>
                             </div>
                           </td>
                           <td>
-                            <StatusPill :label="entry.status === 'no_show' ? 'N?o compareceu' : 'Conclu?do'" :variant="entry.status === 'no_show' ? 'negative' : 'positive'" />
+                            <StatusPill :label="entry.status === 'no_show' ? 'Não compareceu' : 'Concluído'" :variant="entry.status === 'no_show' ? 'negative' : 'positive'" />
                           </td>
                           <td>
                             <span class="table-strong">{{ formatDate(entry.completed_at || entry.updated_at) }}</span>
@@ -463,7 +463,7 @@
                           <td>
                             <div class="queue-row-actions">
                               <q-btn flat round dense icon="account_circle" @click.stop="openProfilePreview(entry, $event)"><q-tooltip>Perfil</q-tooltip></q-btn>
-                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Hist?rico</q-tooltip></q-btn>
+                              <q-btn flat round dense icon="history" @click.stop="openEntryHistory(entry)"><q-tooltip>Histórico</q-tooltip></q-btn>
                               <q-btn flat round dense icon="replay" color="primary" @click.stop="updateEntryStatus(entry.id, 'waiting')"><q-tooltip>Realocar para a fila</q-tooltip></q-btn>
                             </div>
                           </td>
@@ -502,7 +502,7 @@
               <div v-if="qpLoading" class="loading-state-sm"><q-spinner-dots color="primary" size="24px" /></div>
               <div v-else-if="queueProfessionals.length === 0" class="empty-state-sm">
                 <q-icon name="badge" size="48px" />
-                <p>Nenhum profissional vinculado a esta fila</p>
+                <p>Nenhum profissional vinculado a está fila</p>
               </div>
               <div v-else class="list-items">
                 <div v-for="prof in queueProfessionals" :key="prof.id" class="list-item" @click="openProfMenu($event, prof)">
@@ -584,7 +584,7 @@
               <div class="panel-header">
                 <div class="panel-header-text">
                   <h3>Serviços</h3>
-                  <p>Serviços vinculados a esta fila</p>
+                  <p>Serviços vinculados a está fila</p>
                 </div>
                 <q-btn v-if="canManage" color="primary" icon="add" label="Adicionar" no-caps @click="openAddServiceDialog" />
               </div>
@@ -592,7 +592,7 @@
               <div v-if="svcLoading" class="loading-state-sm"><q-spinner-dots color="primary" size="24px" /></div>
               <div v-else-if="queueServices.length === 0" class="empty-state-sm">
                 <q-icon name="miscellaneous_services" size="48px" />
-                <p>Nenhum serviço vinculado a esta fila</p>
+                <p>Nenhum serviço vinculado a está fila</p>
               </div>
               <div v-else class="services-grid">
                 <div
@@ -807,7 +807,7 @@
     <q-dialog v-model="showEntryHistoryDialog">
       <q-card class="dialog-card dialog-large entry-history-dialog">
         <q-card-section class="dialog-header">
-          <div class="text-h6">Historico da entrada</div>
+          <div class="text-h6">Histórico da entrada</div>
           <q-btn flat round dense icon="close" @click="closeEntryHistoryDialog" />
         </q-card-section>
 
@@ -832,7 +832,7 @@
         </q-card-section>
         <q-card-section>
           <p class="text-muted">
-            Tem certeza que deseja remover {{ removeEntryTarget?.name || 'esta pessoa' }} da fila?
+            Tem certeza que deseja remover {{ removeEntryTarget?.name || 'está pessoa' }} da fila?
           </p>
         </q-card-section>
         <q-card-actions align="right" class="dialog-actions">
@@ -940,7 +940,7 @@
             emit-value
             map-options
             :options="activeQueueProfessionalOptions"
-            label="Profissional respons?vel"
+            label="Profissional responsável"
           />
         </q-card-section>
 
@@ -1937,7 +1937,7 @@ export default defineComponent({
         if (svcDialogMode.value === 'select') {
           // Batch link existing
           await api.post(`/queues/${queueId.value}/services`, { service_ids: selectedServiceIds.value.map(Number) })
-          $q.notify({ type: 'positive', message: `${selectedServiceIds.value.length} servico(s) adicionado(s) a fila` })
+          $q.notify({ type: 'positive', message: `${selectedServiceIds.value.length} serviço(s) adicionado(s) a fila` })
         } else {
           // Create new + link
           if (!svcForm.value.name || !svcForm.value.duration) {
@@ -2197,7 +2197,7 @@ export default defineComponent({
         action: () => openProfilePreview(entryMenuEntry.value, entryMenuEvent.value),
       }
       const historyItem = {
-        key: 'history', icon: 'history', label: 'Ver historico',
+        key: 'history', icon: 'history', label: 'Ver histórico',
         action: () => openEntryHistory(entry),
       }
 
@@ -2288,7 +2288,7 @@ export default defineComponent({
     const openEntryHistory = async (entry) => {
       const publicId = entry?.public_id
       if (!publicId) {
-        $q.notify({ type: 'warning', message: 'Essa entrada ainda nao possui historico publico disponivel.' })
+        $q.notify({ type: 'warning', message: 'Essa entrada ainda não possui histórico público disponivel.' })
         return
       }
 
@@ -2303,7 +2303,7 @@ export default defineComponent({
         entryHistoryEntry.value = response.entry
         entryHistoryEvents.value = response.events
       } catch (err) {
-        entryHistoryError.value = err.response?.data?.error?.message || 'Nao foi possivel carregar o historico desta entrada.'
+        entryHistoryError.value = err.response?.data?.error?.message || 'Não foi possível carregar o histórico desta entrada.'
       } finally {
         entryHistoryLoading.value = false
       }
@@ -2483,7 +2483,7 @@ export default defineComponent({
 
       removeEntryTarget.value = {
         id: normalizedEntryId,
-        name: name || 'esta pessoa',
+        name: name || 'está pessoa',
       }
       showRemoveEntryDialog.value = true
     }
@@ -2602,7 +2602,7 @@ export default defineComponent({
         const currentIndex = sortedWaitingEntries.value.findIndex(e => e.id === entry.id)
         const canMove = direction === 'up' ? currentIndex > 0 : currentIndex < sortedWaitingEntries.value.length - 1
 
-        // Check if the adjacent position is also selected (skip if so, they stay together)
+        // Check if the adjacent position is also selected (skip if s?, they stay together)
         if (canMove) {
           const adjacentIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
           const adjacentEntry = sortedWaitingEntries.value[adjacentIndex]

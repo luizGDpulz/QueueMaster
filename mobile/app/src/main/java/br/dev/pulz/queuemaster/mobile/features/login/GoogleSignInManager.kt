@@ -57,7 +57,7 @@ class GoogleSignInManager(
         ) {
             Log.w(TAG, "Unexpected credential type returned by Credential Manager: ${credential.type}")
             return GoogleSignInResult.Error(
-                message = "Nao foi possivel identificar a conta Google selecionada."
+                message = "Não foi possível identificar a conta Google selecionada."
             )
         }
 
@@ -112,7 +112,7 @@ class GoogleSignInManager(
                     message = debugMessage(
                         message
                             ?.takeIf { it.isNotBlank() }
-                            ?: "Nao foi possivel abrir o login do Google agora."
+                            ?: "Não foi possível abrir o login do Google agora."
                     )
                 )
             }
@@ -123,7 +123,7 @@ class GoogleSignInManager(
                     message = debugMessage(
                         message
                             ?.takeIf { it.isNotBlank() }
-                            ?: "Nao foi possivel entrar com Google agora."
+                            ?: "Não foi possível entrar com Google agora."
                     )
                 )
             }

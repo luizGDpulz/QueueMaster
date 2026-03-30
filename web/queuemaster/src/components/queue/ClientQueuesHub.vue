@@ -27,7 +27,7 @@
         </div>
         <div class="stat-info">
           <span class="stat-value">{{ historyCount }}</span>
-          <span class="stat-label">Participacoes</span>
+          <span class="stat-label">Participações</span>
         </div>
       </div>
     </div>
@@ -67,7 +67,7 @@
         class="hub-tabs"
       >
         <q-tab name="browse" icon="format_list_numbered" label="Filas" no-caps />
-        <q-tab name="history" icon="history" label="Historico" no-caps />
+        <q-tab name="history" icon="history" label="Histórico" no-caps />
       </q-tabs>
 
       <q-separator />
@@ -162,12 +162,12 @@
 
           <div v-if="historyLoading" class="state-block">
             <q-spinner-dots color="primary" size="36px" />
-            <p>Carregando historico...</p>
+            <p>Carregando histórico...</p>
           </div>
 
           <div v-else-if="historyItems.length === 0" class="state-block">
             <q-icon name="history" size="48px" />
-            <p>Voce ainda nao participou de nenhuma fila.</p>
+            <p>Você ainda não participou de nenhuma fila.</p>
           </div>
 
           <div v-else class="history-grid">
@@ -299,7 +299,7 @@ export default defineComponent({
       } catch (error) {
         $q.notify({
           type: 'negative',
-          message: error?.response?.data?.error?.message || 'Nao foi possivel carregar as filas.',
+          message: error?.response?.data?.error?.message || 'Não foi possível carregar as filas.',
         })
       } finally {
         queuesLoading.value = false
@@ -316,7 +316,7 @@ export default defineComponent({
       } catch (error) {
         $q.notify({
           type: 'negative',
-          message: error?.response?.data?.error?.message || 'Nao foi possivel carregar o historico.',
+          message: error?.response?.data?.error?.message || 'Não foi possível carregar o histórico.',
         })
       } finally {
         historyLoading.value = false
@@ -329,7 +329,7 @@ export default defineComponent({
       } catch (error) {
         $q.notify({
           type: 'negative',
-          message: error?.response?.data?.error?.message || 'Nao foi possivel verificar sua fila ativa.',
+          message: error?.response?.data?.error?.message || 'Não foi possível verificar sua fila ativa.',
         })
       }
     }
@@ -371,7 +371,7 @@ export default defineComponent({
         timelineEntry.value = response.entry
         timelineEvents.value = response.events
       } catch (error) {
-        timelineError.value = error?.response?.data?.error?.message || 'Nao foi possivel carregar o fluxo.'
+        timelineError.value = error?.response?.data?.error?.message || 'Não foi possível carregar o fluxo.'
       } finally {
         timelineLoading.value = false
       }

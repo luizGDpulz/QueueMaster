@@ -29,7 +29,7 @@ class ProfileViewModel : ViewModel() {
             }.getOrNull() ?: run {
                 if (currentState !is ProfileUiState.Loaded) {
                     _uiState.value = ProfileUiState.Error(
-                        message = "Nao foi possivel carregar seus dados agora."
+                        message = "Não foi possível carregar seus dados agora."
                     )
                 }
                 return@launch

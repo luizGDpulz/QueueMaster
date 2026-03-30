@@ -87,7 +87,7 @@ export default defineComponent({
       return [
         props.item.establishment?.name,
         props.item.service_name,
-      ].filter(Boolean).join(' - ') || 'Historico da participacao'
+      ].filter(Boolean).join(' - ') || 'Histórico da participação'
     })
 
     return {

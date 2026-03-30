@@ -89,7 +89,7 @@ fun QrScannerScreen(
         permissionRequested = true
         hasCameraPermission = granted
         if (!granted) {
-            onError("Permita o acesso a camera para escanear o QR code da fila.")
+            onError("Permita o acesso a câmera para escanear o QR code da fila.")
         }
     }
 
@@ -305,12 +305,12 @@ private fun QrScannerPermissionState(
 ) {
     QmPlaceholderState(
         icon = Icons.Filled.CameraAlt,
-        eyebrow = "Permissao",
-        title = "Libere a camera para escanear",
-        description = "A leitura do QR code precisa da camera do telefone para funcionar dentro do app.",
-        primaryActionLabel = "Permitir camera",
+        eyebrow = "Permissão",
+        title = "Libere a câmera para escanear",
+        description = "A leitura do QR code precisa da câmera do telefone para funcionar dentro do app.",
+        primaryActionLabel = "Permitir câmera",
         onPrimaryAction = onGrantPermission,
-        secondaryActionLabel = if (showOpenSettings) "Abrir configuracoes" else "Voltar",
+        secondaryActionLabel = if (showOpenSettings) "Abrir configurações" else "Voltar",
         onSecondaryAction = if (showOpenSettings) onOpenSettings else onBackClick
     ) {
         errorMessage?.let { message ->
@@ -392,7 +392,7 @@ private fun QrCameraPreview(
                     analysis
                 )
             }.onFailure {
-                onError("Nao foi possivel iniciar a camera agora.")
+                onError("Não foi possível iniciar a câmera agora.")
             }
         }
 
