@@ -428,6 +428,26 @@ $router->group('/api/v1', function ($router) {
                 }
                 );
 
+                // GET /api/v1/queues/resolve-code/{code} — Resolve manual join code
+                $router->get('/resolve-code/{code}', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->resolveCode($request, (string)$request->getParam('code'));
+                }
+                    , [new RateLimiter(30, 60)]);
+
+                // POST /api/v1/queues/join — Join queue by access_code without explicit queue_id
+                $router->get('/current', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->current($request);
+                }
+                    , [new RateLimiter(30, 60)]);
+
+                $router->post('/join', function ($request) {
+                    $controller = new QueuesController();
+                    $controller->join($request, null);
+                }
+                    , [new RateLimiter(10, 60)]);
+
                 // GET /api/v1/queues/{id} — Get single queue
                 $router->get('/{id}', function ($request) {
                     $controller = new QueuesController();

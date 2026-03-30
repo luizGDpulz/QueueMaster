@@ -73,6 +73,8 @@ Thumbs.db
 # Temporary files
 /tmp/
 *.tmp
+tmp_googleid/
+tmp_googleid.zip
 
 # Build artifacts
 /dist/

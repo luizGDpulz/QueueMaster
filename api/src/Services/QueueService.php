@@ -375,25 +375,25 @@ class QueueService
      */
     public function getQueueStatus(int $queueId, ?int $userId = null): array
     {
-        $sql = "SELECT COUNT(*) as total FROM queue_entries WHERE queue_id = ? AND status = 'waiting'";
-        $result = $this->db->query($sql, [$queueId]);
-        $totalWaiting = (int)$result[0]['total'];
+        $waitingSql = "
+            SELECT id, user_id, position, priority
+            FROM queue_entries
+            WHERE queue_id = ? AND status = 'waiting'
+            ORDER BY priority DESC, position ASC
+        ";
+        $waitingEntries = $this->db->query($waitingSql, [$queueId]);
+        $totalWaiting = count($waitingEntries);
 
         $userPosition = null;
         $estimatedWait = null;
 
         if ($userId) {
-            $positionSql = "
-                SELECT position FROM queue_entries 
-                WHERE queue_id = ? AND user_id = ? AND status = 'waiting'
-                ORDER BY created_at DESC
-                LIMIT 1
-            ";
-            $positionResult = $this->db->query($positionSql, [$queueId, $userId]);
-            
-            if (!empty($positionResult)) {
-                $userPosition = (int)$positionResult[0]['position'];
-                $estimatedWait = $this->calculateEstimatedWait($queueId, $userPosition);
+            foreach ($waitingEntries as $index => $entry) {
+                if (!empty($entry['user_id']) && (int)$entry['user_id'] === $userId) {
+                    $userPosition = $index + 1;
+                    $estimatedWait = $this->calculateEstimatedWait($queueId, $userPosition);
+                    break;
+                }
             }
         }
 
