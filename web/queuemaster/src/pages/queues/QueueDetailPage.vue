@@ -3310,6 +3310,10 @@ export default defineComponent({
   border-top: 1px solid var(--qm-border);
 }
 
+.queue-data-table tbody td {
+  vertical-align: middle;
+}
+
 .queue-col-check {
   width: 110px;
 }
