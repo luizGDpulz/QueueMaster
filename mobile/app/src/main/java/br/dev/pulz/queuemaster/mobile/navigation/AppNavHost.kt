@@ -60,6 +60,7 @@ import br.dev.pulz.queuemaster.mobile.features.queuestatus.QueueStatusUiState
 import br.dev.pulz.queuemaster.mobile.features.queuestatus.QueueStatusViewModel
 import br.dev.pulz.queuemaster.mobile.features.settings.SettingsScreen
 import br.dev.pulz.queuemaster.mobile.features.settings.SettingsViewModel
+import br.dev.pulz.queuemaster.mobile.core.utils.QueueBackgroundMonitor
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -196,6 +197,12 @@ fun AppNavHost(
             launchSingleTop = true
         }
         onPendingAppRouteConsumed()
+    }
+
+    LaunchedEffect(currentRoute) {
+        QueueBackgroundMonitor.setQueueStatusScreenActive(
+            currentRoute == AppRoute.QueueStatus.route
+        )
     }
 
     LaunchedEffect(
@@ -381,7 +388,7 @@ fun AppNavHost(
                 }
 
                 while (currentCoroutineContext().isActive && queueStatusViewModel.hasActiveQueueSession()) {
-                    delay(20_000)
+                    delay(15_000)
                     if (queueStatusViewModel.hasActiveQueueSession()) {
                         queueStatusViewModel.refresh(showLoading = false)
                     }

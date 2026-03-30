@@ -10,52 +10,96 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 object QueueBackgroundMonitor : DefaultLifecycleObserver {
-    private const val PollIntervalMillis = 20_000L
+    private const val PollIntervalMillis = 15_000L
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val queueRepository = QueueRepository()
 
     private var pollingJob: Job? = null
+    private var isAuthenticatedSessionReady = false
     private var isAppInForeground = true
+    private var isQueueStatusScreenActive = false
 
     fun initialize(application: Application) {
         ProcessLifecycleOwner.get().lifecycle.removeObserver(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+
+        applicationScope.launch {
+            AppPreferencesStore.systemNotificationsEnabled.collectLatest {
+                refreshPollingState()
+            }
+        }
     }
 
     override fun onStart(owner: LifecycleOwner) {
         isAppInForeground = true
-        pollingJob?.cancel()
-        pollingJob = null
+        refreshPollingState()
     }
 
     override fun onStop(owner: LifecycleOwner) {
         isAppInForeground = false
-        startPollingIfNeeded()
+        refreshPollingState()
     }
 
-    private fun startPollingIfNeeded() {
+    fun setQueueStatusScreenActive(active: Boolean) {
+        isQueueStatusScreenActive = active
+        refreshPollingState()
+    }
+
+    fun setAuthenticatedSessionReady(isReady: Boolean) {
+        isAuthenticatedSessionReady = isReady
+        refreshPollingState()
+    }
+
+    fun notifyQueueSessionChanged() {
+        refreshPollingState()
+    }
+
+    private fun refreshPollingState() {
+        if (!shouldRunPolling()) {
+            pollingJob?.cancel()
+            pollingJob = null
+            return
+        }
+
         if (pollingJob?.isActive == true) return
 
         pollingJob = applicationScope.launch {
-            while (isActive && !isAppInForeground) {
+            while (isActive) {
                 val session = QueueSessionStore.restore()
-                if (session == null) {
-                    pollingJob = null
-                    return@launch
+                if (session == null || !shouldRunPolling()) {
+                    break
                 }
 
-                if (AppPreferencesStore.systemNotificationsEnabled.value) {
-                    pollQueueState(session)
-                }
-
+                pollQueueState(session)
                 delay(PollIntervalMillis)
             }
+
+            pollingJob = null
+        }
+    }
+
+    private fun shouldRunPolling(): Boolean {
+        if (!isAuthenticatedSessionReady) {
+            return false
+        }
+
+        if (!AppPreferencesStore.systemNotificationsEnabled.value) {
+            return false
+        }
+
+        QueueSessionStore.restore() ?: return false
+
+        return if (isAppInForeground) {
+            !isQueueStatusScreenActive
+        } else {
+            BatteryOptimizationHelper.isIgnoringBatteryOptimizations(AppRuntime.context())
         }
     }
 
@@ -82,6 +126,7 @@ object QueueBackgroundMonitor : DefaultLifecycleObserver {
                         )
                     }
                     QueueSessionStore.clear()
+                    refreshPollingState()
                     return
                 }
 
@@ -103,6 +148,7 @@ object QueueBackgroundMonitor : DefaultLifecycleObserver {
             onFailure = { throwable ->
                 if (throwable is ApiException && throwable.statusCode == 404) {
                     QueueSessionStore.clear()
+                    refreshPollingState()
                 }
             }
         )

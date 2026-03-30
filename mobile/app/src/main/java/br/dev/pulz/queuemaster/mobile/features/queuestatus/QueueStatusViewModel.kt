@@ -7,6 +7,7 @@ import br.dev.pulz.queuemaster.mobile.core.model.QueueStatus
 import br.dev.pulz.queuemaster.mobile.core.network.ApiException
 import br.dev.pulz.queuemaster.mobile.core.network.repository.QueueRepository
 import br.dev.pulz.queuemaster.mobile.core.utils.PersistedQueueSession
+import br.dev.pulz.queuemaster.mobile.core.utils.QueueBackgroundMonitor
 import br.dev.pulz.queuemaster.mobile.core.utils.QueueMasterNotificationManager
 import br.dev.pulz.queuemaster.mobile.core.utils.QueueSessionStore
 import br.dev.pulz.queuemaster.mobile.core.utils.buildQueueNotificationFlowKey
@@ -34,6 +35,7 @@ class QueueStatusViewModel : ViewModel() {
     val lastUpdatedAt: StateFlow<Long?> = _lastUpdatedAt.asStateFlow()
 
     fun showJoinedQueue(result: JoinQueueResult, authenticatedUserId: Int) {
+        QueueBackgroundMonitor.setAuthenticatedSessionReady(true)
         val notificationFlowKey = buildQueueNotificationFlowKey(
             entryPublicId = result.entryPublicId,
             queueId = result.queueId,
@@ -60,6 +62,7 @@ class QueueStatusViewModel : ViewModel() {
                 lastEntryStatus = result.entryStatus
             )
         )
+        QueueBackgroundMonitor.notifyQueueSessionChanged()
         if (result.joinedSuccessfully) {
             QueueMasterNotificationManager.notifyQueueJoined(
                 userId = authenticatedUserId,
@@ -95,6 +98,7 @@ class QueueStatusViewModel : ViewModel() {
                     )
                     activeQueueSession = null
                     QueueSessionStore.clear()
+                    QueueBackgroundMonitor.notifyQueueSessionChanged()
                     leaveInFlight = false
                     QueueStatusUiState.NoActiveQueue
                 },
@@ -145,6 +149,7 @@ class QueueStatusViewModel : ViewModel() {
                         }
                         activeQueueSession = null
                         QueueSessionStore.clear()
+                        QueueBackgroundMonitor.notifyQueueSessionChanged()
                         leaveInFlight = false
                         _uiState.value = QueueStatusUiState.NoActiveQueue
                     } else {
@@ -179,6 +184,7 @@ class QueueStatusViewModel : ViewModel() {
                     if (throwable is ApiException && throwable.statusCode == 404) {
                         activeQueueSession = null
                         QueueSessionStore.clear()
+                        QueueBackgroundMonitor.notifyQueueSessionChanged()
                         leaveInFlight = false
                         _uiState.value = QueueStatusUiState.NoActiveQueue
                     } else {
@@ -199,6 +205,7 @@ class QueueStatusViewModel : ViewModel() {
     fun hasActiveQueueSession(): Boolean = activeQueueSession != null
 
     suspend fun restoreOrFetchActiveSession(authenticatedUserId: Int): Boolean {
+        QueueBackgroundMonitor.setAuthenticatedSessionReady(true)
         if (restoredUserId == authenticatedUserId && activeQueueSession != null) {
             return true
         }
@@ -206,6 +213,7 @@ class QueueStatusViewModel : ViewModel() {
         restoredUserId = authenticatedUserId
         val persisted = QueueSessionStore.restoreForUser(authenticatedUserId)
         activeQueueSession = persisted?.toActiveQueueSession()
+        QueueBackgroundMonitor.notifyQueueSessionChanged()
 
         val currentActiveQueue = try {
             queueRepository.getCurrentActiveQueue()
@@ -219,6 +227,7 @@ class QueueStatusViewModel : ViewModel() {
         if (currentActiveQueue == null) {
             activeQueueSession = null
             QueueSessionStore.clear()
+            QueueBackgroundMonitor.notifyQueueSessionChanged()
             _uiState.value = QueueStatusUiState.NoActiveQueue
             return false
         }
@@ -256,13 +265,16 @@ class QueueStatusViewModel : ViewModel() {
                 lastEntryStatus = currentActiveQueue.entryStatus
             )
         )
+        QueueBackgroundMonitor.notifyQueueSessionChanged()
         return true
     }
 
     fun clear() {
+        QueueBackgroundMonitor.setAuthenticatedSessionReady(false)
         restoredUserId = null
         activeQueueSession = null
         QueueSessionStore.clear()
+        QueueBackgroundMonitor.notifyQueueSessionChanged()
         _isRefreshing.value = false
         _lastUpdatedAt.value = null
         _uiState.value = QueueStatusUiState.NoActiveQueue

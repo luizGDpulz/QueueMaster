@@ -298,6 +298,7 @@ import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
 import ClientQueuesHub from 'src/components/queue/ClientQueuesHub.vue'
 import { useSingleFlightAction } from 'src/composables/useSingleFlightAction'
+import { useVisibilityPolling } from 'src/composables/useVisibilityPolling'
 
 export default defineComponent({
   name: 'QueuesPage',
@@ -316,6 +317,7 @@ export default defineComponent({
     const establishments = ref([])
     const services = ref([])
     const loading = ref(true)
+    const queuesLoadedOnce = ref(false)
     const saving = ref(false)
     const deleting = ref(false)
     const calling = ref(false)
@@ -385,8 +387,11 @@ export default defineComponent({
     })
 
     // Methods
-    const fetchQueues = async () => {
-      loading.value = true
+    const fetchQueues = async ({ silent = false } = {}) => {
+      const shouldShowLoading = !silent || !queuesLoadedOnce.value
+      if (shouldShowLoading) {
+        loading.value = true
+      }
       try {
         const response = await api.get('/queues')
         if (response.data?.success) {
@@ -396,7 +401,10 @@ export default defineComponent({
         console.error('Erro ao buscar filas:', err)
         $q.notify({ type: 'negative', message: 'Erro ao carregar filas' })
       } finally {
-        loading.value = false
+        queuesLoadedOnce.value = true
+        if (shouldShowLoading) {
+          loading.value = false
+        }
       }
     }
 
@@ -560,6 +568,15 @@ export default defineComponent({
       return new Date(dateString).toLocaleString('pt-BR')
     }
 
+    const queuesPolling = useVisibilityPolling(
+      () => fetchQueues({ silent: true }),
+      {
+        intervalMs: 15000,
+        enabled: () => roleResolved.value && canManage.value,
+        runOnResume: true,
+      }
+    )
+
     // Lifecycle
     onMounted(async () => {
       await fetchUserRole()
@@ -574,7 +591,8 @@ export default defineComponent({
         fetchEstablishments(),
         fetchServices()
       ])
-      fetchQueues()
+      await fetchQueues()
+      queuesPolling.start()
     })
 
     return {

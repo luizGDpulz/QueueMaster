@@ -2409,7 +2409,7 @@ export default defineComponent({
     }
 
     const statusPolling = useVisibilityPolling(() => fetchData(), {
-      intervalMs: 30000,
+      intervalMs: 15000,
       enabled: () => Boolean(queueId.value),
       runOnResume: true,
     })
