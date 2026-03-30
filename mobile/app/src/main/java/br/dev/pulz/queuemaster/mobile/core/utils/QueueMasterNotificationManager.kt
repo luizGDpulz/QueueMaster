@@ -46,7 +46,7 @@ object QueueMasterNotificationManager {
     fun notifyQueueJoined(
         userId: Int,
         queueId: Int,
-        entryId: Int?,
+        entryPublicId: String?,
         queueName: String?,
         flowKey: String? = null
     ) {
@@ -55,7 +55,7 @@ object QueueMasterNotificationManager {
             notification = buildEvent(
                 userId = userId,
                 queueId = queueId,
-                entryId = entryId,
+                entryPublicId = entryPublicId,
                 queueName = queueName,
                 flowKey = flowKey,
                 type = AppNotificationType.QueueJoined,
@@ -68,7 +68,7 @@ object QueueMasterNotificationManager {
     fun notifyQueueLeft(
         userId: Int,
         queueId: Int,
-        entryId: Int?,
+        entryPublicId: String?,
         queueName: String?,
         flowKey: String? = null
     ) {
@@ -77,7 +77,7 @@ object QueueMasterNotificationManager {
             notification = buildEvent(
                 userId = userId,
                 queueId = queueId,
-                entryId = entryId,
+                entryPublicId = entryPublicId,
                 queueName = queueName,
                 flowKey = flowKey,
                 type = AppNotificationType.QueueLeft,
@@ -107,7 +107,7 @@ object QueueMasterNotificationManager {
                     notification = buildEvent(
                         userId = userId,
                         queueId = queueId,
-                        entryId = currentEntry.entryId,
+                        entryPublicId = currentEntry.entryPublicId,
                         queueName = queueName,
                         flowKey = flowKey,
                         type = AppNotificationType.QueueCalled,
@@ -123,7 +123,7 @@ object QueueMasterNotificationManager {
                     notification = buildEvent(
                         userId = userId,
                         queueId = queueId,
-                        entryId = currentEntry.entryId,
+                        entryPublicId = currentEntry.entryPublicId,
                         queueName = queueName,
                         flowKey = flowKey,
                         type = AppNotificationType.QueueServing,
@@ -141,7 +141,7 @@ object QueueMasterNotificationManager {
                     notification = buildEvent(
                         userId = userId,
                         queueId = queueId,
-                        entryId = currentEntry.entryId,
+                        entryPublicId = currentEntry.entryPublicId,
                         queueName = queueName,
                         flowKey = flowKey,
                         type = AppNotificationType.QueueNext,
@@ -156,7 +156,7 @@ object QueueMasterNotificationManager {
     fun notifyQueueCompleted(
         userId: Int,
         queueId: Int,
-        entryId: Int?,
+        entryPublicId: String?,
         queueName: String?,
         flowKey: String? = null
     ) {
@@ -165,7 +165,7 @@ object QueueMasterNotificationManager {
             notification = buildEvent(
                 userId = userId,
                 queueId = queueId,
-                entryId = entryId,
+                entryPublicId = entryPublicId,
                 queueName = queueName,
                 flowKey = flowKey,
                 type = AppNotificationType.QueueCompleted,
@@ -178,7 +178,7 @@ object QueueMasterNotificationManager {
     private fun buildEvent(
         userId: Int,
         queueId: Int,
-        entryId: Int?,
+        entryPublicId: String?,
         queueName: String?,
         flowKey: String? = null,
         type: AppNotificationType,
@@ -186,7 +186,7 @@ object QueueMasterNotificationManager {
         body: String
     ): AppNotificationItem {
         val contextKey = flowKey ?: buildQueueNotificationFlowKey(
-            entryId = entryId,
+            entryPublicId = entryPublicId,
             queueId = queueId
         )
         return AppNotificationItem(
@@ -196,7 +196,7 @@ object QueueMasterNotificationManager {
             contextType = NotificationContextType.QueueEntry,
             contextKey = contextKey,
             contextTitle = queueName ?: "Fila #$queueId",
-            contextSubtitle = entryId?.let { "Entrada #$it" } ?: "Fluxo da entrada na fila",
+            contextSubtitle = "Historico da participacao na fila",
             queueId = queueId,
             title = title,
             body = body,
@@ -248,13 +248,16 @@ object QueueMasterNotificationManager {
 }
 
 fun buildQueueNotificationFlowKey(
-    entryId: Int?,
+    entryPublicId: String?,
     queueId: Int,
     joinedAt: String? = null
 ): String {
-    entryId?.let { resolvedEntryId ->
-        return "queue_entry_$resolvedEntryId"
-    }
+    entryPublicId
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?.let { resolvedEntryPublicId ->
+            return "queue_entry_${resolvedEntryPublicId.lowercase()}"
+        }
 
     val joinedAtKey = joinedAt
         ?.filter { it.isLetterOrDigit() }

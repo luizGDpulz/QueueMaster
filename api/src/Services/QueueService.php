@@ -3,6 +3,7 @@
 namespace QueueMaster\Services;
 
 use QueueMaster\Core\Database;
+use QueueMaster\Utils\Ulid;
 use QueueMaster\Utils\Logger;
 
 /**
@@ -27,10 +28,12 @@ class QueueService
     private Database $db;
     private ?object $redis = null;
     private bool $redisAvailable = false;
+    private QueueEntryEventService $queueEntryEventService;
 
     public function __construct()
     {
         $this->db = Database::getInstance();
+        $this->queueEntryEventService = new QueueEntryEventService();
         $this->initializeRedis();
     }
 
@@ -114,16 +117,57 @@ class QueueService
             $nextPosition = ((int)$positionResult[0]['max_position']) + 1;
 
             // Insert queue entry
+            $publicId = Ulid::generate();
+            $createdAt = date('Y-m-d H:i:s');
             $calledAt = $status === 'serving' ? date('Y-m-d H:i:s') : null;
             $servedAt = $status === 'serving' ? date('Y-m-d H:i:s') : null;
 
             $insertSql = "
-                INSERT INTO queue_entries (queue_id, user_id, position, status, priority, created_at, called_at, served_at)
-                VALUES (?, ?, ?, ?, ?, NOW(), ?, ?)
+                INSERT INTO queue_entries (public_id, queue_id, user_id, position, status, priority, created_at, called_at, served_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ";
-            $this->db->execute($insertSql, [$queueId, $userId, $nextPosition, $status, $priority, $calledAt, $servedAt]);
+            $this->db->execute($insertSql, [$publicId, $queueId, $userId, $nextPosition, $status, $priority, $createdAt, $calledAt, $servedAt]);
 
             $entryId = (int)$this->db->lastInsertId();
+
+            // Seed the immutable history from the first moment of the participation.
+            $this->queueEntryEventService->record(
+                $entryId,
+                $queueId,
+                $userId,
+                'joined',
+                [
+                    'position' => $nextPosition,
+                    'status' => $status,
+                ],
+                $createdAt
+            );
+
+            if ($status === 'serving') {
+                $this->queueEntryEventService->record(
+                    $entryId,
+                    $queueId,
+                    $userId,
+                    'called',
+                    [
+                        'position' => $nextPosition,
+                        'implicit' => true,
+                    ],
+                    $calledAt ?? $createdAt
+                );
+
+                $this->queueEntryEventService->record(
+                    $entryId,
+                    $queueId,
+                    $userId,
+                    'serving_started',
+                    [
+                        'position' => $nextPosition,
+                        'implicit' => true,
+                    ],
+                    $servedAt ?? $createdAt
+                );
+            }
 
             // Commit transaction
             $this->db->commit();
@@ -184,7 +228,7 @@ class QueueService
      * @return array|null Called entry or appointment, null if queue empty
      * @throws \Exception
      */
-    public function callNext(int $queueId, ?int $establishmentId = null, ?int $professionalId = null): ?array
+    public function callNext(int $queueId, ?int $establishmentId = null, ?int $professionalId = null, ?int $calledByUserId = null): ?array
     {
         try {
             $this->db->beginTransaction();
@@ -264,8 +308,22 @@ class QueueService
             $entry = $entries[0];
 
             // Mark as called
-            $updateSql = "UPDATE queue_entries SET status = 'called', called_at = NOW() WHERE id = ?";
-            $this->db->execute($updateSql, [$entry['id']]);
+            $calledAt = date('Y-m-d H:i:s');
+            $updateSql = "UPDATE queue_entries SET status = 'called', called_at = ? WHERE id = ?";
+            $this->db->execute($updateSql, [$calledAt, $entry['id']]);
+
+            $this->queueEntryEventService->record(
+                (int)$entry['id'],
+                $queueId,
+                !empty($entry['user_id']) ? (int)$entry['user_id'] : null,
+                'called',
+                [
+                    'previous_status' => $entry['status'] ?? 'waiting',
+                ],
+                $calledAt,
+                'staff',
+                $calledByUserId
+            );
 
             $this->db->commit();
 
@@ -309,6 +367,8 @@ class QueueService
     public function leave(int $entryId, int $userId): bool
     {
         try {
+            $this->db->beginTransaction();
+
             // Verify ownership
             $entry = $this->getEntry($entryId);
             
@@ -325,15 +385,34 @@ class QueueService
         }
 
         // Update status
+        $completedAt = date('Y-m-d H:i:s');
+        $calledAt = !empty($entry['called_at']) ? $entry['called_at'] : (in_array($entry['status'], ['called', 'serving'], true) ? $completedAt : null);
+        $servedAt = !empty($entry['served_at']) ? $entry['served_at'] : (($entry['status'] ?? null) === 'serving' ? $completedAt : null);
+
         $sql = "
             UPDATE queue_entries
             SET status = 'cancelled',
-                completed_at = NOW(),
-                called_at = COALESCE(called_at, CASE WHEN status IN ('called', 'serving') THEN NOW() ELSE NULL END),
-                served_at = COALESCE(served_at, CASE WHEN status = 'serving' THEN NOW() ELSE NULL END)
+                completed_at = ?,
+                called_at = ?,
+                served_at = ?
             WHERE id = ?
         ";
-        $this->db->execute($sql, [$entryId]);
+        $this->db->execute($sql, [$completedAt, $calledAt, $servedAt, $entryId]);
+
+            $this->queueEntryEventService->record(
+                $entryId,
+                (int)$entry['queue_id'],
+                !empty($entry['user_id']) ? (int)$entry['user_id'] : null,
+                'left',
+                [
+                    'previous_status' => $entry['status'] ?? null,
+                ],
+                $completedAt,
+                'client',
+                $userId
+            );
+
+            $this->db->commit();
 
             // Publish event
             $this->publishEvent('queue.left', [
@@ -350,6 +429,10 @@ class QueueService
             return true;
 
         } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollback();
+            }
+
             Logger::error('Leave queue failed', [
                 'entry_id' => $entryId,
                 'user_id' => $userId,

@@ -6,7 +6,11 @@ enum class AppNotificationType {
     QueueCalled,
     QueueServing,
     QueueCompleted,
-    QueueLeft
+    QueueLeft,
+    QueueCancelled,
+    QueueNoShow,
+    QueueRequeued,
+    QueueUpdated
 }
 
 enum class NotificationContextType {
@@ -37,5 +41,8 @@ data class AppNotificationGroup(
     val queueId: Int? = null,
     val unreadCount: Int,
     val lastEvent: AppNotificationItem,
-    val events: List<AppNotificationItem>
+    val events: List<AppNotificationItem>,
+    val totalEvents: Int = events.size,
+    val isActiveFlow: Boolean = false,
+    val canJoinAgain: Boolean = false
 )

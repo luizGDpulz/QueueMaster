@@ -4,6 +4,7 @@ namespace QueueMaster\Models;
 
 use QueueMaster\Builders\QueryBuilder;
 use QueueMaster\Core\Database;
+use QueueMaster\Utils\Ulid;
 
 /**
  * QueueEntry Model - Generated from 'queue_entries' table
@@ -27,6 +28,20 @@ class QueueEntry
         $qb = new QueryBuilder();
         return $qb->select(self::$table)
             ->where(self::$primaryKey, '=', $id)
+            ->first();
+    }
+
+    /**
+     * Find record by public identifier.
+     *
+     * @param string $publicId Public ULID exposed to clients
+     * @return array|null
+     */
+    public static function findByPublicId(string $publicId): ?array
+    {
+        $qb = new QueryBuilder();
+        return $qb->select(self::$table)
+            ->where('public_id', '=', strtoupper(trim($publicId)))
             ->first();
     }
 
@@ -75,6 +90,10 @@ class QueueEntry
         
         if (!empty($errors)) {
             throw new \InvalidArgumentException('Validation failed: ' . json_encode($errors));
+        }
+
+        if (empty($data['public_id'])) {
+            $data['public_id'] = Ulid::generate();
         }
 
         $qb = new QueryBuilder();
@@ -239,6 +258,7 @@ class QueueEntry
     /**
      * Table columns:
      * - id: bigint NOT NULL [PRI]
+     * - public_id: char(26) NULL [UNIQUE]
      * - queue_id: bigint NOT NULL [FK -> queues]
      * - user_id: bigint NULL [FK -> users]
      * - guest_name: varchar(150) NULL (for anonymous entries)

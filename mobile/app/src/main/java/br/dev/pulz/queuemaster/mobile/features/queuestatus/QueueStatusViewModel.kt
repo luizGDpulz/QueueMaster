@@ -35,7 +35,7 @@ class QueueStatusViewModel : ViewModel() {
 
     fun showJoinedQueue(result: JoinQueueResult, authenticatedUserId: Int) {
         val notificationFlowKey = buildQueueNotificationFlowKey(
-            entryId = result.entryId,
+            entryPublicId = result.entryPublicId,
             queueId = result.queueId,
             joinedAt = result.joinedAt
         )
@@ -43,7 +43,7 @@ class QueueStatusViewModel : ViewModel() {
         activeQueueSession = ActiveQueueSession(
             authenticatedUserId = authenticatedUserId,
             queueId = result.queueId,
-            entryId = result.entryId,
+            entryPublicId = result.entryPublicId,
             joinedAt = result.joinedAt,
             accessCode = result.accessCode,
             notificationFlowKey = notificationFlowKey
@@ -52,7 +52,7 @@ class QueueStatusViewModel : ViewModel() {
             PersistedQueueSession(
                 authenticatedUserId = authenticatedUserId,
                 queueId = result.queueId,
-                entryId = result.entryId,
+                entryPublicId = result.entryPublicId,
                 notificationFlowKey = notificationFlowKey,
                 joinedAt = result.joinedAt,
                 accessCode = result.accessCode,
@@ -64,7 +64,7 @@ class QueueStatusViewModel : ViewModel() {
             QueueMasterNotificationManager.notifyQueueJoined(
                 userId = authenticatedUserId,
                 queueId = result.queueId,
-                entryId = result.entryId,
+                entryPublicId = result.entryPublicId,
                 queueName = result.queueName,
                 flowKey = notificationFlowKey
             )
@@ -89,7 +89,7 @@ class QueueStatusViewModel : ViewModel() {
                     QueueMasterNotificationManager.notifyQueueLeft(
                         userId = session.authenticatedUserId,
                         queueId = session.queueId,
-                        entryId = session.entryId,
+                        entryPublicId = session.entryPublicId,
                         queueName = activeQueueName,
                         flowKey = session.notificationFlowKey
                     )
@@ -137,7 +137,8 @@ class QueueStatusViewModel : ViewModel() {
                             QueueMasterNotificationManager.notifyQueueCompleted(
                                 userId = session.authenticatedUserId,
                                 queueId = session.queueId,
-                                entryId = session.entryId ?: previousQueueStatus.userEntry?.entryId,
+                                entryPublicId = session.entryPublicId
+                                    ?: previousQueueStatus.userEntry?.entryPublicId,
                                 queueName = previousQueueStatus.queue.name,
                                 flowKey = session.notificationFlowKey
                             )
@@ -153,14 +154,14 @@ class QueueStatusViewModel : ViewModel() {
                             currentQueueStatus = queueStatus
                         )
                         val updatedSession = session.copy(
-                            entryId = queueStatus.userEntry.entryId
+                            entryPublicId = queueStatus.userEntry.entryPublicId
                         )
                         activeQueueSession = updatedSession
                         QueueSessionStore.save(
                             PersistedQueueSession(
                                 authenticatedUserId = session.authenticatedUserId,
                                 queueId = session.queueId,
-                                entryId = queueStatus.userEntry.entryId,
+                                entryPublicId = queueStatus.userEntry.entryPublicId,
                                 notificationFlowKey = updatedSession.notificationFlowKey,
                                 joinedAt = session.joinedAt,
                                 accessCode = session.accessCode
@@ -224,9 +225,10 @@ class QueueStatusViewModel : ViewModel() {
 
         val notificationFlowKey = persisted?.notificationFlowKey?.takeIf {
             persisted.queueId == currentActiveQueue.queueId &&
-                persisted.entryId == currentActiveQueue.entryId
+                persisted.entryPublicId != null &&
+                persisted.entryPublicId == currentActiveQueue.entryPublicId
         } ?: buildQueueNotificationFlowKey(
-            entryId = currentActiveQueue.entryId,
+            entryPublicId = currentActiveQueue.entryPublicId,
             queueId = currentActiveQueue.queueId,
             joinedAt = currentActiveQueue.joinedAt
         )
@@ -237,7 +239,7 @@ class QueueStatusViewModel : ViewModel() {
         activeQueueSession = ActiveQueueSession(
             authenticatedUserId = authenticatedUserId,
             queueId = currentActiveQueue.queueId,
-            entryId = currentActiveQueue.entryId,
+            entryPublicId = currentActiveQueue.entryPublicId,
             joinedAt = currentActiveQueue.joinedAt,
             accessCode = restoredAccessCode,
             notificationFlowKey = notificationFlowKey
@@ -246,7 +248,7 @@ class QueueStatusViewModel : ViewModel() {
             PersistedQueueSession(
                 authenticatedUserId = authenticatedUserId,
                 queueId = currentActiveQueue.queueId,
-                entryId = currentActiveQueue.entryId,
+                entryPublicId = currentActiveQueue.entryPublicId,
                 notificationFlowKey = notificationFlowKey,
                 joinedAt = currentActiveQueue.joinedAt,
                 accessCode = restoredAccessCode,
@@ -270,7 +272,7 @@ class QueueStatusViewModel : ViewModel() {
 private data class ActiveQueueSession(
     val authenticatedUserId: Int,
     val queueId: Int,
-    val entryId: Int? = null,
+    val entryPublicId: String? = null,
     val joinedAt: String? = null,
     val accessCode: String? = null,
     val notificationFlowKey: String
@@ -280,11 +282,11 @@ private fun PersistedQueueSession.toActiveQueueSession(): ActiveQueueSession {
     return ActiveQueueSession(
         authenticatedUserId = authenticatedUserId,
         queueId = queueId,
-        entryId = entryId,
+        entryPublicId = entryPublicId,
         joinedAt = joinedAt,
         accessCode = accessCode,
         notificationFlowKey = notificationFlowKey ?: buildQueueNotificationFlowKey(
-            entryId = entryId,
+            entryPublicId = entryPublicId,
             queueId = queueId,
             joinedAt = joinedAt
         )

@@ -10,7 +10,7 @@ import br.dev.pulz.queuemaster.mobile.core.model.UserProfile
 
 object PreviewModels {
     const val SampleQueueId = 1
-    private const val SampleEntryId = 101
+    private const val SampleEntryPublicId = "01HZX4P6GM1Q7S84Y7Z2C3NM4A"
 
     val authenticatedUser = AuthenticatedUser(
         id = 7,
@@ -50,7 +50,7 @@ object PreviewModels {
             averageWaitTimeMinutes = 15
         ),
         userEntry = QueueUserEntry(
-            entryId = SampleEntryId,
+            entryPublicId = SampleEntryPublicId,
             status = "waiting",
             position = 12,
             peopleAhead = 11,

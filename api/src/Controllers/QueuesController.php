@@ -8,6 +8,7 @@ use QueueMaster\Core\Response;
 use QueueMaster\Core\Database;
 use QueueMaster\Services\QueueService;
 use QueueMaster\Services\AuditService;
+use QueueMaster\Services\QueueEntryEventService;
 use QueueMaster\Utils\Validator;
 use QueueMaster\Utils\Logger;
 use QueueMaster\Models\Queue;
@@ -17,8 +18,10 @@ use QueueMaster\Models\Establishment;
 use QueueMaster\Models\Service;
 use QueueMaster\Models\QueueProfessional;
 use QueueMaster\Models\QueueService as QueueServiceModel;
+use QueueMaster\Models\User;
 use QueueMaster\Services\ContextAccessService;
 use QueueMaster\Services\ProfessionalMembershipService;
+use QueueMaster\Services\QueueReadService;
 
 /**
  * QueuesController - Queue Management Endpoints
@@ -29,11 +32,15 @@ class QueuesController
 {
     private ContextAccessService $accessService;
     private ProfessionalMembershipService $membershipService;
+    private QueueEntryEventService $queueEntryEventService;
+    private QueueReadService $queueReadService;
 
     public function __construct()
     {
         $this->accessService = new ContextAccessService();
         $this->membershipService = new ProfessionalMembershipService();
+        $this->queueEntryEventService = new QueueEntryEventService();
+        $this->queueReadService = new QueueReadService();
     }
 
     /**
@@ -72,62 +79,7 @@ class QueuesController
                     ));
             }
 
-            if (!empty($queues)) {
-                // Batch load related data to avoid N+1 queries
-                $establishmentIds = array_filter(array_unique(array_column($queues, 'establishment_id')));
-                $serviceIds = array_filter(array_unique(array_column($queues, 'service_id')));
-                $queueIds = array_column($queues, 'id');
-
-                // Fetch all establishments in one query
-                $establishmentMap = [];
-                if (!empty($establishmentIds)) {
-                    $db = \QueueMaster\Core\Database::getInstance();
-                    $placeholders = implode(',', array_fill(0, count($establishmentIds), '?'));
-                    $establishments = $db->query(
-                        "SELECT id, name FROM establishments WHERE id IN ($placeholders)",
-                        array_values($establishmentIds)
-                    );
-                    foreach ($establishments as $est) {
-                        $establishmentMap[$est['id']] = $est['name'];
-                    }
-                }
-
-                // Fetch all services in one query
-                $serviceMap = [];
-                if (!empty($serviceIds)) {
-                    $db = $db ?? \QueueMaster\Core\Database::getInstance();
-                    $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
-                    $services = $db->query(
-                        "SELECT id, name FROM services WHERE id IN ($placeholders)",
-                        array_values($serviceIds)
-                    );
-                    foreach ($services as $svc) {
-                        $serviceMap[$svc['id']] = $svc['name'];
-                    }
-                }
-
-                // Fetch waiting counts in one aggregated query
-                $waitingMap = [];
-                if (!empty($queueIds)) {
-                    $db = $db ?? \QueueMaster\Core\Database::getInstance();
-                    $placeholders = implode(',', array_fill(0, count($queueIds), '?'));
-                    $waitingCounts = $db->query(
-                        "SELECT queue_id, COUNT(*) as cnt FROM queue_entries WHERE queue_id IN ($placeholders) AND status = 'waiting' GROUP BY queue_id",
-                        array_values($queueIds)
-                    );
-                    foreach ($waitingCounts as $wc) {
-                        $waitingMap[$wc['queue_id']] = (int)$wc['cnt'];
-                    }
-                }
-
-                // Map data onto queues (O(1) lookups instead of N queries)
-                foreach ($queues as &$queue) {
-                    $queue['establishment_name'] = $establishmentMap[$queue['establishment_id']] ?? null;
-                    $queue['service_name'] = $serviceMap[$queue['service_id']] ?? null;
-                    $queue['waiting_count'] = $waitingMap[$queue['id']] ?? 0;
-                }
-                unset($queue);
-            }
+            $queues = $this->queueReadService->enrichQueuesList($queues);
 
             Response::success([
                 'queues' => $queues,
@@ -289,7 +241,7 @@ class QueuesController
                 [
                     'queue_id' => $activeQueueId,
                     'queue_name' => $activeQueueName,
-                    'entry_id' => (int)$activeEntry['id'],
+                    'entry_public_id' => $activeEntry['public_id'] ?? null,
                     'entry_status' => $activeEntry['status'] ?? null,
                     'requested_queue_id' => $id,
                 ]
@@ -329,7 +281,7 @@ class QueuesController
             ], $request->requestId);
 
             Response::created([
-                'entry' => $entry,
+                'entry' => $this->buildClientJoinEntryPayload($entry),
                 'message' => 'Successfully joined queue',
             ]);
 
@@ -363,7 +315,6 @@ class QueuesController
         $userId = $request->user ? (int)$request->user['id'] : null;
 
         try {
-            // 1. Get queue object
             $queue = Queue::find($id);
             if (!$queue) {
                 Response::notFound('Queue not found', $request->requestId);
@@ -378,7 +329,6 @@ class QueuesController
                 );
             }
 
-            // Add related names
             if ($queue['establishment_id']) {
                 $establishment = Establishment::find($queue['establishment_id']);
                 $queue['establishment_name'] = $establishment['name'] ?? null;
@@ -395,177 +345,25 @@ class QueuesController
             $canViewPeopleDetails = !empty($queue['permissions']['can_view_people_details']);
             $canViewCompletedPeople = !empty($queue['permissions']['can_view_completed_people']);
 
-            $db = Database::getInstance();
-
-            // 2. Get waiting entries with user names
-            $entriesSql = "
-                SELECT qe.*, u.name as user_name, u.email as user_email
-                FROM queue_entries qe
-                LEFT JOIN users u ON u.id = qe.user_id
-                WHERE qe.queue_id = ? AND qe.status = 'waiting'
-                ORDER BY qe.priority DESC, qe.position ASC
-            ";
-            $waitingEntries = $db->query($entriesSql, [$id]);
-
-            // Calculate estimated wait per entry and real wait time
-            $serviceSql = "
-                SELECT s.duration_minutes 
-                FROM queues q LEFT JOIN services s ON s.id = q.service_id
-                WHERE q.id = ? LIMIT 1
-            ";
-            $svcResult = $db->query($serviceSql, [$id]);
-            $serviceDuration = (int)($svcResult[0]['duration_minutes'] ?? 15);
-
-            $now = time();
-            $userEntry = null;
-            foreach ($waitingEntries as $idx => &$entry) {
-                $visiblePosition = $idx + 1;
-                $entry['position'] = $visiblePosition;
-                $entry['queue_position'] = $visiblePosition;
-                $entry['people_ahead'] = $idx;
-                $entry['estimated_wait_minutes'] = max(0, $idx * $serviceDuration);
-                if (!empty($entry['created_at'])) {
-                    $createdTs = strtotime($entry['created_at']);
-                    $entry['waiting_since_minutes'] = max(0, (int)round(($now - $createdTs) / 60));
-                }
-                else {
-                    $entry['waiting_since_minutes'] = 0;
-                }
-                if (empty($entry['user_name'])) {
-                    $entry['user_name'] = $entry['guest_name'] ?? ('Usuário #' . ($entry['user_id'] ?? $entry['id']));
-                }
-
-                if ($userId && !empty($entry['user_id']) && (int)$entry['user_id'] === $userId) {
-                    $userEntry = [
-                        'entry_id' => (int)$entry['id'],
-                        'status' => $entry['status'] ?? 'waiting',
-                        'position' => $visiblePosition,
-                        'queue_position' => $visiblePosition,
-                        'people_ahead' => $idx,
-                        'estimated_wait_minutes' => max(0, $idx * $serviceDuration),
-                        'joined_at' => $entry['created_at'] ?? null,
-                        'called_at' => $entry['called_at'] ?? null,
-                        'serving_since_minutes' => 0,
-                        'professional_name' => null,
-                    ];
-                }
-            }
-            unset($entry);
-
-            $entries = $waitingEntries;
-            if (!$canViewPeopleDetails) {
-                $entries = [];
-            }
-
-            $queue['waiting_count'] = count($waitingEntries);
-
-            // 2b. Get serving entries (called + serving) with professional info
-            $servingSql = "
-                SELECT qe.*, u.name as user_name, u.email as user_email,
-                       p.name as professional_name, p.email as professional_email
-                FROM queue_entries qe
-                LEFT JOIN users u ON u.id = qe.user_id
-                LEFT JOIN users p ON p.id = qe.professional_id
-                WHERE qe.queue_id = ? AND qe.status IN ('called','serving')
-                ORDER BY qe.called_at ASC
-            ";
-            $entriesServing = $db->query($servingSql, [$id]);
-            foreach ($entriesServing as &$es) {
-                if (empty($es['user_name'])) {
-                    $es['user_name'] = $es['guest_name'] ?? ('Usuário #' . ($es['user_id'] ?? $es['id']));
-                }
-                if (!empty($es['called_at'])) {
-                    $es['serving_since_minutes'] = max(0, (int)round(($now - strtotime($es['called_at'])) / 60));
-                }
-                else {
-                    $es['serving_since_minutes'] = 0;
-                }
-
-                if (!$canViewPeopleDetails) {
-                    $es['user_name'] = 'Pessoa em atendimento';
-                    unset($es['user_email'], $es['professional_email']);
-                }
-
-                if ($userId && !empty($es['user_id']) && (int)$es['user_id'] === $userId) {
-                    $userEntry = [
-                        'entry_id' => (int)$es['id'],
-                        'status' => $es['status'] ?? 'serving',
-                        'position' => null,
-                        'queue_position' => null,
-                        'people_ahead' => 0,
-                        'estimated_wait_minutes' => 0,
-                        'joined_at' => $es['created_at'] ?? null,
-                        'called_at' => $es['called_at'] ?? null,
-                        'serving_since_minutes' => (int)($es['serving_since_minutes'] ?? 0),
-                        'professional_name' => $es['professional_name'] ?? null,
-                    ];
-                }
-            }
-            unset($es);
-
-            // 2c. Get completed entries (with optional date filter)
             $queryParams = $request->getQuery();
-            $completedDateFrom = $queryParams['completed_from'] ?? null;
-            $completedDateTo = $queryParams['completed_to'] ?? null;
+            $statusPayload = $this->queueReadService->buildQueueStatusPayload(
+                $queue,
+                $userId,
+                $canViewPeopleDetails,
+                $canViewCompletedPeople,
+                $queryParams['completed_from'] ?? null,
+                $queryParams['completed_to'] ?? null
+            );
 
-            $completedWhere = "qe.queue_id = ? AND qe.status IN ('done', 'no_show')";
-            $completedParams = [$id];
-
-            if ($completedDateFrom && $completedDateTo) {
-                $completedWhere .= " AND DATE(qe.completed_at) BETWEEN ? AND ?";
-                $completedParams[] = $completedDateFrom;
-                $completedParams[] = $completedDateTo;
-            } elseif ($completedDateFrom) {
-                $completedWhere .= " AND DATE(qe.completed_at) >= ?";
-                $completedParams[] = $completedDateFrom;
-            } else {
-                // Default: today only
-                $completedWhere .= " AND DATE(qe.completed_at) = CURDATE()";
-            }
-
-            $completedSql = "
-                SELECT qe.*, u.name as user_name, u.email as user_email
-                FROM queue_entries qe
-                LEFT JOIN users u ON u.id = qe.user_id
-                WHERE {$completedWhere}
-                ORDER BY qe.completed_at DESC
-            ";
-            $entriesCompleted = $db->query($completedSql, $completedParams);
-            foreach ($entriesCompleted as &$ec) {
-                if (empty($ec['user_name'])) {
-                    $ec['user_name'] = $ec['guest_name'] ?? ('Usuário #' . ($ec['user_id'] ?? $ec['id']));
-                }
-            }
-            unset($ec);
-
-            if (!$canViewCompletedPeople) {
-                $entriesCompleted = [];
-            }
-
-            // 3. Statistics
-            $beingServed = count($entriesServing);
-            $completedToday = count($entriesCompleted);
-
-            $avgWaitSql = "
-                SELECT AVG(TIMESTAMPDIFF(MINUTE, created_at, called_at)) as avg_wait
-                FROM queue_entries
-                WHERE queue_id = ? AND called_at IS NOT NULL AND DATE(called_at) = CURDATE()
-            ";
-            $avgResult = $db->query($avgWaitSql, [$id]);
-            $avgWait = (int)($avgResult[0]['avg_wait'] ?? 0);
+            $queue['waiting_count'] = $statusPayload['waiting_count'];
 
             Response::success([
                 'queue' => $queue,
-                'entries' => $entries,
-                'entries_serving' => $entriesServing,
-                'entries_completed' => $entriesCompleted,
-                'statistics' => [
-                    'total_waiting' => count($waitingEntries),
-                    'total_being_served' => $beingServed,
-                    'total_completed_today' => $completedToday,
-                    'average_wait_time_minutes' => $avgWait,
-                ],
-                'user_entry' => $userEntry,
+                'entries' => $statusPayload['entries'],
+                'entries_serving' => $statusPayload['entries_serving'],
+                'entries_completed' => $statusPayload['entries_completed'],
+                'statistics' => $statusPayload['statistics'],
+                'user_entry' => $statusPayload['user_entry'],
             ]);
 
         }
@@ -598,41 +396,13 @@ class QueuesController
                 return;
             }
 
-            $queue = Queue::find((int)$activeEntry['queue_id']);
-            if (!$queue) {
+            $payload = $this->queueReadService->buildCurrentActiveQueuePayload($activeEntry);
+            if ($payload === null) {
                 Response::notFound('Queue not found', $request->requestId);
                 return;
             }
 
-            $establishmentName = null;
-            if (!empty($queue['establishment_id'])) {
-                $establishment = Establishment::find((int)$queue['establishment_id']);
-                $establishmentName = $establishment['name'] ?? null;
-            }
-
-            $serviceName = null;
-            if (!empty($queue['service_id'])) {
-                $service = Service::find((int)$queue['service_id']);
-                $serviceName = $service['name'] ?? null;
-            }
-
-            Response::success([
-                'queue' => [
-                    'id' => (int)$queue['id'],
-                    'name' => $queue['name'],
-                    'establishment_name' => $establishmentName,
-                    'service_name' => $serviceName,
-                    'status' => $queue['status'] ?? null,
-                ],
-                'entry' => [
-                    'id' => (int)$activeEntry['id'],
-                    'queue_id' => (int)$activeEntry['queue_id'],
-                    'status' => $activeEntry['status'] ?? 'waiting',
-                    'position' => isset($activeEntry['position']) ? (int)$activeEntry['position'] : null,
-                    'created_at' => $activeEntry['created_at'] ?? null,
-                    'called_at' => $activeEntry['called_at'] ?? null,
-                ],
-            ]);
+            Response::success($payload);
         }
         catch (\Exception $e) {
             Logger::error('Failed to get current active queue', [
@@ -749,7 +519,7 @@ class QueuesController
             );
 
             $queueService = new QueueService();
-            $result = $queueService->callNext($id, $establishmentId, $professionalId);
+            $result = $queueService->callNext($id, $establishmentId, $professionalId, (int)$request->user['id']);
 
             if (!$result) {
                 Response::success([
@@ -1279,6 +1049,7 @@ class QueuesController
                 'Você não tem permissão para atualizar esta fila'
             );
 
+            $db = Database::getInstance();
             $oldStatus = $entry['status'];
             $updateData = ['status' => $newStatus];
 
@@ -1320,12 +1091,7 @@ class QueuesController
                     $updateData['professional_id'] = null;
                     $updateData['priority'] = 0; // Reset priority when returning to queue
                     $updateData['created_at'] = date('Y-m-d H:i:s'); // Reset created_at for fair ordering
-                    $db = Database::getInstance();
-                    $posResult = $db->query(
-                        "SELECT COALESCE(MAX(position), 0) as max_pos FROM queue_entries WHERE queue_id = ?",
-                        [$entry['queue_id']]
-                    );
-                    $updateData['position'] = ((int)$posResult[0]['max_pos']) + 1;
+                    $updateData['position'] = $this->queueReadService->resolveRequeuePosition((int)$entry['queue_id']);
                     break;
             }
 
@@ -1333,9 +1099,12 @@ class QueuesController
                 $updateData['notes'] = $data['notes'];
             }
 
+            $db->beginTransaction();
             QueueEntry::update($entryId, $updateData);
 
             $updatedEntry = QueueEntry::find($entryId);
+            $this->recordQueueEntryStatusEvents($entry, $updatedEntry, (int)$request->user['id']);
+            $db->commit();
 
             AuditService::logFromRequest($request, 'update', 'queue_entry', (string)$entryId, null, null, [
                 'queue_id' => $entry['queue_id'],
@@ -1354,8 +1123,16 @@ class QueuesController
             ]);
 
         } catch (\RuntimeException $e) {
+            $db = Database::getInstance();
+            if ($db->inTransaction()) {
+                $db->rollback();
+            }
             Response::forbidden($e->getMessage(), $request->requestId);
         } catch (\Exception $e) {
+            $db = Database::getInstance();
+            if ($db->inTransaction()) {
+                $db->rollback();
+            }
             Logger::error('Failed to update entry status', [
                 'entry_id' => $entryId,
                 'error' => $e->getMessage(),
@@ -1408,7 +1185,12 @@ class QueuesController
                 return;
             }
 
-            $this->cancelQueueEntry($entry);
+            $this->cancelQueueEntry(
+                $entry,
+                'cancelled',
+                $isStaff ? 'staff' : 'client',
+                $userId
+            );
 
             AuditService::logFromRequest($request, 'queue_remove', 'queue_entry', (string)$entryId, null, null, [
                 'queue_id' => $entry['queue_id'],
@@ -1493,7 +1275,7 @@ class QueuesController
                     continue;
                 }
 
-                $this->cancelQueueEntry($entry);
+                $this->cancelQueueEntry($entry, 'cancelled', 'staff', (int)$request->user['id']);
                 $activeIds[] = (int)$entry['id'];
             }
 
@@ -1818,7 +1600,7 @@ class QueuesController
             ]);
 
             $created = QueueProfessional::find($qpId);
-            $user = \QueueMaster\Models\User::find($userId);
+            $user = User::find($userId);
             if ($user) {
                 $created['user_name'] = $user['name'];
                 $created['user_email'] = $user['email'];
@@ -1884,11 +1666,10 @@ class QueuesController
             QueueProfessional::update($profId, $updateData);
             $updated = QueueProfessional::find($profId);
 
-            $db = Database::getInstance();
-            $user = $db->query("SELECT name, email FROM users WHERE id = ?", [$updated['user_id']]);
+            $user = User::find((int)$updated['user_id']);
             if (!empty($user)) {
-                $updated['user_name'] = $user[0]['name'];
-                $updated['user_email'] = $user[0]['email'];
+                $updated['user_name'] = $user['name'];
+                $updated['user_email'] = $user['email'];
             }
 
             Response::success([
@@ -2444,15 +2225,182 @@ class QueuesController
         return null;
     }
 
-    private function cancelQueueEntry(array $entry): void
+    private function cancelQueueEntry(
+        array $entry,
+        string $eventType = 'cancelled',
+        string $actorType = 'staff',
+        ?int $actorUserId = null
+    ): void
     {
+        $db = Database::getInstance();
+        $startedTransaction = false;
+
+        if (!$db->inTransaction()) {
+            $db->beginTransaction();
+            $startedTransaction = true;
+        }
+
         $now = date('Y-m-d H:i:s');
-        QueueEntry::update((int)$entry['id'], [
-            'status' => 'cancelled',
-            'completed_at' => $now,
-            'called_at' => !empty($entry['called_at']) ? $entry['called_at'] : (in_array($entry['status'], ['called', 'serving'], true) ? $now : null),
-            'served_at' => !empty($entry['served_at']) ? $entry['served_at'] : (($entry['status'] ?? null) === 'serving' ? $now : null),
-        ]);
+        $calledAt = !empty($entry['called_at']) ? $entry['called_at'] : (in_array($entry['status'], ['called', 'serving'], true) ? $now : null);
+        $servedAt = !empty($entry['served_at']) ? $entry['served_at'] : (($entry['status'] ?? null) === 'serving' ? $now : null);
+
+        try {
+            QueueEntry::update((int)$entry['id'], [
+                'status' => 'cancelled',
+                'completed_at' => $now,
+                'called_at' => $calledAt,
+                'served_at' => $servedAt,
+            ]);
+
+            $this->queueEntryEventService->record(
+                (int)$entry['id'],
+                (int)$entry['queue_id'],
+                !empty($entry['user_id']) ? (int)$entry['user_id'] : null,
+                $eventType,
+                [
+                    'previous_status' => $entry['status'] ?? null,
+                ],
+                $now,
+                $actorType,
+                $actorUserId
+            );
+
+            if ($startedTransaction) {
+                $db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($startedTransaction && $db->inTransaction()) {
+                $db->rollback();
+            }
+
+            throw $e;
+        }
+    }
+
+    private function recordQueueEntryStatusEvents(array $originalEntry, array $updatedEntry, int $actorUserId): void
+    {
+        $entryId = (int)$updatedEntry['id'];
+        $queueId = (int)$updatedEntry['queue_id'];
+        $userId = !empty($updatedEntry['user_id']) ? (int)$updatedEntry['user_id'] : null;
+        $previousStatus = $originalEntry['status'] ?? null;
+        $currentStatus = $updatedEntry['status'] ?? null;
+
+        if ($currentStatus === 'called' && $previousStatus !== 'called' && !empty($updatedEntry['called_at'])) {
+            $this->queueEntryEventService->record(
+                $entryId,
+                $queueId,
+                $userId,
+                'called',
+                [
+                    'previous_status' => $previousStatus,
+                ],
+                $updatedEntry['called_at'],
+                'staff',
+                $actorUserId
+            );
+        }
+
+        if (
+            $currentStatus === 'serving'
+            && empty($originalEntry['called_at'])
+            && !empty($updatedEntry['called_at'])
+        ) {
+            $this->queueEntryEventService->record(
+                $entryId,
+                $queueId,
+                $userId,
+                'called',
+                [
+                    'previous_status' => $previousStatus,
+                    'implicit' => true,
+                ],
+                $updatedEntry['called_at'],
+                'staff',
+                $actorUserId
+            );
+        }
+
+        if (
+            in_array($currentStatus, ['serving', 'done'], true)
+            && empty($originalEntry['served_at'])
+            && !empty($updatedEntry['served_at'])
+        ) {
+            $this->queueEntryEventService->record(
+                $entryId,
+                $queueId,
+                $userId,
+                'serving_started',
+                [
+                    'previous_status' => $previousStatus,
+                    'professional_id' => isset($updatedEntry['professional_id']) ? (int)$updatedEntry['professional_id'] : null,
+                ],
+                $updatedEntry['served_at'],
+                'staff',
+                $actorUserId
+            );
+        }
+
+        if ($currentStatus === 'done' && $previousStatus !== 'done' && !empty($updatedEntry['completed_at'])) {
+            $this->queueEntryEventService->record(
+                $entryId,
+                $queueId,
+                $userId,
+                'completed',
+                [
+                    'previous_status' => $previousStatus,
+                    'professional_id' => isset($updatedEntry['professional_id']) ? (int)$updatedEntry['professional_id'] : null,
+                ],
+                $updatedEntry['completed_at'],
+                'staff',
+                $actorUserId
+            );
+        }
+
+        if ($currentStatus === 'no_show' && $previousStatus !== 'no_show' && !empty($updatedEntry['completed_at'])) {
+            $this->queueEntryEventService->record(
+                $entryId,
+                $queueId,
+                $userId,
+                'no_show',
+                [
+                    'previous_status' => $previousStatus,
+                ],
+                $updatedEntry['completed_at'],
+                'staff',
+                $actorUserId
+            );
+        }
+
+        if ($currentStatus === 'cancelled' && $previousStatus !== 'cancelled' && !empty($updatedEntry['completed_at'])) {
+            $this->queueEntryEventService->record(
+                $entryId,
+                $queueId,
+                $userId,
+                'cancelled',
+                [
+                    'previous_status' => $previousStatus,
+                ],
+                $updatedEntry['completed_at'],
+                'staff',
+                $actorUserId
+            );
+        }
+
+        if ($currentStatus === 'waiting' && $previousStatus !== 'waiting') {
+            $this->queueEntryEventService->record(
+                $entryId,
+                $queueId,
+                $userId,
+                'requeued',
+                [
+                    'previous_status' => $previousStatus,
+                    'position' => isset($updatedEntry['position']) ? (int)$updatedEntry['position'] : null,
+                ],
+                $updatedEntry['created_at'] ?? date('Y-m-d H:i:s'),
+                'staff',
+                $actorUserId
+            );
+        }
     }
 
     private function buildQueuePermissions(?array $user, array $queue): array
@@ -2478,6 +2426,24 @@ class QueuesController
             'can_view_people_details' => $canManage,
             'can_view_completed_people' => $canManage,
             'can_join_via_code' => true,
+        ];
+    }
+
+    private function buildClientJoinEntryPayload(array $entry): array
+    {
+        return [
+            'public_id' => $entry['public_id'] ?? null,
+            'queue_id' => isset($entry['queue_id']) ? (int)$entry['queue_id'] : null,
+            'status' => $entry['status'] ?? 'waiting',
+            'position' => isset($entry['position']) ? (int)$entry['position'] : null,
+            'priority' => isset($entry['priority']) ? (int)$entry['priority'] : 0,
+            'created_at' => $entry['created_at'] ?? null,
+            'called_at' => $entry['called_at'] ?? null,
+            'served_at' => $entry['served_at'] ?? null,
+            'completed_at' => $entry['completed_at'] ?? null,
+            'estimated_wait_minutes' => isset($entry['estimated_wait_minutes'])
+                ? (int)$entry['estimated_wait_minutes']
+                : null,
         ];
     }
 }

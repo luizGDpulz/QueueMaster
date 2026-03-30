@@ -6,7 +6,7 @@ import br.dev.pulz.queuemaster.mobile.core.model.QueueUserEntry
 data class PersistedQueueSession(
     val authenticatedUserId: Int,
     val queueId: Int,
-    val entryId: Int? = null,
+    val entryPublicId: String? = null,
     val notificationFlowKey: String? = null,
     val joinedAt: String? = null,
     val accessCode: String? = null,
@@ -24,7 +24,7 @@ object QueueSessionStore {
     private const val PrefsName = "qm_mobile_queue_session"
     private const val UserIdKey = "authenticated_user_id"
     private const val QueueIdKey = "queue_id"
-    private const val EntryIdKey = "entry_id"
+    private const val EntryPublicIdKey = "entry_public_id"
     private const val NotificationFlowKey = "notification_flow_key"
     private const val JoinedAtKey = "joined_at"
     private const val AccessCodeKey = "access_code"
@@ -45,7 +45,7 @@ object QueueSessionStore {
         preferences.edit()
             .putInt(UserIdKey, session.authenticatedUserId)
             .putInt(QueueIdKey, session.queueId)
-            .putInt(EntryIdKey, session.entryId ?: -1)
+            .putString(EntryPublicIdKey, session.entryPublicId)
             .putString(NotificationFlowKey, session.notificationFlowKey)
             .putString(JoinedAtKey, session.joinedAt)
             .putString(AccessCodeKey, session.accessCode)
@@ -76,7 +76,7 @@ object QueueSessionStore {
         return PersistedQueueSession(
             authenticatedUserId = storedUserId,
             queueId = storedQueueId,
-            entryId = preferences.getInt(EntryIdKey, -1).takeIf { it > 0 },
+            entryPublicId = preferences.getString(EntryPublicIdKey, null),
             notificationFlowKey = preferences.getString(NotificationFlowKey, null),
             joinedAt = preferences.getString(JoinedAtKey, null),
             accessCode = preferences.getString(AccessCodeKey, null),
@@ -101,7 +101,7 @@ fun PersistedQueueSession.withSnapshot(
     userEntry: QueueUserEntry
 ): PersistedQueueSession {
     return copy(
-        entryId = userEntry.entryId,
+        entryPublicId = userEntry.entryPublicId ?: entryPublicId,
         joinedAt = joinedAt ?: userEntry.joinedAt,
         queueName = queueName ?: this.queueName,
         lastEntryStatus = userEntry.status,
@@ -115,11 +115,10 @@ fun PersistedQueueSession.withSnapshot(
 }
 
 fun PersistedQueueSession.toPreviousUserEntry(): QueueUserEntry? {
-    val entryId = entryId ?: return null
     val status = lastEntryStatus ?: return null
 
     return QueueUserEntry(
-        entryId = entryId,
+        entryPublicId = entryPublicId,
         status = status,
         position = lastPosition,
         peopleAhead = lastPeopleAhead ?: 0,

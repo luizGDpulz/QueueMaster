@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS appointment_requests;
 DROP TABLE IF EXISTS appointments;
 DROP TABLE IF EXISTS queue_services;
 DROP TABLE IF EXISTS queue_access_codes;
+DROP TABLE IF EXISTS queue_entry_events;
 DROP TABLE IF EXISTS queue_entries;
 DROP TABLE IF EXISTS queue_professionals;
 DROP TABLE IF EXISTS queues;

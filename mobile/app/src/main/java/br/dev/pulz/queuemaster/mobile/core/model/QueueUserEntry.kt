@@ -1,7 +1,7 @@
 package br.dev.pulz.queuemaster.mobile.core.model
 
 data class QueueUserEntry(
-    val entryId: Int,
+    val entryPublicId: String? = null,
     val status: String,
     val position: Int? = null,
     val peopleAhead: Int = 0,

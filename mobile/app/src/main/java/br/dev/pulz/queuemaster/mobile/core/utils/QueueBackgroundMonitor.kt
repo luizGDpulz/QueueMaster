@@ -77,7 +77,7 @@ object QueueBackgroundMonitor : DefaultLifecycleObserver {
                         QueueMasterNotificationManager.notifyQueueCompleted(
                             userId = session.authenticatedUserId,
                             queueId = session.queueId,
-                            entryId = session.entryId ?: previousEntry.entryId,
+                            entryPublicId = session.entryPublicId ?: previousEntry.entryPublicId,
                             queueName = session.queueName
                         )
                     }

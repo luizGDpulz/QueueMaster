@@ -68,7 +68,7 @@
       <div v-if="servingEntries.length > 0" class="soft-card q-mb-lg">
         <h2 class="section-title">Em atendimento agora</h2>
         <div class="list-items">
-          <div v-for="entry in servingEntries" :key="entry.id" class="list-item">
+          <div v-for="entry in servingEntries" :key="entry.public_id || entry.id || entry.called_at" class="list-item">
             <div class="list-item-info">
               <div class="list-item-avatar"><q-icon name="support_agent" size="18px" /></div>
               <div class="list-item-details">
@@ -648,6 +648,24 @@
 
     <UserProfilePreview v-model="profilePreviewOpen" :user-id="profilePreviewUserId" :position="profilePreviewPos" />
 
+    <q-dialog v-model="showEntryHistoryDialog">
+      <q-card class="dialog-card dialog-large entry-history-dialog">
+        <q-card-section class="dialog-header">
+          <div class="text-h6">Historico da entrada</div>
+          <q-btn flat round dense icon="close" @click="closeEntryHistoryDialog" />
+        </q-card-section>
+
+        <q-card-section class="dialog-content">
+          <QueueEntryHistoryPanel
+            :entry="entryHistoryEntry"
+            :events="entryHistoryEvents"
+            :loading="entryHistoryLoading"
+            :error="entryHistoryError"
+          />
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
     <!-- =============== DIALOGS =============== -->
 
     <q-dialog v-model="showRemoveEntryDialog" persistent>
@@ -1108,12 +1126,14 @@ import QRCode from 'qrcode'
 import ContextMenu from 'src/components/ui/ContextMenu.vue'
 import StatusPill from 'src/components/ui/StatusPill.vue'
 import UserProfilePreview from 'src/components/ui/UserProfilePreview.vue'
+import QueueEntryHistoryPanel from 'src/components/queue/QueueEntryHistoryPanel.vue'
 import { useBreadcrumb } from 'src/composables/useBreadcrumb'
+import { fetchQueueEntryTimeline } from 'src/composables/useQueueEntryHistory'
 import { useVisibilityPolling } from 'src/composables/useVisibilityPolling'
 
 export default defineComponent({
   name: 'QueueDetailPage',
-  components: { ContextMenu, StatusPill, UserProfilePreview },
+  components: { ContextMenu, StatusPill, UserProfilePreview, QueueEntryHistoryPanel },
 
   setup() {
     const route = useRoute()
@@ -1133,6 +1153,11 @@ export default defineComponent({
     const userRole = ref(null)
     const currentUserId = ref(null)
     const lastFetchToken = ref(0)
+    const showEntryHistoryDialog = ref(false)
+    const entryHistoryLoading = ref(false)
+    const entryHistoryError = ref('')
+    const entryHistoryEntry = ref(null)
+    const entryHistoryEvents = ref([])
     const removingEntryIds = ref([])
     const showRemoveEntryDialog = ref(false)
     const removeEntryTarget = ref(null)
@@ -1246,7 +1271,7 @@ export default defineComponent({
       servingEntries.value = servingEntries.value.filter(entry => !ids.has(Number(entry.id)))
       completedEntries.value = completedEntries.value.filter(entry => !ids.has(Number(entry.id)))
 
-      if (userEntry.value && ids.has(Number(userEntry.value.entry_id || userEntry.value.id))) {
+      if (userEntry.value && ids.has(Number(userEntry.value.entry_id || userEntry.value.id || -1))) {
         userEntry.value = null
       }
 
@@ -1863,10 +1888,15 @@ export default defineComponent({
         key: 'profile', icon: 'account_circle', label: 'Visualizar perfil',
         action: () => openProfilePreview(entryMenuEntry.value, entryMenuEvent.value),
       }
+      const historyItem = {
+        key: 'history', icon: 'history', label: 'Ver historico',
+        action: () => openEntryHistory(entry),
+      }
 
       if (t === 'waiting') {
         return [
           profileItem,
+          historyItem,
           { separator: true },
           { key: 'serve', icon: 'headset_mic', label: 'Atender agora', action: () => updateEntryStatus(id, 'serving') },
           { key: 'call', icon: 'campaign', label: 'Chamar', action: () => updateEntryStatus(id, 'called') },
@@ -1894,6 +1924,7 @@ export default defineComponent({
       if (t === 'serving') {
         return [
           profileItem,
+          historyItem,
           { separator: true },
           { key: 'done', icon: 'check_circle', label: 'Concluir atendimento', action: () => updateEntryStatus(id, 'done') },
           { key: 'no_show', icon: 'person_off', label: 'Não compareceu', action: () => openNotesDialog(id, 'no_show') },
@@ -1907,6 +1938,7 @@ export default defineComponent({
       if (t === 'completed') {
         return [
           profileItem,
+          historyItem,
           { separator: true },
           { key: 'requeue', icon: 'replay', label: 'Realocar para a fila', action: () => updateEntryStatus(id, 'waiting') },
           { key: 'serve_again', icon: 'headset_mic', label: 'Realocar p/ atendimento', action: () => updateEntryStatus(id, 'serving') },
@@ -1924,6 +1956,38 @@ export default defineComponent({
       entryMenuOpen.value = true
     }
     const onEntryMenuSelect = () => {}
+
+    const closeEntryHistoryDialog = () => {
+      showEntryHistoryDialog.value = false
+      entryHistoryLoading.value = false
+      entryHistoryError.value = ''
+      entryHistoryEntry.value = null
+      entryHistoryEvents.value = []
+    }
+
+    const openEntryHistory = async (entry) => {
+      const publicId = entry?.public_id
+      if (!publicId) {
+        $q.notify({ type: 'warning', message: 'Essa entrada ainda nao possui historico publico disponivel.' })
+        return
+      }
+
+      showEntryHistoryDialog.value = true
+      entryHistoryLoading.value = true
+      entryHistoryError.value = ''
+      entryHistoryEntry.value = null
+      entryHistoryEvents.value = []
+
+      try {
+        const response = await fetchQueueEntryTimeline(publicId, queueId.value)
+        entryHistoryEntry.value = response.entry
+        entryHistoryEvents.value = response.events
+      } catch (err) {
+        entryHistoryError.value = err.response?.data?.error?.message || 'Nao foi possivel carregar o historico desta entrada.'
+      } finally {
+        entryHistoryLoading.value = false
+      }
+    }
 
     // -- Context Menu: Status --
     const statusMenuOpen = ref(false)
@@ -2655,6 +2719,8 @@ export default defineComponent({
       // Entry context menu
       entryMenuOpen, entryMenuPos, entryMenuEntry, entryMenuItems,
       entryMenuSubtitle, openEntryMenu, onEntryMenuSelect,
+      showEntryHistoryDialog, entryHistoryLoading, entryHistoryError, entryHistoryEntry, entryHistoryEvents,
+      closeEntryHistoryDialog, openEntryHistory,
       // Status context menu
       statusMenuOpen, statusMenuPos, statusMenuItems, openStatusMenu, onStatusMenuSelect,
       // Code context menu
@@ -2790,6 +2856,11 @@ export default defineComponent({
 }
 .panel-header-text { flex: 1; }
 .panel-header-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+.entry-history-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
+}
 
 // -- Selection toolbar --
 .selection-toolbar {

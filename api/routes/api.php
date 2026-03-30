@@ -20,6 +20,7 @@ use QueueMaster\Controllers\EstablishmentController;
 use QueueMaster\Controllers\ServicesController;
 use QueueMaster\Controllers\ProfessionalsController;
 use QueueMaster\Controllers\QueuesController;
+use QueueMaster\Controllers\QueueEntriesController;
 use QueueMaster\Controllers\AppointmentsController;
 use QueueMaster\Controllers\AppointmentRequestsController;
 use QueueMaster\Controllers\DashboardController;
@@ -416,6 +417,39 @@ $router->group('/api/v1', function ($router) {
             );
 
             // ========================================================================
+            // Queue Entry History Routes
+            // ========================================================================
+
+            $router->group('/queue-entries', function ($router) {
+
+                // GET /api/v1/queue-entries/current
+                $router->get('/current', function ($request) {
+                    $controller = new QueueEntriesController();
+                    $controller->current($request);
+                });
+
+                // GET /api/v1/queue-entries/history
+                $router->get('/history', function ($request) {
+                    $controller = new QueueEntriesController();
+                    $controller->history($request);
+                });
+
+                // GET /api/v1/queue-entries/{publicId}
+                $router->get('/{publicId}', function ($request) {
+                    $controller = new QueueEntriesController();
+                    $controller->get($request, (string)$request->getParam('publicId'));
+                });
+
+                // GET /api/v1/queue-entries/{publicId}/events
+                $router->get('/{publicId}/events', function ($request) {
+                    $controller = new QueueEntriesController();
+                    $controller->events($request, (string)$request->getParam('publicId'));
+                });
+
+            }
+            );
+
+            // ========================================================================
             // Queue Routes
             // ========================================================================
         
@@ -461,6 +495,20 @@ $router->group('/api/v1', function ($router) {
                     $controller->status($request, (int)$request->getParam('id'));
                 }
                 );
+
+                // GET /api/v1/queues/{id}/entries/{publicId} â€” Staff detail for one queue entry
+                $router->get('/{id}/entries/{publicId}', function ($request) {
+                    $controller = new QueueEntriesController();
+                    $controller->staffGet($request, (int)$request->getParam('id'), (string)$request->getParam('publicId'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
+
+                // GET /api/v1/queues/{id}/entries/{publicId}/events â€” Staff timeline for one queue entry
+                $router->get('/{id}/entries/{publicId}/events', function ($request) {
+                    $controller = new QueueEntriesController();
+                    $controller->staffEvents($request, (int)$request->getParam('id'), (string)$request->getParam('publicId'));
+                }
+                    , [new RoleMiddleware(['professional', 'manager', 'admin'])]);
 
                 // GET /api/v1/queues/{id}/access-codes — List access codes (professional/manager/admin)
                 $router->get('/{id}/access-codes', function ($request) {

@@ -65,7 +65,8 @@ object AppNotificationStore {
                     queueId = lastEvent.queueId,
                     unreadCount = sortedEvents.count { !it.isRead },
                     lastEvent = lastEvent,
-                    events = sortedEvents
+                    events = sortedEvents,
+                    totalEvents = sortedEvents.size
                 )
             }
             .sortedByDescending { it.lastEvent.createdAt }

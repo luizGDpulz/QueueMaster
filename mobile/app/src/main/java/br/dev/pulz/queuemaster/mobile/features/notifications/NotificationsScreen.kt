@@ -13,15 +13,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +57,7 @@ fun NotificationsScreen(
     avatarUrl: String?,
     uiState: NotificationsUiState,
     onAvatarClick: () -> Unit,
-    onMarkAllReadClick: () -> Unit,
+    onRetryClick: () -> Unit,
     onGroupClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -74,14 +76,28 @@ fun NotificationsScreen(
         )
 
         when (uiState) {
-            NotificationsUiState.Loading -> NotificationsLoadingCard()
-            NotificationsUiState.Empty -> NotificationsEmptyCard()
-            is NotificationsUiState.Loaded -> {
-                val unreadCount = uiState.groups.sumOf { it.unreadCount }
+            NotificationsUiState.Loading -> {
+                NotificationsLoadingCard(
+                    title = "Carregando historico",
+                    description = "Estamos organizando seus fluxos de fila."
+                )
+            }
 
+            NotificationsUiState.Empty -> {
+                NotificationsEmptyCard()
+            }
+
+            is NotificationsUiState.Error -> {
+                NotificationsErrorCard(
+                    message = uiState.message,
+                    onRetryClick = onRetryClick
+                )
+            }
+
+            is NotificationsUiState.Loaded -> {
                 NotificationSummaryStrip(
-                    unreadCount = unreadCount,
-                    onMarkAllReadClick = onMarkAllReadClick
+                    totalFlows = uiState.groups.size,
+                    activeFlows = uiState.groups.count { it.isActiveFlow }
                 )
 
                 QmSectionTitle(text = "Ultimos fluxos")
@@ -100,10 +116,11 @@ fun NotificationsScreen(
 @Composable
 fun NotificationDetailsScreen(
     avatarUrl: String?,
-    group: AppNotificationGroup?,
+    uiState: NotificationDetailsUiState,
     onAvatarClick: () -> Unit,
     onBackClick: () -> Unit,
-    onOpenQueueClick: (Int) -> Unit,
+    onRetryClick: () -> Unit,
+    onOpenQueueClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -131,52 +148,84 @@ fun NotificationDetailsScreen(
                 )
             }
             Text(
-                text = group?.contextTitle ?: "Fluxo de notificacoes",
+                text = detailScreenTitle(uiState),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(start = AppSpacing.Xs)
             )
         }
 
-        if (group == null) {
-            NotificationsEmptyCard(
-                title = "Nao encontramos esse fluxo",
-                description = "Volte para a lista de notificacoes para escolher outro grupo."
-            )
-            return@Column
-        }
+        when (uiState) {
+            NotificationDetailsUiState.Idle,
+            NotificationDetailsUiState.Loading -> {
+                NotificationsLoadingCard(
+                    title = "Carregando fluxo",
+                    description = "Estamos buscando a linha do tempo desta entrada."
+                )
+            }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.Sm),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            NotificationContextPill(contextType = group.contextType)
-            QmPill(
-                text = "${group.events.size} evento(s)",
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+            NotificationDetailsUiState.Empty -> {
+                NotificationsEmptyCard(
+                    title = "Fluxo nao encontrado",
+                    description = "Esse historico nao esta mais disponivel para consulta."
+                )
+            }
 
-        group.queueId?.let { queueId ->
-            QmPrimaryButton(
-                text = "Abrir fila relacionada",
-                onClick = { onOpenQueueClick(queueId) }
-            )
-        }
+            is NotificationDetailsUiState.Error -> {
+                NotificationsErrorCard(
+                    message = uiState.message,
+                    onRetryClick = onRetryClick
+                )
+            }
 
-        group.events.sortedBy { it.createdAt }.forEachIndexed { index, event ->
-            NotificationTimelineCard(
-                event = event,
-                isLast = index == group.events.lastIndex
-            )
+            is NotificationDetailsUiState.Loaded -> {
+                NotificationDetailsContent(
+                    group = uiState.group,
+                    onOpenQueueClick = onOpenQueueClick
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun NotificationsLoadingCard() {
+private fun NotificationDetailsContent(
+    group: AppNotificationGroup,
+    onOpenQueueClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.Sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        NotificationContextPill(contextType = group.contextType)
+        NotificationFlowStatePill(group = group)
+        QmPill(
+            text = "${group.totalEvents} evento(s)",
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
+    if (group.isActiveFlow) {
+        QmPrimaryButton(
+            text = "Abrir fila atual",
+            onClick = onOpenQueueClick
+        )
+    }
+
+    group.events
+        .sortedBy { it.createdAt }
+        .forEach { event ->
+            NotificationTimelineCard(event = event)
+        }
+}
+
+@Composable
+private fun NotificationsLoadingCard(
+    title: String,
+    description: String
+) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface
@@ -188,12 +237,12 @@ private fun NotificationsLoadingCard() {
             verticalArrangement = Arrangement.spacedBy(AppSpacing.Sm)
         ) {
             Text(
-                text = "Carregando alertas",
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Organizando os grupos e a linha do tempo das suas notificacoes.",
+                text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -215,53 +264,54 @@ private fun NotificationsEmptyCard(
 }
 
 @Composable
+private fun NotificationsErrorCard(
+    message: String,
+    onRetryClick: () -> Unit
+) {
+    QmPlaceholderState(
+        icon = Icons.Filled.ErrorOutline,
+        title = "Nao foi possivel carregar",
+        description = message,
+        eyebrow = "Notificacoes",
+        primaryActionLabel = "Tentar novamente",
+        onPrimaryAction = onRetryClick
+    )
+}
+
+@Composable
 private fun NotificationSummaryStrip(
-    unreadCount: Int,
-    onMarkAllReadClick: () -> Unit
+    totalFlows: Int,
+    activeFlows: Int
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = AppSpacing.Lg, vertical = AppSpacing.Md),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.Sm)
         ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = if (unreadCount > 0) {
-                        if (unreadCount == 1) "1 atualizacao nova" else "$unreadCount atualizacoes novas"
-                    } else {
-                        "Tudo em dia"
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = if (unreadCount > 0) {
-                        "Ao abrir um fluxo, os destaques dele deixam de ficar pendentes."
-                    } else {
-                        "Novos eventos vao aparecer aqui automaticamente conforme sua fila avancar."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = AppSpacing.Xxs)
-                )
-            }
-
-            if (unreadCount > 0) {
-                TextButton(onClick = onMarkAllReadClick) {
-                    Text(
-                        text = "Ler tudo",
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
+            Text(
+                text = when {
+                    activeFlows > 1 -> "$activeFlows fluxos ativos agora"
+                    activeFlows == 1 -> "1 fluxo ativo agora"
+                    totalFlows > 0 -> "Historico atualizado"
+                    else -> "Sem historico ainda"
+                },
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = if (totalFlows > 0) {
+                    "$totalFlows fluxo(s) registrados. Cada entrada da fila gera uma linha do tempo separada."
+                } else {
+                    "Assim que voce participar de uma fila, o historico vai aparecer aqui."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -271,10 +321,10 @@ private fun NotificationGroupCard(
     group: AppNotificationGroup,
     onClick: () -> Unit
 ) {
-    val borderColor = if (group.unreadCount > 0) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-    } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+    val borderColor = when {
+        group.isActiveFlow -> MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+        group.canJoinAgain -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
     }
 
     Surface(
@@ -313,21 +363,15 @@ private fun NotificationGroupCard(
                         )
                     }
                 }
-
-                if (group.unreadCount > 0) {
-                    QmPill(
-                        text = "${group.unreadCount} novas",
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.primary
-                    )
-                }
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.Sm)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.Sm),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 NotificationContextPill(contextType = group.contextType)
+                NotificationFlowStatePill(group = group)
                 NotificationEventPill(event = group.lastEvent)
             }
 
@@ -343,7 +387,7 @@ private fun NotificationGroupCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${group.events.size} evento(s) neste fluxo",
+                    text = "${group.totalEvents} evento(s) neste fluxo",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -359,8 +403,7 @@ private fun NotificationGroupCard(
 
 @Composable
 private fun NotificationTimelineCard(
-    event: AppNotificationItem,
-    isLast: Boolean
+    event: AppNotificationItem
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -394,13 +437,6 @@ private fun NotificationTimelineCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (!isLast) {
-                Text(
-                    text = "Aguardando o proximo evento deste fluxo...",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
         }
     }
 }
@@ -430,6 +466,28 @@ private fun NotificationContextPill(
 }
 
 @Composable
+private fun NotificationFlowStatePill(
+    group: AppNotificationGroup
+) {
+    val text = when {
+        group.isActiveFlow -> "Ativo"
+        group.canJoinAgain -> "Encerrado"
+        else -> "Finalizado"
+    }
+    val color = when {
+        group.isActiveFlow -> MaterialTheme.colorScheme.primary
+        group.canJoinAgain -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    QmPill(
+        text = text,
+        containerColor = color.copy(alpha = 0.14f),
+        contentColor = color
+    )
+}
+
+@Composable
 private fun notificationTone(type: AppNotificationType): NotificationTone {
     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val accentColor = when (type) {
@@ -437,10 +495,16 @@ private fun notificationTone(type: AppNotificationType): NotificationTone {
         AppNotificationType.QueueCompleted -> if (isDarkTheme) Success400 else Success500
 
         AppNotificationType.QueueNext -> if (isDarkTheme) Warning400 else Warning500
-        AppNotificationType.QueueCalled,
-        AppNotificationType.QueueServing -> if (isDarkTheme) Info400 else Info500
 
-        AppNotificationType.QueueLeft -> MaterialTheme.colorScheme.onSurfaceVariant
+        AppNotificationType.QueueCalled,
+        AppNotificationType.QueueServing,
+        AppNotificationType.QueueRequeued -> if (isDarkTheme) Info400 else Info500
+
+        AppNotificationType.QueueCancelled,
+        AppNotificationType.QueueNoShow -> MaterialTheme.colorScheme.error
+
+        AppNotificationType.QueueLeft,
+        AppNotificationType.QueueUpdated -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     return when (type) {
@@ -479,6 +543,30 @@ private fun notificationTone(type: AppNotificationType): NotificationTone {
             label = "Saida",
             accentColor = accentColor
         )
+
+        AppNotificationType.QueueCancelled -> NotificationTone(
+            icon = Icons.Filled.Cancel,
+            label = "Cancelada",
+            accentColor = accentColor
+        )
+
+        AppNotificationType.QueueNoShow -> NotificationTone(
+            icon = Icons.Filled.ErrorOutline,
+            label = "Ausencia",
+            accentColor = accentColor
+        )
+
+        AppNotificationType.QueueRequeued -> NotificationTone(
+            icon = Icons.Filled.Refresh,
+            label = "Retorno",
+            accentColor = accentColor
+        )
+
+        AppNotificationType.QueueUpdated -> NotificationTone(
+            icon = Icons.Filled.NotificationsActive,
+            label = "Atualizada",
+            accentColor = accentColor
+        )
     }
 }
 
@@ -486,6 +574,16 @@ private fun contextLabel(type: NotificationContextType): String {
     return when (type) {
         NotificationContextType.QueueEntry -> "Fila"
         NotificationContextType.Appointment -> "Agendamento"
+    }
+}
+
+private fun detailScreenTitle(uiState: NotificationDetailsUiState): String {
+    return when (uiState) {
+        NotificationDetailsUiState.Idle,
+        NotificationDetailsUiState.Loading -> "Fluxo da fila"
+        NotificationDetailsUiState.Empty -> "Fluxo da fila"
+        is NotificationDetailsUiState.Error -> "Fluxo da fila"
+        is NotificationDetailsUiState.Loaded -> uiState.group.contextTitle
     }
 }
 

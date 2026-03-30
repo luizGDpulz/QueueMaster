@@ -48,6 +48,7 @@ import br.dev.pulz.queuemaster.mobile.features.manualcode.ManualCodeEntryScreen
 import br.dev.pulz.queuemaster.mobile.features.manualcode.ManualCodeEntryViewModel
 import br.dev.pulz.queuemaster.mobile.features.manualcode.ManualCodeUiState
 import br.dev.pulz.queuemaster.mobile.features.notifications.NotificationDetailsScreen
+import br.dev.pulz.queuemaster.mobile.features.notifications.NotificationDetailsUiState
 import br.dev.pulz.queuemaster.mobile.features.notifications.NotificationsScreen
 import br.dev.pulz.queuemaster.mobile.features.notifications.NotificationsUiState
 import br.dev.pulz.queuemaster.mobile.features.notifications.NotificationsViewModel
@@ -99,6 +100,7 @@ fun AppNavHost(
     val settingsSystemNotificationsEnabled by settingsViewModel.systemNotificationsEnabled.collectAsStateWithLifecycle()
     val notificationsPromptHandled by AppPreferencesStore.notificationsPromptHandled.collectAsStateWithLifecycle()
     val notificationsUiState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
+    val notificationDetailsUiState by notificationsViewModel.detailsUiState.collectAsStateWithLifecycle()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val authenticatedUser = (loginUiState as? LoginUiState.Authenticated)?.user
     val currentRoute = currentBackStackEntry?.destination?.route
@@ -147,6 +149,7 @@ fun AppNavHost(
             queueStatusViewModel.clear()
             profileViewModel.clear()
             notificationsViewModel.showUser(null)
+            notificationsViewModel.clearSelectedGroup()
             navController.navigate(AppRoute.Login.route) {
                 popUpTo(navController.graph.id) {
                     inclusive = true
@@ -405,13 +408,19 @@ fun AppNavHost(
         }
 
         composable(AppRoute.Notifications.route) {
+            LaunchedEffect(authenticatedUser?.id) {
+                if (authenticatedUser != null) {
+                    notificationsViewModel.refresh()
+                }
+            }
+
             NotificationsScreen(
                 avatarUrl = headerAvatarUrl,
                 uiState = notificationsUiState,
                 onAvatarClick = handleProfileNavigation,
-                onMarkAllReadClick = notificationsViewModel::markAllRead,
+                onRetryClick = notificationsViewModel::refresh,
                 onGroupClick = { contextKey ->
-                    notificationsViewModel.markGroupRead(contextKey)
+                    notificationsViewModel.openGroup(contextKey)
                     navController.navigate(AppRoute.NotificationDetails.createRoute(contextKey))
                 }
             )
@@ -426,15 +435,26 @@ fun AppNavHost(
             )
         ) { backStackEntry ->
             val contextKey = backStackEntry.arguments?.getString("contextKey").orEmpty()
-            val group = remember(contextKey, notificationsUiState) {
-                notificationsViewModel.groupForContext(contextKey)
+
+            LaunchedEffect(contextKey) {
+                if (contextKey.isNotBlank()) {
+                    notificationsViewModel.openGroup(contextKey)
+                }
             }
 
             NotificationDetailsScreen(
                 avatarUrl = headerAvatarUrl,
-                group = group,
+                uiState = notificationDetailsUiState,
                 onAvatarClick = handleProfileNavigation,
-                onBackClick = navController::popBackStack,
+                onBackClick = {
+                    notificationsViewModel.clearSelectedGroup()
+                    navController.popBackStack()
+                },
+                onRetryClick = {
+                    if (contextKey.isNotBlank()) {
+                        notificationsViewModel.openGroup(contextKey)
+                    }
+                },
                 onOpenQueueClick = {
                     navController.navigate(AppRoute.QueueStatus.route) {
                         launchSingleTop = true

@@ -53,15 +53,16 @@ data class QueueStatisticsDto(
 )
 
 data class QueueEntryDto(
-    val id: Int,
+    val publicId: String? = null,
     val queueId: Int,
     val status: String,
     val position: Int? = null,
-    val createdAt: String? = null
+    val createdAt: String? = null,
+    val calledAt: String? = null
 )
 
 data class ServingQueueEntryDto(
-    val id: Int,
+    val publicId: String? = null,
     val userId: Int? = null,
     val status: String,
     val createdAt: String? = null,
@@ -71,7 +72,7 @@ data class ServingQueueEntryDto(
 )
 
 data class UserEntryStatusDto(
-    val entryId: Int,
+    val entryPublicId: String? = null,
     val status: String? = null,
     val position: Int? = null,
     val queuePosition: Int? = null,
@@ -96,7 +97,7 @@ fun JoinQueueResponseDto.toJoinQueueResult(
 ): JoinQueueResult {
     return JoinQueueResult(
         queueId = entry.queueId,
-        entryId = entry.id,
+        entryPublicId = entry.publicId,
         entryStatus = entry.status,
         joinedAt = entry.createdAt,
         accessCode = accessCode
@@ -106,7 +107,7 @@ fun JoinQueueResponseDto.toJoinQueueResult(
 fun CurrentActiveQueueResponseDto.toJoinQueueResult(): JoinQueueResult {
     return JoinQueueResult(
         queueId = queue.id,
-        entryId = entry.id,
+        entryPublicId = entry.publicId,
         queueName = queue.name,
         entryStatus = entry.status,
         joinedAt = entry.createdAt,
@@ -151,7 +152,7 @@ fun QueueStatusResponseDto.toQueueStatus(
         userEntry = resolvedUserEntry?.let {
             val resolvedPosition = it.queuePosition ?: it.position
             QueueUserEntry(
-                entryId = it.entryId,
+                entryPublicId = it.entryPublicId,
                 status = it.status ?: "waiting",
                 position = resolvedPosition,
                 peopleAhead = it.peopleAhead ?: (resolvedPosition ?: 1).coerceAtLeast(1) - 1,
@@ -168,7 +169,7 @@ fun QueueStatusResponseDto.toQueueStatus(
 
 private fun ServingQueueEntryDto.toUserEntryStatus(): UserEntryStatusDto {
     return UserEntryStatusDto(
-        entryId = id,
+        entryPublicId = publicId,
         status = status,
         position = null,
         queuePosition = null,

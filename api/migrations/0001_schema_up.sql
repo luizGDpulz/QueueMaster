@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS queue_professionals (
 
 CREATE TABLE IF NOT EXISTS queue_entries (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  public_id CHAR(26) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
   queue_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NULL COMMENT 'Registered user (NULL = anonymous)',
   guest_name VARCHAR(150) NULL COMMENT 'Name for anonymous entries',
@@ -240,10 +241,40 @@ CREATE TABLE IF NOT EXISTS queue_entries (
     ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_queue_entries_queue_status (queue_id, status, position),
   INDEX idx_queue_entries_user (user_id),
+  INDEX idx_queue_entries_public_id (public_id),
   INDEX idx_queue_entries_created (queue_id, created_at),
   INDEX idx_qe_queue_created_status (queue_id, created_at, status),
   INDEX idx_qe_queue_completed (queue_id, completed_at),
   INDEX idx_qe_professional_completed (professional_id, completed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS queue_entry_events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  queue_entry_id BIGINT UNSIGNED NOT NULL,
+  queue_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NULL,
+  actor_user_id BIGINT UNSIGNED NULL,
+  actor_type ENUM('system','client','staff') NOT NULL DEFAULT 'system',
+  event_type VARCHAR(50) NOT NULL,
+  payload JSON NULL,
+  occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_queue_entry_events_entry
+    FOREIGN KEY (queue_entry_id) REFERENCES queue_entries(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_queue_entry_events_queue
+    FOREIGN KEY (queue_id) REFERENCES queues(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_queue_entry_events_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_queue_entry_events_actor_user
+    FOREIGN KEY (actor_user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  INDEX idx_queue_entry_events_entry_time (queue_entry_id, occurred_at, id),
+  INDEX idx_queue_entry_events_user_time (user_id, occurred_at, id),
+  INDEX idx_queue_entry_events_queue_time (queue_id, occurred_at, id),
+  INDEX idx_queue_entry_events_type_time (event_type, occurred_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS queue_access_codes (

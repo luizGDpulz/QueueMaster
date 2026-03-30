@@ -90,7 +90,7 @@ private fun ApiException.toExistingActiveQueueResult(
     val resolvedQueueId = details.intValue("queue_id") ?: fallbackQueueId ?: return null
     return JoinQueueResult(
         queueId = resolvedQueueId,
-        entryId = details.intValue("entry_id"),
+        entryPublicId = details.stringValue("entry_public_id"),
         queueName = details.stringValue("queue_name"),
         entryStatus = details.stringValue("entry_status") ?: "waiting",
         accessCode = null,

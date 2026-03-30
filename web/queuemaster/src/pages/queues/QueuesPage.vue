@@ -16,10 +16,20 @@
         />
       </div>
       <div class="header-bottom">
-        <p class="page-subtitle">Gerencie e monitore todas as filas de atendimento</p>
+        <p class="page-subtitle">
+          {{ canManage ? 'Gerencie e monitore todas as filas de atendimento' : 'Acompanhe filas ativas e o historico das suas participacoes.' }}
+        </p>
       </div>
     </div>
 
+    <div v-if="!roleResolved" class="loading-state">
+      <q-spinner-dots color="primary" size="40px" />
+      <p>Carregando filas...</p>
+    </div>
+
+    <ClientQueuesHub v-else-if="!canManage" />
+
+    <template v-else>
     <!-- Stats Cards -->
     <div class="stats-row">
       <div class="stat-card soft-card">
@@ -283,6 +293,7 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+    </template>
   </q-page>
 </template>
 
@@ -291,10 +302,15 @@ import { defineComponent, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
+import ClientQueuesHub from 'src/components/queue/ClientQueuesHub.vue'
 import { useSingleFlightAction } from 'src/composables/useSingleFlightAction'
 
 export default defineComponent({
   name: 'QueuesPage',
+
+  components: {
+    ClientQueuesHub,
+  },
 
   setup() {
     const $q = useQuasar()
@@ -313,6 +329,7 @@ export default defineComponent({
     const searchQuery = ref('')
     const filterStatus = ref(null)
     const userRole = ref(null)
+    const roleResolved = ref(false)
 
     // Dialogs
     const showDialog = ref(false)
@@ -578,6 +595,13 @@ export default defineComponent({
     // Lifecycle
     onMounted(async () => {
       await fetchUserRole()
+      roleResolved.value = true
+
+      if (!canManage.value) {
+        loading.value = false
+        return
+      }
+
       await Promise.all([
         fetchEstablishments(),
         fetchServices(),
@@ -594,6 +618,7 @@ export default defineComponent({
       calling,
       searchQuery,
       filterStatus,
+      roleResolved,
       showDialog,
       showDeleteDialog,
       showCallDialog,
