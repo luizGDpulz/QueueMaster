@@ -258,6 +258,7 @@
                                 @update:model-value="toggleSelect(entry.id, 'waiting')"
                                 @click.stop
                                 dense
+                                color="primary"
                                 class="queue-order-checkbox"
                               />
                               <span class="queue-order-number">{{ index + 1 }}</span>
@@ -331,6 +332,7 @@
                                 @update:model-value="toggleSelect(entry.id, 'called')"
                                 @click.stop
                                 dense
+                                color="primary"
                                 class="queue-order-checkbox"
                               />
                               <span class="queue-order-number">{{ index + 1 }}</span>
@@ -401,6 +403,7 @@
                                 @update:model-value="toggleSelect(entry.id, 'serving')"
                                 @click.stop
                                 dense
+                                color="primary"
                                 class="queue-order-checkbox"
                               />
                               <span class="queue-order-number">{{ index + 1 }}</span>
@@ -3308,10 +3311,6 @@ export default defineComponent({
   width: 110px;
 }
 
-.queue-col-actions {
-  width: 240px;
-}
-
 .queue-entry-row {
   cursor: pointer;
 }
@@ -3321,8 +3320,8 @@ export default defineComponent({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
 }
 
 .queue-order-cell--selectable {
@@ -3340,6 +3339,18 @@ export default defineComponent({
   justify-content: center;
   opacity: 0;
   pointer-events: none;
+}
+
+.queue-order-number {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--qm-bg-secondary);
+  border: 1px solid var(--qm-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
 
 .queue-entry-row:hover .queue-order-cell--selectable .queue-order-checkbox,
@@ -3366,12 +3377,18 @@ export default defineComponent({
 
 .queue-user-cell {
   min-width: 220px;
+  align-items: center;
 }
 
 .queue-avatar {
-  background: var(--qm-bg-secondary);
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.9rem;
+  background: var(--qm-surface);
   color: var(--qm-text-primary);
+  border: 1px solid var(--qm-border);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .queue-avatar img {
@@ -3383,6 +3400,46 @@ export default defineComponent({
 .queue-avatar span {
   font-weight: 700;
   font-size: 0.82rem;
+}
+
+.queue-user-cell .meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.queue-user-cell .meta-top {
+  display: block;
+}
+
+.queue-user-cell .meta-top strong {
+  display: block;
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+.queue-user-cell .meta > span {
+  font-size: 0.78rem;
+  color: var(--qm-text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-order-checkbox :deep(.q-checkbox__inner) {
+  color: var(--qm-brand);
+}
+
+.queue-order-checkbox :deep(.q-checkbox__bg) {
+  border-radius: 8px;
+  border-color: var(--qm-border-strong, var(--qm-border));
+  background: var(--qm-surface);
+}
+
+.queue-order-checkbox :deep(.q-checkbox__svg) {
+  color: var(--qm-brand-contrast, #fff);
 }
 
 .queue-entry-row--delayed {
